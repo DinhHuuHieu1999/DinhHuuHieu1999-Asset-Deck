@@ -1,0 +1,390 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'asset.dart';
+import 'asset_session.dart';
+import 'asset_store.dart';
+
+/// Native JSON client with bounded responses and in-memory credentials only.
+/// Adapted from ToolDeck's selected auth/CSRF/session transport; no other domains.
+class AssetApi implements AssetSession {
+  AssetApi(
+    Uri endpoint, {
+    bool allowLocalHttp = false,
+    this.timeout = const Duration(seconds: 15),
+  }) : baseUrl = _endpoint(endpoint, allowLocalHttp) {
+    if (timeout <= Duration.zero)
+      throw ArgumentError('Timeout must be positive');
+  }
+  final Uri baseUrl;
+  final Duration timeout;
+  String? _token, _csrfToken;
+  List<Cookie> _cookies = [];
+  Future<void>? _csrfFuture;
+  final _changes = StreamController<int>.broadcast();
+  final _active = <HttpClient>{};
+  int _epoch = 0;
+  bool _closed = false;
+  AssetAccount? _account;
+  @override
+  AssetAccount? get account => _account;
+  @override
+  int get sessionRevision => _epoch;
+  @override
+  Stream<int> get sessionChanges => _changes.stream;
+
+  static Uri _endpoint(Uri value, bool allowLocalHttp) {
+    final local = [
+      'localhost',
+      '127.0.0.1',
+      '::1',
+      '[::1]',
+    ].contains(value.host);
+    if ((value.scheme != 'https' &&
+            !(allowLocalHttp && local && value.scheme == 'http')) ||
+        value.host.isEmpty ||
+        value.userInfo.isNotEmpty ||
+        value.hasQuery ||
+        value.hasFragment ||
+        value.path.replaceAll(RegExp(r'/+$'), '') != '/api/v1') {
+      throw ArgumentError('Use an HTTPS endpoint ending in /api/v1');
+    }
+    return value.replace(path: '/api/v1/');
+  }
+
+  void _current(int epoch) {
+    if (_closed) throw const AssetFailure('Client is closed');
+    if (epoch != _epoch)
+      throw const AssetFailure('Session changed; sign in again');
+  }
+
+  int _requireAccount() {
+    _current(_epoch);
+    if (_account == null)
+      throw const AssetFailure('Please sign in again', statusCode: 401);
+    return _epoch;
+  }
+
+  int _beginAuth() {
+    _current(_epoch);
+    final hadAccount = _account != null;
+    _clear();
+    if (hadAccount) _changes.add(_epoch);
+    return _epoch;
+  }
+
+  void _accept(Map<String, Object?> result, int epoch) {
+    _current(epoch);
+    final token = result['accessToken'];
+    final user = result['user'];
+    if (token is! String ||
+        token.isEmpty ||
+        token.length > 16384 ||
+        RegExp(r'[\s\x00-\x1f\x7f]').hasMatch(token) ||
+        user is! Map<String, Object?> ||
+        user['id'] is! String ||
+        !RegExp(r'^[a-fA-F0-9]{24}$').hasMatch(user['id']! as String) ||
+        user['name'] is! String ||
+        (user['name']! as String).isEmpty ||
+        (user['name']! as String).length > 100) {
+      throw const AssetFailure('Invalid sign-in response');
+    }
+    _token = token;
+    _account = AssetAccount(
+      id: (user['id']! as String).toLowerCase(),
+      name: user['name']! as String,
+    );
+    _changes.add(epoch);
+  }
+
+  @override
+  Future<void> login(String identifier, String password) async {
+    if (identifier.trim().length < 3 ||
+        identifier.trim().length > 100 ||
+        password.length < 8 ||
+        password.length > 72) {
+      throw const AssetFailure(
+        'Enter a valid identifier and password (8-72 characters).',
+        definitelyNotSent: true,
+      );
+    }
+    final epoch = _beginAuth();
+    _accept(
+      await _request('POST', 'auth/login', epoch, {
+        'identifier': identifier.trim(),
+        'password': password,
+      }),
+      epoch,
+    );
+  }
+
+  @override
+  Future<void> register({
+    required String email,
+    required String username,
+    required String name,
+    required String password,
+  }) async {
+    if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email.trim()) ||
+        !RegExp(r'^[a-zA-Z0-9._]{3,30}$').hasMatch(username.trim()) ||
+        name.trim().isEmpty ||
+        name.trim().length > 100 ||
+        password.length < 8 ||
+        password.length > 72) {
+      throw const AssetFailure(
+        'Check email, username (3-30), name (1-100) and password (8-72).',
+        definitelyNotSent: true,
+      );
+    }
+    final epoch = _beginAuth();
+    _accept(
+      await _request('POST', 'auth/register', epoch, {
+        'email': email.trim(),
+        'username': username.trim(),
+        'name': name.trim(),
+        'password': password,
+      }),
+      epoch,
+    );
+  }
+
+  @override
+  Future<AssetPage> list({
+    required String query,
+    required String status,
+    required int offset,
+  }) async {
+    final epoch = _requireAccount();
+    if (query.length > 120 ||
+        query.contains('\u0000') ||
+        (status.isNotEmpty && !assetStatuses.contains(status)) ||
+        offset < 0 ||
+        offset > 100000) {
+      throw const AssetFailure('Invalid inventory filters');
+    }
+    final path = Uri(
+      path: 'assets',
+      queryParameters: {
+        'q': query.trim(),
+        'status': status,
+        'offset': '$offset',
+      },
+    ).toString();
+    final result = await _request('GET', path, epoch);
+    _current(epoch);
+    try {
+      return AssetPage.fromJson(result, offset: offset);
+    } on FormatException {
+      throw const AssetFailure('Invalid inventory response');
+    }
+  }
+
+  @override
+  Future<AssetRecord> create(AssetInput input) async {
+    final epoch = _requireAccount();
+    return _record(await _request('POST', 'assets', epoch, input.toJson()));
+  }
+
+  @override
+  Future<AssetRecord> update(AssetRecord original, AssetInput input) async {
+    final epoch = _requireAccount();
+    // Validate server identity before it can become a path segment.
+    if (!RegExp(
+          r'^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$',
+        ).hasMatch(original.id) ||
+        original.version < 1 ||
+        original.version > 2147483646) {
+      throw const AssetFailure('Reload this asset before editing');
+    }
+    final result = _record(
+      await _request('PUT', 'assets/${original.id}', epoch, {
+        ...input.toJson(),
+        'version': original.version,
+      }),
+    );
+    if (result.id.toLowerCase() != original.id.toLowerCase() ||
+        result.version != original.version + 1) {
+      throw const AssetFailure(
+        'Invalid update response; refresh before another write',
+      );
+    }
+    return result;
+  }
+
+  AssetRecord _record(Map<String, Object?> value) {
+    try {
+      return AssetRecord.fromJson(value);
+    } on FormatException {
+      throw const AssetFailure(
+        'Invalid asset response; refresh before another write',
+      );
+    }
+  }
+
+  Future<void> _csrf(int epoch) async {
+    _current(epoch);
+    if (_csrfToken != null) return;
+    final future = _csrfFuture ??= _loadCsrf(epoch);
+    try {
+      await future;
+    } catch (_) {
+      if (identical(_csrfFuture, future)) _csrfFuture = null;
+      rethrow;
+    }
+    _current(epoch);
+  }
+
+  Future<void> _loadCsrf(int epoch) async {
+    final response = await _send('GET', 'csrf-token', epoch);
+    _current(epoch);
+    final token = response['token'];
+    if (token is! String ||
+        token.isEmpty ||
+        token.length > 8192 ||
+        RegExp(r'[\r\n\x00]').hasMatch(token) ||
+        _cookies.isEmpty) {
+      throw const AssetFailure('Invalid CSRF response');
+    }
+    _csrfToken = token;
+  }
+
+  Future<Map<String, Object?>> _request(
+    String method,
+    String path,
+    int epoch, [
+    Map<String, Object?>? body,
+  ]) async {
+    _current(epoch);
+    if (method != 'GET') await _csrf(epoch);
+    _current(epoch);
+    return _send(method, path, epoch, body);
+  }
+
+  Future<Map<String, Object?>> _send(
+    String method,
+    String path,
+    int epoch, [
+    Map<String, Object?>? body,
+  ]) async {
+    _current(epoch);
+    final client = HttpClient()..connectionTimeout = timeout;
+    _active.add(client);
+    try {
+      return await (() async {
+        final request = await client.openUrl(method, baseUrl.resolve(path));
+        _current(epoch);
+        request.followRedirects = false;
+        request.headers.set(HttpHeaders.acceptHeader, 'application/json');
+        request.headers.set(
+          'x-request-timestamp',
+          '${DateTime.now().millisecondsSinceEpoch}',
+        );
+        if (_token != null)
+          request.headers.set(
+            HttpHeaders.authorizationHeader,
+            'Bearer $_token',
+          );
+        if (method != 'GET') request.headers.set('x-csrf-token', _csrfToken!);
+        request.cookies.addAll(
+          _cookies.where(
+            (cookie) =>
+                (!cookie.secure || baseUrl.scheme == 'https') &&
+                (cookie.expires == null ||
+                    cookie.expires!.isAfter(DateTime.now())),
+          ),
+        );
+        if (body != null) {
+          request.headers.contentType = ContentType.json;
+          request.write(jsonEncode(body));
+        }
+        final response = await request.close();
+        _current(epoch);
+        if (response.statusCode == 401) {
+          signOut();
+          throw const AssetFailure('Please sign in again', statusCode: 401);
+        }
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          final message = switch (response.statusCode) {
+            403 => 'Request rejected. Sign in again before another write.',
+            409 => 'Asset changed or is unavailable; refresh before editing.',
+            422 => 'Pagination limit reached; the list is incomplete. Narrow your filters.',
+            429 => 'Too many requests. Wait before trying again.',
+            _ => 'Request failed',
+          };
+          throw AssetFailure(message, statusCode: response.statusCode);
+        }
+        if (response.headers.contentType?.mimeType != 'application/json') {
+          throw const AssetFailure('Invalid server response');
+        }
+        const limit = 1024 * 1024;
+        if (response.contentLength > limit)
+          throw const AssetFailure('Response is too large');
+        final bytes = BytesBuilder(copy: false);
+        await for (final chunk in response) {
+          _current(epoch);
+          if (bytes.length + chunk.length > limit)
+            throw const AssetFailure('Response is too large');
+          bytes.add(chunk);
+        }
+        _current(epoch);
+        final decoded = jsonDecode(utf8.decode(bytes.takeBytes()));
+        if (decoded is! Map<String, Object?>)
+          throw const AssetFailure('Invalid server response');
+        if (path == 'csrf-token') {
+          _cookies = response.cookies
+              .where(
+                (cookie) =>
+                    cookie.name.isNotEmpty &&
+                    (!cookie.secure || baseUrl.scheme == 'https') &&
+                    (cookie.expires == null ||
+                        cookie.expires!.isAfter(DateTime.now())),
+              )
+              .toList(growable: false);
+        }
+        return decoded;
+      })().timeout(timeout);
+    } on AssetFailure {
+      rethrow;
+    } on TimeoutException {
+      throw const AssetFailure('Request timed out');
+    } on FormatException {
+      throw const AssetFailure('Invalid server response');
+    } on IOException {
+      throw const AssetFailure('Unable to connect securely to the server');
+    } finally {
+      client.close(force: true);
+      _active.remove(client);
+    }
+  }
+
+  void _clear() {
+    _epoch++;
+    _account = null;
+    _token = null;
+    _csrfToken = null;
+    _csrfFuture = null;
+    _cookies = [];
+    for (final client in _active.toList()) {
+      client.close(force: true);
+    }
+  }
+
+  /// Discard credentials and pending requests, without revoking the server JWT.
+  @override
+  void signOut() {
+    if (_closed) return;
+    _clear();
+    _changes.add(_epoch);
+  }
+
+  /// End all connections and discard the in-memory session.
+  @override
+  void close() {
+    if (_closed) return;
+    _clear();
+    _closed = true;
+    unawaited(_changes.close());
+  }
+}

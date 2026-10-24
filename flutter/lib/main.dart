@@ -1,0 +1,48 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+
+import 'api/asset_api.dart';
+import 'asset_desk_app.dart';
+
+/// Launch only with an explicit app-owned endpoint; never disable TLS validation.
+void main() {
+  const endpoint = String.fromEnvironment('ASSET_DESK_API_URL');
+  if (endpoint.isEmpty) {
+    runApp(
+      const _ConfigurationMessage(
+        'Set ASSET_DESK_API_URL to the HTTPS endpoint including /api/v1.',
+      ),
+    );
+    return;
+  }
+  try {
+    final api = AssetApi(
+      Uri.parse(endpoint),
+      allowLocalHttp:
+          kDebugMode &&
+          const bool.fromEnvironment('ASSET_DESK_ALLOW_LOCAL_HTTP'),
+    );
+    runApp(AssetDeskApp(session: api));
+  } on ArgumentError {
+    runApp(
+      const _ConfigurationMessage(
+        'Invalid endpoint. Use HTTPS /api/v1 without credentials, query or fragment.',
+      ),
+    );
+  } on FormatException {
+    runApp(const _ConfigurationMessage('Invalid API URL configuration.'));
+  }
+}
+
+class _ConfigurationMessage extends StatelessWidget {
+  const _ConfigurationMessage(this.message);
+  final String message;
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+    home: Scaffold(
+      body: SafeArea(
+        child: Padding(padding: const EdgeInsets.all(24), child: Text(message)),
+      ),
+    ),
+  );
+}

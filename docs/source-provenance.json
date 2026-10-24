@@ -1,0 +1,332 @@
+{
+  "originCommit": "79e22d0fca9281710c782a9abe7ab151d76b6ef4",
+  "notice": "User-owned source selected for local development; no publication license granted",
+  "files": [
+    {
+      "source": "apps/backend/packages/nestjs/src/app/config/env-files.ts",
+      "destination": "backend/src/app/config/env-files.ts",
+      "originSha256": "4df9df8d9853e9cb1f7813b967a5866eababbf51f1438004a1256800f5333c72",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "905105c057b81388d5d6e6f7d8f068c0d9ae4f909b013229e67628dc26db98e1"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/app/config/jwt.config.spec.ts",
+      "destination": "backend/src/app/config/jwt.config.spec.ts",
+      "originSha256": "19e5beb80efe6cfa948927905fa072f9d231d7a311836c9a215674be0f3a7aec",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "e3065dbae33b64f7ca032bf705a0ce567126b104cc607f77127277aebce328ee"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/app/config/jwt.config.ts",
+      "destination": "backend/src/app/config/jwt.config.ts",
+      "originSha256": "e3d0456bc9ac66e4117d1ec856b444e1f3a8fec7382741b6b89d16678bad5221",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "97ee9342314882d46fc53a066baab66db94ef39d1280c40a2cf0868157ea78df"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/app/config/runtime.config.ts",
+      "destination": "backend/src/app/config/runtime.config.ts",
+      "originSha256": "e03991053625cd5cbaa7626baefc3f8972cb085dd194222bb559dec4dbda85a4",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "e22ecd7adaab08e78f8bdc2f046311a818df6d613e5e883881380ecb1289e71d"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/app/middleware/csrf.middleware.ts",
+      "destination": "backend/src/app/middleware/csrf.middleware.ts",
+      "originSha256": "6aff70edbc885a02172080edd5f797ecf9705f3213507946cac4d91bc363908a",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "e3c4a15d65725332f504e1a46ba7a22a08aea512c1424d4ef01ac14995481b98"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/app/modules/csrf.module.ts",
+      "destination": "backend/src/app/modules/csrf.module.ts",
+      "originSha256": "6bcd5bedceb73042ece6d1923edb555026b0a6a71583e5e343eb11a23fbaae81",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "79e62665b59406cb354c29f8a432c461944102b4da739f79572f7a68355b53ba"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/app/services/csrf.service.spec.ts",
+      "destination": "backend/src/app/services/csrf.service.spec.ts",
+      "originSha256": "4780afb21f4a3c6c09e091070682badcc18428be5ba696bb6a04e3aeed1aad66",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "daa9fe56e8cb3fffe7f8ecfdbfcc830b98607b265388feb3e59d3ea73f33a43c"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/app/services/csrf.service.ts",
+      "destination": "backend/src/app/services/csrf.service.ts",
+      "originSha256": "6cb3942284a05593bf6649fa81e9548b52293e1d2cff89c007bd526663d94c11",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "964036b130961cce756472e739c1b85c96ca6aaa7c2df4bef548a2e75cb143e9"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/domains/auth/account.repository.spec.ts",
+      "destination": "backend/src/domains/auth/account.repository.spec.ts",
+      "originSha256": "db39496ab4c54169e98b182900a754e40577a9ff33c4cbf538319c967378a971",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; remove gRPC-only dependency/assertions; retain HTTP/JWT repository checks; formatting normalized",
+      "destinationSha256": "8c76f3d06fc23c09e2e7c46b885a39dfdf610b024037e2437831419eadb6dd70"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/domains/auth/account.repository.ts",
+      "destination": "backend/src/domains/auth/account.repository.ts",
+      "originSha256": "201d21d86cdb661fa2ae913026696b73af40f2d7ed4ce8e42ee46b8559d208c9",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "f229e0256f1b81002e7094f7907c4ef0e02a5ffebb7915c024f8ee8e46bbebae"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/domains/auth/auth-password.util.spec.ts",
+      "destination": "backend/src/domains/auth/auth-password.util.spec.ts",
+      "originSha256": "f0b30b5351985e5eb7dfda757da71b0b7173b8c0befa64211a35d4a01ba2e8ce",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "46698b53a110271595a638cdd7db84468e81b9553f86d668a519db8fb3bdc0a1"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/domains/auth/auth-password.util.ts",
+      "destination": "backend/src/domains/auth/auth-password.util.ts",
+      "originSha256": "86d5b2f63312be03db1ffa6f7da7dc07ad6e7790ae1ea40f9e46084ca67bf89e",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "fc54ac57c0d2bab7e19538e4f9ab84a2a0d8f2661e3be589a136919cbf19d6d3"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/domains/auth/auth-reset.util.spec.ts",
+      "destination": "backend/src/domains/auth/auth-reset.util.spec.ts",
+      "originSha256": "d953b0245d9e4654c6a5edbb96d295df71199c3db5382397485dd60206bb78ec",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "d953b0245d9e4654c6a5edbb96d295df71199c3db5382397485dd60206bb78ec"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/domains/auth/auth-reset.util.ts",
+      "destination": "backend/src/domains/auth/auth-reset.util.ts",
+      "originSha256": "12aca642c16de397e836215e8693223d1ae8bd89a9e78c4f4f38d56e8493ede0",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "1ed09a2d243f0df35c0e2688293c75f4009a9c581c617ee610019757d50d822d"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/domains/auth/auth-search.util.ts",
+      "destination": "backend/src/domains/auth/auth-search.util.ts",
+      "originSha256": "3b81e2c5bdcb46000243adae62ab3e82e5f292fbe245fec3f0cc668f6831a7e8",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "3b81e2c5bdcb46000243adae62ab3e82e5f292fbe245fec3f0cc668f6831a7e8"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/domains/auth/auth.service.spec.ts",
+      "destination": "backend/src/domains/auth/auth.service.spec.ts",
+      "originSha256": "d7c635334d3b260dac4ac6c73a94fbf8b5b8039dff1ca07e6eb102e0cb1fe673",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "2065ccb3293a6c0697dcf6e1df68f66cb43f5de494dcb8340f32fab16116bec9"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/domains/auth/auth.service.ts",
+      "destination": "backend/src/domains/auth/auth.service.ts",
+      "originSha256": "71bc4a7f580532ede90b5075971e3ac3d1d8ea62475cffc1bc54eca40b765fd0",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "f558ab92c234040ea8237fe1aa336019cfbb009fcc72d52c65ddc4e9fc31b665"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/domains/auth/constants/account-statuses.ts",
+      "destination": "backend/src/domains/auth/constants/account-statuses.ts",
+      "originSha256": "03ec2becebf3078d67ee58d8e73b85bed3046b8ad39037c825cb2c38f1c8a8ce",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "91f6a7b9e5da0b9497e3e9075cb643239420f3cd22380383d7c07ae77ff57f23"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/domains/auth/dto/admin-create-user.dto.ts",
+      "destination": "backend/src/domains/auth/dto/admin-create-user.dto.ts",
+      "originSha256": "025c9f6be8b5b53be8b3a82042172c269cf852ebb31443c936421f865a9f7b47",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "a386ec1325ee684508ff53ea0edbf9d1354536789af7803ae8fb5a3013595cbe"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/domains/auth/dto/admin-list-users.dto.ts",
+      "destination": "backend/src/domains/auth/dto/admin-list-users.dto.ts",
+      "originSha256": "830e23fa862feef5f084c7e3b2a9339ace1ba3690e02494aa879a4f0141ddd70",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "b1409506951ea23dcb37b8b6ebb07e5e8fa3d79863cb6928950054cd63669fcd"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/domains/auth/dto/admin-update-user-status.dto.ts",
+      "destination": "backend/src/domains/auth/dto/admin-update-user-status.dto.ts",
+      "originSha256": "64c19a0dd28f5fbd83000749b33bf1dea03deb321a356e9a897bd9a7fb0235cf",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "b655ce246395aeb163ec1eb71cf513caf873efa007aa9a19a6c038024508138e"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/domains/auth/dto/change-password.dto.ts",
+      "destination": "backend/src/domains/auth/dto/change-password.dto.ts",
+      "originSha256": "ffe63f5ec4d2414cea004ef021b1745e259261140335891ab605f77ed498b21a",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "ffe63f5ec4d2414cea004ef021b1745e259261140335891ab605f77ed498b21a"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/domains/auth/dto/forgot-password.dto.ts",
+      "destination": "backend/src/domains/auth/dto/forgot-password.dto.ts",
+      "originSha256": "e7a46f03d0aace3e597200d531938388f9fafba839744434f8321bb79b10f097",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "e7a46f03d0aace3e597200d531938388f9fafba839744434f8321bb79b10f097"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/domains/auth/dto/login.dto.ts",
+      "destination": "backend/src/domains/auth/dto/login.dto.ts",
+      "originSha256": "84b7d14e0bf562a0d1172af3f01f38f29d688ce19478113b8fb91986bdf49e72",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "84b7d14e0bf562a0d1172af3f01f38f29d688ce19478113b8fb91986bdf49e72"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/domains/auth/dto/register.dto.ts",
+      "destination": "backend/src/domains/auth/dto/register.dto.ts",
+      "originSha256": "7da729d29cdfa888656899de993fbcc251cd96149ca787da31ef01fe098c206c",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "e172eddb90aac69d1e8a57497bf3edd523829c2c6c534f0b34352d69890937e3"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/domains/auth/dto/reset-password.dto.ts",
+      "destination": "backend/src/domains/auth/dto/reset-password.dto.ts",
+      "originSha256": "1f23078d23b8930c90e552ceef7d92aa8228194bac8925863db95345b2b3f5f0",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "1f23078d23b8930c90e552ceef7d92aa8228194bac8925863db95345b2b3f5f0"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/domains/auth/postgres-account.repository.spec.ts",
+      "destination": "backend/src/domains/auth/postgres-account.repository.spec.ts",
+      "originSha256": "24a262fafa4eff02834fe23a5f549a51956e890ad604499ecd9c6b5d0c058a29",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; remove gRPC-only dependency/assertions; retain HTTP/JWT repository checks; formatting normalized",
+      "destinationSha256": "61d2425a56a20f55a97e5c562bf312a7b9b13482fc02d025286733c07c0e08e1"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/domains/auth/postgres-account.repository.ts",
+      "destination": "backend/src/domains/auth/postgres-account.repository.ts",
+      "originSha256": "a892fa34c3b330b6cdcaba7d97f42937ad07f4974d0f1a3be2267cd2df6f3e51",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "a69a6d5bff542425bf035e9725fdfbef429a43e1881328519dd36812410a495b"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/infrastructure/database/postgres.database.spec.ts",
+      "destination": "backend/src/infrastructure/database/postgres.database.spec.ts",
+      "originSha256": "2ec9e730eb5c538d2d9fdf4b0798a9ddfc84bea7c3d78059839742171e36015d",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized; application name changed to asset-desk-auth",
+      "destinationSha256": "e6413d34f19d203bf2989848ce4d6b181e8ac7ee406773134da1f4aa5d946c47"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/infrastructure/database/postgres.database.ts",
+      "destination": "backend/src/infrastructure/database/postgres.database.ts",
+      "originSha256": "f5e4c7cb9ea702c2e87b59022df4daf4c765f95d6fb5041981dda8df07734e61",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized; application name changed to asset-desk-auth",
+      "destinationSha256": "b195b90d5988e7f61b3d59506d57f5dd88056fdbe640a2c1915245d5d8fff7d7"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/infrastructure/guards/ip-whitelist.guard.spec.ts",
+      "destination": "backend/src/infrastructure/guards/ip-whitelist.guard.spec.ts",
+      "originSha256": "b7c2e45019f5db164334f7cff2d293c9f645f13dfb02d8a1118e476aa590bafb",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "5f85ec4f6642176179c15c741436fe70e8f3e249d7422d00145532301eedd205"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/infrastructure/guards/ip-whitelist.guard.ts",
+      "destination": "backend/src/infrastructure/guards/ip-whitelist.guard.ts",
+      "originSha256": "4fb053a24f7c2f6293c14e2d27a53d84cc0f4c6b9c5d1d8861cbb205072b2d72",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "366950569c02b292ca75bdf545685babba0a09ddaad19fd3992e25ac9ca2d269"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/infrastructure/guards/jwt-auth.guard.ts",
+      "destination": "backend/src/infrastructure/guards/jwt-auth.guard.ts",
+      "originSha256": "8ea631c3ff7bd28a6b13ccacf695d567715a8834a49da2bb568a1677dc196a66",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "b8bca18a09f6ed00eba21df0ed4bfd39d6da91ccfb91215f7eab74be85e7f89b"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/infrastructure/guards/request-freshness.guard.ts",
+      "destination": "backend/src/infrastructure/guards/request-freshness.guard.ts",
+      "originSha256": "dfc3849dd853cec7cac4f0134b75706dace06e1ae906eb99462ec8d145c813d3",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "0f14159e3b883514fee3e419d5ee5573b0f01544c702c388503d6e6813f50c10"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/infrastructure/guards/roles.guard.ts",
+      "destination": "backend/src/infrastructure/guards/roles.guard.ts",
+      "originSha256": "3a784e2facd9f82922919331f587524abee890d520da6c3d9f41e2676bab338d",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "58041a5d8db9e85273f037e340dc78b76cbb84b784673b2a5862b9ad29ad6f84"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/infrastructure/strategies/jwt.strategy.spec.ts",
+      "destination": "backend/src/infrastructure/strategies/jwt.strategy.spec.ts",
+      "originSha256": "1ee5b3998a133fccdbcd84b3e389fa1821c8325ec96e0e9a85be24689ba22e9b",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "2c5c741a32ffe56ca6fa7ebfa9f301acfd793711e30a904047137fc863eb17f5"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/infrastructure/strategies/jwt.strategy.ts",
+      "destination": "backend/src/infrastructure/strategies/jwt.strategy.ts",
+      "originSha256": "b60239793b95ee8b1a5f482236d858514e33ae5f0ae6bd134d7e477776e65b78",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "cfaf350402605204fe6ecacefb9f16bdc1108a4a7f5921cb1ec960ad60040dea"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/infrastructure/strategies/local.strategy.ts",
+      "destination": "backend/src/infrastructure/strategies/local.strategy.ts",
+      "originSha256": "caf8e85d60210c42c3e05af6267eb765e7e27d80b827725e7dee5c156051c632",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "6dc8b45ad485e722d1df1da00a2e20d45c8ab85e0b8e5308c3b6e823cd4d500f"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/shared/decorators/auth.decorator.ts",
+      "destination": "backend/src/shared/decorators/auth.decorator.ts",
+      "originSha256": "c5381ded1f701fbe62a67be05cd8d4c96d87b488833f4fd0bed1674af257e33b",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "2ef1d68ed5734bbfd634bf3400366e967d83171f0cb2e9fd46003d44248d62d2"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/shared/decorators/public.decorator.ts",
+      "destination": "backend/src/shared/decorators/public.decorator.ts",
+      "originSha256": "bb149c7568f240afbabb885243d83abe7ec86fe6a27777ba4d028b7fb3b463dc",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "bb149c7568f240afbabb885243d83abe7ec86fe6a27777ba4d028b7fb3b463dc"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/shared/decorators/roles.decorator.ts",
+      "destination": "backend/src/shared/decorators/roles.decorator.ts",
+      "originSha256": "943c1f141266f02005ab7dd8d1527d909bd1f87664fdf1993adee828413b0cc2",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "af1d0b7bdaa7685abe576eb03f8b16287c94de452c9084777ad951edaaf5fe5b"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/shared/enums/role-auth.enum.ts",
+      "destination": "backend/src/shared/enums/role-auth.enum.ts",
+      "originSha256": "a1cb6196a4899554113740193310110be14aa6a6572c351bbb824e44f63243d4",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "a1cb6196a4899554113740193310110be14aa6a6572c351bbb824e44f63243d4"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/src/shared/enums/status-auth.enum.ts",
+      "destination": "backend/src/shared/enums/status-auth.enum.ts",
+      "originSha256": "edadeaf7650c9577e4828034b565b3687b0f080440ab6ff4bedbe7229f2ba7c2",
+      "adaptation": "UTF-8 LF; app aliases converted to relative imports; formatting normalized",
+      "destinationSha256": "df08cdbbca5e0f14b0aeb391b80a084fca506a07e92fef866644d5306ee7dafe"
+    },
+    {
+      "source": "apps/backend/packages/nestjs/migrations/001-auth-accounts.sql",
+      "destination": "backend/migrations/001-auth-accounts.sql",
+      "originSha256": "eab88dcafd8810345440fc03eb9dc7484f5330629fd3ac5223e326cc521b6ae9",
+      "adaptation": "UTF-8 LF only; formatting normalized",
+      "destinationSha256": "eab88dcafd8810345440fc03eb9dc7484f5330629fd3ac5223e326cc521b6ae9"
+    }
+  ],
+  "productOwnedFiles": [
+    "backend/src/app/config/startup.config.ts",
+    "backend/src/app/modules/app.module.spec.ts",
+    "backend/src/app/modules/app.module.ts",
+    "backend/src/app/modules/database.module.ts",
+    "backend/src/app/system.controller.ts",
+    "backend/src/bootstrap.spec.ts",
+    "backend/src/domains/assets/assets.controller.ts",
+    "backend/src/domains/assets/assets.dto.ts",
+    "backend/src/domains/assets/assets.module.ts",
+    "backend/src/domains/assets/assets.repository.ts",
+    "backend/src/domains/assets/assets.service.ts",
+    "backend/src/domains/assets/assets.spec.ts",
+    "backend/src/domains/auth/auth.controller.ts",
+    "backend/src/domains/auth/auth.module.ts",
+    "backend/src/main.spec.ts",
+    "backend/src/main.ts"
+  ]
+}

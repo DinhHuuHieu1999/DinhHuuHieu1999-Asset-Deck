@@ -1,0 +1,346 @@
+{
+  "originCommit": "79e22d0fca9281710c782a9abe7ab151d76b6ef4",
+  "purpose": "Read-only static import inventory; not an approved copy manifest",
+  "roots": [
+    "apps/backend/packages/nestjs/src/domains/auth/auth.module.ts",
+    "apps/backend/packages/nestjs/src/app/modules/csrf.module.ts",
+    "apps/backend/packages/nestjs/src/app/modules/database.module.ts"
+  ],
+  "limits": [
+    "Regex inventory only; not a compiler resolution or runtime closure proof",
+    "Workspace packages and external package imports are not expanded",
+    "Dynamic import/computed paths are not exhaustively resolved"
+  ],
+  "fileCount": 35,
+  "files": [
+    {
+      "path": "apps/backend/packages/nestjs/src/app/config/account-storage.config.ts",
+      "sha256": "6dc54dd8fe3b346460d619b43c14eef659ea9901ecaaf18af2f9bbc7628b9ca8",
+      "imports": []
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/app/config/env-files.ts",
+      "sha256": "4df9df8d9853e9cb1f7813b967a5866eababbf51f1438004a1256800f5333c72",
+      "imports": ["fs", "path", "dotenv", "dotenv-expand"]
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/app/config/jwt.config.ts",
+      "sha256": "e3d0456bc9ac66e4117d1ec856b444e1f3a8fec7382741b6b89d16678bad5221",
+      "imports": []
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/app/modules/csrf.module.ts",
+      "sha256": "6bcd5bedceb73042ece6d1923edb555026b0a6a71583e5e343eb11a23fbaae81",
+      "imports": ["@nestjs/common", "@app/services/csrf.service"]
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/app/modules/database.module.ts",
+      "sha256": "c1525a581cb7bf5360948a3adccd16233a4818b677148be3d85c14dcd0989d79",
+      "imports": [
+        "@nestjs/common",
+        "@nestjs/config",
+        "@nestjs/mongoose",
+        "@app/config/env-files",
+        "@app/config/account-storage.config",
+        "@infra/database/postgres.database"
+      ]
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/app/services/csrf.service.ts",
+      "sha256": "6cb3942284a05593bf6649fa81e9548b52293e1d2cff89c007bd526663d94c11",
+      "imports": ["@nestjs/common", "csrf-csrf", "csrf-csrf", "express"]
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/domains/auth/account.repository.ts",
+      "sha256": "201d21d86cdb661fa2ae913026696b73af40f2d7ed4ce8e42ee46b8559d208c9",
+      "imports": [
+        "@shared/enums/role-auth.enum",
+        "@shared/enums/status-auth.enum"
+      ]
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/domains/auth/auth-password.util.ts",
+      "sha256": "86d5b2f63312be03db1ffa6f7da7dc07ad6e7790ae1ea40f9e46084ca67bf89e",
+      "imports": ["@nestjs/common"]
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/domains/auth/auth-reset.util.ts",
+      "sha256": "12aca642c16de397e836215e8693223d1ae8bd89a9e78c4f4f38d56e8493ede0",
+      "imports": []
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/domains/auth/auth-search.util.ts",
+      "sha256": "3b81e2c5bdcb46000243adae62ab3e82e5f292fbe245fec3f0cc668f6831a7e8",
+      "imports": []
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/domains/auth/auth.controller.ts",
+      "sha256": "6a6e4d346fb68a81f16545a15e882c3ac65b950c9d057ef22cd5260160a0f98f",
+      "imports": [
+        "@nestjs/common",
+        "@nestjs/swagger",
+        "@nestjs/passport",
+        "@shared/decorators/public.decorator",
+        "@shared/decorators/auth.decorator",
+        "@shared/enums/role-auth.enum",
+        "@domains/auth/constants/account-statuses",
+        "./auth.service",
+        "@domains/auth/dto/admin-create-user.dto",
+        "@domains/auth/dto/admin-list-users.dto",
+        "@domains/auth/dto/admin-update-user-status.dto",
+        "@domains/auth/dto/change-password.dto",
+        "@domains/auth/dto/forgot-password.dto",
+        "@domains/auth/dto/login.dto",
+        "@domains/auth/dto/register.dto",
+        "@domains/auth/dto/reset-password.dto"
+      ]
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/domains/auth/auth.module.ts",
+      "sha256": "08850d5077426a473a30dbed5124aac3cb8da480a56f2d53a9e21ef7fe04fa40",
+      "imports": [
+        "@nestjs/common",
+        "@nestjs/config",
+        "@nestjs/mongoose",
+        "./auth.controller",
+        "./auth.service",
+        "../../infrastructure/strategies/local.strategy",
+        "../../infrastructure/strategies/jwt.strategy",
+        "./entities/user.entity",
+        "./account.repository",
+        "./mongo-account.repository",
+        "./postgres-account.repository",
+        "@app/modules/database.module",
+        "@app/config/account-storage.config"
+      ]
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/domains/auth/auth.service.ts",
+      "sha256": "71bc4a7f580532ede90b5075971e3ac3d1d8ea62475cffc1bc54eca40b765fd0",
+      "imports": [
+        "@nestjs/common",
+        "jose",
+        "@app/config/jwt.config",
+        "@nestjs/cache-manager",
+        "cache-manager",
+        "bcrypt",
+        "crypto",
+        "@shared/enums/role-auth.enum",
+        "@shared/enums/status-auth.enum",
+        "@domains/auth/dto/change-password.dto",
+        "@domains/auth/dto/admin-create-user.dto",
+        "@domains/auth/dto/admin-list-users.dto",
+        "@domains/auth/dto/admin-update-user-status.dto",
+        "@domains/auth/dto/forgot-password.dto",
+        "@domains/auth/dto/login.dto",
+        "@domains/auth/dto/register.dto",
+        "@domains/auth/dto/reset-password.dto",
+        "./account.repository",
+        "./auth-password.util",
+        "./auth-reset.util"
+      ]
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/domains/auth/constants/account-statuses.ts",
+      "sha256": "03ec2becebf3078d67ee58d8e73b85bed3046b8ad39037c825cb2c38f1c8a8ce",
+      "imports": ["@shared/enums/status-auth.enum"]
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/domains/auth/dto/admin-create-user.dto.ts",
+      "sha256": "025c9f6be8b5b53be8b3a82042172c269cf852ebb31443c936421f865a9f7b47",
+      "imports": [
+        "@nestjs/swagger",
+        "@shared/enums/role-auth.enum",
+        "@shared/enums/status-auth.enum",
+        "class-validator",
+        "../constants/account-statuses"
+      ]
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/domains/auth/dto/admin-list-users.dto.ts",
+      "sha256": "830e23fa862feef5f084c7e3b2a9339ace1ba3690e02494aa879a4f0141ddd70",
+      "imports": [
+        "@nestjs/swagger",
+        "@shared/enums/role-auth.enum",
+        "class-transformer",
+        "class-validator",
+        "../constants/account-statuses"
+      ]
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/domains/auth/dto/admin-update-user-status.dto.ts",
+      "sha256": "64c19a0dd28f5fbd83000749b33bf1dea03deb321a356e9a897bd9a7fb0235cf",
+      "imports": [
+        "@nestjs/swagger",
+        "@shared/enums/status-auth.enum",
+        "class-validator",
+        "../constants/account-statuses"
+      ]
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/domains/auth/dto/change-password.dto.ts",
+      "sha256": "ffe63f5ec4d2414cea004ef021b1745e259261140335891ab605f77ed498b21a",
+      "imports": ["@nestjs/swagger", "class-validator"]
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/domains/auth/dto/forgot-password.dto.ts",
+      "sha256": "e7a46f03d0aace3e597200d531938388f9fafba839744434f8321bb79b10f097",
+      "imports": ["@nestjs/swagger", "class-validator"]
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/domains/auth/dto/login.dto.ts",
+      "sha256": "84b7d14e0bf562a0d1172af3f01f38f29d688ce19478113b8fb91986bdf49e72",
+      "imports": ["@nestjs/swagger", "class-validator"]
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/domains/auth/dto/register.dto.ts",
+      "sha256": "7da729d29cdfa888656899de993fbcc251cd96149ca787da31ef01fe098c206c",
+      "imports": ["@nestjs/swagger", "class-validator"]
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/domains/auth/dto/reset-password.dto.ts",
+      "sha256": "1f23078d23b8930c90e552ceef7d92aa8228194bac8925863db95345b2b3f5f0",
+      "imports": ["@nestjs/swagger", "class-validator"]
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/domains/auth/entities/user.entity.ts",
+      "sha256": "c9978bb37053561778da0ddc28b037dfea3981ac9da68b85056d7305952f5c12",
+      "imports": [
+        "@nestjs/mongoose",
+        "mongoose",
+        "@shared/enums/role-auth.enum",
+        "@shared/enums/status-auth.enum"
+      ]
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/domains/auth/mongo-account.repository.ts",
+      "sha256": "146c50bd350f99ab0b7d2bc532e0a7f0b58af981ac5cbc5bf852021cca868200",
+      "imports": [
+        "@nestjs/common",
+        "@nestjs/mongoose",
+        "mongoose",
+        "./entities/user.entity",
+        "./account.repository",
+        "./auth-search.util"
+      ]
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/domains/auth/postgres-account.repository.ts",
+      "sha256": "a892fa34c3b330b6cdcaba7d97f42937ad07f4974d0f1a3be2267cd2df6f3e51",
+      "imports": [
+        "@nestjs/common",
+        "node:crypto",
+        "@infra/database/postgres.database",
+        "./account.repository"
+      ]
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/infrastructure/database/postgres.database.ts",
+      "sha256": "f5e4c7cb9ea702c2e87b59022df4daf4c765f95d6fb5041981dda8df07734e61",
+      "imports": ["@nestjs/common", "pg"]
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/infrastructure/guards/jwt-auth.guard.ts",
+      "sha256": "8ea631c3ff7bd28a6b13ccacf695d567715a8834a49da2bb568a1677dc196a66",
+      "imports": [
+        "@nestjs/common",
+        "@nestjs/common",
+        "@nestjs/passport",
+        "@nestjs/core",
+        "@shared/decorators/public.decorator"
+      ]
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/infrastructure/guards/roles.guard.ts",
+      "sha256": "3a784e2facd9f82922919331f587524abee890d520da6c3d9f41e2676bab338d",
+      "imports": [
+        "@nestjs/common",
+        "@nestjs/common",
+        "@nestjs/core",
+        "@shared/decorators/roles.decorator",
+        "@shared/enums/role-auth.enum"
+      ]
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/infrastructure/strategies/jwt.strategy.ts",
+      "sha256": "b60239793b95ee8b1a5f482236d858514e33ae5f0ae6bd134d7e477776e65b78",
+      "imports": [
+        "@nestjs/common",
+        "@nestjs/passport",
+        "@nestjs/config",
+        "jose",
+        "@domains/auth/account.repository",
+        "@shared/enums/status-auth.enum",
+        "@app/config/jwt.config"
+      ]
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/infrastructure/strategies/local.strategy.ts",
+      "sha256": "caf8e85d60210c42c3e05af6267eb765e7e27d80b827725e7dee5c156051c632",
+      "imports": [
+        "@nestjs/common",
+        "@nestjs/passport",
+        "passport-local",
+        "@domains/auth/auth.service",
+        "@shared/enums/role-auth.enum"
+      ]
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/shared/decorators/auth.decorator.ts",
+      "sha256": "c5381ded1f701fbe62a67be05cd8d4c96d87b488833f4fd0bed1674af257e33b",
+      "imports": [
+        "@nestjs/common",
+        "@infra/guards/jwt-auth.guard",
+        "@infra/guards/roles.guard",
+        "@shared/decorators/roles.decorator",
+        "@shared/enums/role-auth.enum"
+      ]
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/shared/decorators/public.decorator.ts",
+      "sha256": "bb149c7568f240afbabb885243d83abe7ec86fe6a27777ba4d028b7fb3b463dc",
+      "imports": ["@nestjs/common"]
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/shared/decorators/roles.decorator.ts",
+      "sha256": "943c1f141266f02005ab7dd8d1527d909bd1f87664fdf1993adee828413b0cc2",
+      "imports": ["@nestjs/common", "@shared/enums/role-auth.enum"]
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/shared/enums/role-auth.enum.ts",
+      "sha256": "a1cb6196a4899554113740193310110be14aa6a6572c351bbb824e44f63243d4",
+      "imports": []
+    },
+    {
+      "path": "apps/backend/packages/nestjs/src/shared/enums/status-auth.enum.ts",
+      "sha256": "edadeaf7650c9577e4828034b565b3687b0f080440ab6ff4bedbe7229f2ba7c2",
+      "imports": []
+    }
+  ],
+  "externalSpecifiers": [
+    "@nestjs/cache-manager",
+    "@nestjs/common",
+    "@nestjs/config",
+    "@nestjs/core",
+    "@nestjs/mongoose",
+    "@nestjs/passport",
+    "@nestjs/swagger",
+    "bcrypt",
+    "cache-manager",
+    "class-transformer",
+    "class-validator",
+    "crypto",
+    "csrf-csrf",
+    "dotenv",
+    "dotenv-expand",
+    "express",
+    "fs",
+    "jose",
+    "mongoose",
+    "node:crypto",
+    "passport-local",
+    "path",
+    "pg"
+  ],
+  "unresolvedLocalImports": []
+}

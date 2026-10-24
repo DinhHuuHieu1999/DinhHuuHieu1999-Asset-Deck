@@ -1,0 +1,60 @@
+{
+  "sourceRevision": "79e22d0fca9281710c782a9abe7ab151d76b6ef4",
+  "status": "source-and-synthetic-tests-only",
+  "copiedFiles": [
+    {
+      "source": "apps/frontend/packages/flutter/pubspec.lock",
+      "destination": "flutter/pubspec.lock",
+      "sha256": "8241a6d6f2e2644b5750196e22c751a1d117b977980d8f8dd68c09fe7c27846b"
+    },
+    {
+      "source": "apps/frontend/packages/flutter/analysis_options.yaml",
+      "destination": "flutter/analysis_options.yaml",
+      "sha256": "cb741ba92aca88171e78f2ea50f181b4140ce241a8ce08a1fc83386b9ed52b7b"
+    }
+  ],
+  "adaptedPatterns": [
+    "lib/api/project.dart: field validation, immutable bounded pages and optimistic metadata",
+    "lib/projects_page.dart: explicit filters and stale-list preservation",
+    "lib/api/tooldeck_api.dart: bounded JSON, CSRF cookie/header, in-memory bearer and session epoch; binary/domain methods excluded",
+    "lib/main.dart: explicit compile-time endpoint and debug-only loopback HTTP allowance"
+  ],
+  "pending": [
+    "real backend/HTTPS client acceptance",
+    "clean-checkout validation",
+    "Windows runner/build/native acceptance",
+    "manual keyboard and screen-reader review"
+  ],
+  "referenceSources": [
+    {
+      "source": "apps/frontend/packages/flutter/pubspec.lock",
+      "originSha256": "8241a6d6f2e2644b5750196e22c751a1d117b977980d8f8dd68c09fe7c27846b",
+      "currentContentMatchesPin": true
+    },
+    {
+      "source": "apps/frontend/packages/flutter/analysis_options.yaml",
+      "originSha256": "cb741ba92aca88171e78f2ea50f181b4140ce241a8ce08a1fc83386b9ed52b7b",
+      "currentContentMatchesPin": true
+    },
+    {
+      "source": "apps/frontend/packages/flutter/lib/api/project.dart",
+      "originSha256": "54ad531e1f84e92d3fc4649fe3da0a1cf92d01c7d023cd9f621e348b8f9ebb24",
+      "currentContentMatchesPin": true
+    },
+    {
+      "source": "apps/frontend/packages/flutter/lib/api/tooldeck_api.dart",
+      "originSha256": "d07f66de35c734540d0f8fb4c1f25d61c98613f7fedc05bdeb435c5b95ddb737",
+      "currentContentMatchesPin": true
+    },
+    {
+      "source": "apps/frontend/packages/flutter/lib/projects_page.dart",
+      "originSha256": "c644fad802d88396d8511fd9f9f59ac8d5460a7d0d884f610cdf0b4bc07bb339",
+      "currentContentMatchesPin": true
+    },
+    {
+      "source": "apps/frontend/packages/flutter/lib/main.dart",
+      "originSha256": "0a19e35440a51e5583e1fd3b2623ab68d4123499fec7be7ebaf9e9f5c3c204f2",
+      "currentContentMatchesPin": true
+    }
+  ]
+}
