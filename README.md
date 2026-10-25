@@ -10,13 +10,18 @@ lifecycle scripts disabled and an independent backend lockfile. Typecheck and
 installed dependencies, including the startup-cleanup patch.
 Separate synthetic PostgreSQL repository and loopback HTTP API fixtures passed
 and were stopped. A separate restart/dump/restore fixture also passed.
-The real Dart client passed a separate synthetic HTTPS fixture. Clean-checkout
-and native client acceptance remain pending.
+The real Dart client passed a separate synthetic HTTPS fixture. A local clone of
+commit `8e1430c` passed backend typecheck/build, 112 backend tests, 82 Flutter
+tests, analyzer and 20 Python/Node fixture-contract tests. Native client
+acceptance remains pending. The clone needed approved network metadata access
+after offline installation failed; locked package archives were reused from cache
+and lifecycle scripts stayed disabled.
 There is no regular deployment/database. Flutter auth/inventory source
 passes analyzer and 82 synthetic unit/widget/harness tests. No platform runner
 has been generated; Windows/native acceptance remains pending.
-The local Git repository uses `feat/asset-desk-bootstrap`; nothing is committed,
-staged or connected to a remote.
+The initial 103 source files are committed as `8e1430c` on
+`feat/asset-desk-bootstrap`. The validation clone has no remote and remained
+Git-clean after checks. No push or regular deployment was performed.
 
 - [Flutter source and verification limits](flutter/README.md)
 - [HTTPS fixture scope and evidence](docs/client-https-acceptance-plan.md)

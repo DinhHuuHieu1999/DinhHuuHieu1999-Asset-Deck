@@ -55,8 +55,12 @@ status/paging, owner isolation, edit/conflict and fresh-client login. This was a
 Dart CLI driver, not the native Flutter UI. The fixture was stopped and retained.
 See the [HTTPS acceptance scope](../docs/client-https-acceptance-plan.md).
 
-Pending: clean-checkout validation,
-Windows runner/build/native acceptance and manual accessibility review.
+A local clone of commit `8e1430c` also passed offline pub resolution with the
+lockfile enforced, analyzer and all 82 tests using the installed SDK/cache.
+The clone remained Git-clean. Backend dependency installation needed separately
+approved network metadata access; this was not an entirely offline bootstrap.
+
+Pending: Windows runner/build/native acceptance and manual accessibility review.
 Source analysis returning an empty result does not establish Dart/security coverage.
 No platform files, fonts, screenshots, credentials or generated builds are committed.
 
