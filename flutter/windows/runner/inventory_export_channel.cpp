@@ -1,4 +1,4 @@
-// Dialog pattern adapted from ToolDeck image_files_channel.cpp; export-only.
+// Dialog pattern adapted from ToolDeck image_files_channel.cpp; explicit export and read-only inspection.
 #include "inventory_export_channel.h"
 #include "inventory_export_file.h"
 #include <flutter/standard_method_codec.h>
@@ -41,6 +41,36 @@ HRESULT ChooseDestination(HWND owner, std::wstring* path) {
   CoTaskMemFree(selected);
   return hr;
 }
+HRESULT ChooseInspectionSource(HWND owner, std::wstring* path) {
+  ComPtr<IFileOpenDialog> dialog;
+  HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog, nullptr,
+      CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog));
+  if (FAILED(hr)) return hr;
+  FILEOPENDIALOGOPTIONS options;
+  hr = dialog->GetOptions(&options);
+  if (FAILED(hr)) return hr;
+  options |= FOS_FORCEFILESYSTEM | FOS_FILEMUSTEXIST | FOS_PATHMUSTEXIST |
+      FOS_NOCHANGEDIR | FOS_DONTADDTORECENT;
+  options &= ~(FOS_ALLOWMULTISELECT | FOS_PICKFOLDERS);
+  hr = dialog->SetOptions(options);
+  if (FAILED(hr)) return hr;
+  const COMDLG_FILTERSPEC filter{L"Asset Desk inventory JSON", L"*.json"};
+  hr = dialog->SetFileTypes(1, &filter);
+  if (FAILED(hr)) return hr;
+  hr = dialog->SetTitle(L"Inspect local inventory JSON (no import)");
+  if (FAILED(hr)) return hr;
+  hr = dialog->Show(owner);
+  if (FAILED(hr)) return hr;
+  ComPtr<IShellItem> item;
+  hr = dialog->GetResult(&item);
+  if (FAILED(hr)) return hr;
+  PWSTR selected = nullptr;
+  hr = item->GetDisplayName(SIGDN_FILESYSPATH, &selected);
+  if (SUCCEEDED(hr)) *path = selected;
+  CoTaskMemFree(selected);
+  return hr;
+}
+
 }
 
 std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
@@ -49,6 +79,20 @@ CreateInventoryExportChannel(flutter::BinaryMessenger* messenger, HWND owner) {
       messenger, "asset_desk/inventory_export", &flutter::StandardMethodCodec::GetInstance());
   channel->SetMethodCallHandler([owner](const flutter::MethodCall<EncodableValue>& call,
       std::unique_ptr<flutter::MethodResult<EncodableValue>> result) {
+    if (call.method_name() == "chooseInspectionJson") {
+      if (call.arguments() && !std::holds_alternative<std::monostate>(*call.arguments())) {
+        result->Error("invalid_inspection", "No input path or arguments accepted."); return;
+      }
+      std::wstring path;
+      const HRESULT hr = ChooseInspectionSource(owner, &path);
+      if (hr == HRESULT_FROM_WIN32(ERROR_CANCELLED)) { result->Success(); return; }
+      if (FAILED(hr)) { result->Error("dialog_failed", "Unable to open file dialog."); return; }
+      std::vector<uint8_t> bytes;
+      if (!ReadInventoryJson(path, &bytes)) {
+        result->Error("read_failed", "Unable to read a bounded local JSON file."); return;
+      }
+      result->Success(EncodableValue(bytes)); return;
+    }
     const bool hashing = call.method_name() == "sha256";
     if (!hashing && call.method_name() != "saveJson") {
       result->NotImplemented(); return;

@@ -57,3 +57,11 @@ See [inventory export contract and evidence](docs/inventory-export.md).
 
 No AI, team sharing, file attachments, import or deletion is included. Equipment
 labels and notes are inert data. Existing ToolDeck accounts/data are not copied.
+
+## Local inventory inspection (source candidate)
+
+The `feat/asset-inspect-json` candidate adds explicit local JSON selection,
+strict checksum/record validation and read-only preview, with no import or
+backend write. The isolated Windows release builds and 29 native helper assertions pass;
+operator dialog acceptance remains pending.
+See [inspection scope and remaining native checks](docs/inventory-inspection.md).

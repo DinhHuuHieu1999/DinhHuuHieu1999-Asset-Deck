@@ -6,12 +6,20 @@ import 'api/asset_export.dart';
 import 'inventory_export_files.dart';
 import 'inventory_export_page.dart';
 import 'asset_editor.dart';
+import 'inventory_inspection_files.dart';
+import 'inventory_inspection_page.dart';
 
 /// Inventory for one authenticated account; the parent must replace on sign-out.
 class AssetsPage extends StatefulWidget {
-  const AssetsPage({super.key, required this.store, this.exportFiles});
+  const AssetsPage({
+    super.key,
+    required this.store,
+    this.exportFiles,
+    this.inspectionFiles,
+  });
   final AssetStore store;
   final InventoryExportFiles? exportFiles;
+  final InventoryInspectionFiles? inspectionFiles;
   @override
   State<AssetsPage> createState() => _AssetsPageState();
 }
@@ -119,6 +127,20 @@ class _AssetsPageState extends State<AssetsPage> {
                 child: const Text('Export all inventory JSON'),
               ),
             ],
+            OutlinedButton(
+              onPressed: _busy
+                  ? null
+                  : () => Navigator.of(context).push<void>(
+                      MaterialPageRoute(
+                        builder: (_) => InventoryInspectionPage(
+                          files:
+                              widget.inspectionFiles ??
+                              WindowsInventoryInspectionFiles(),
+                        ),
+                      ),
+                    ),
+              child: const Text('Inspect local JSON (no import)'),
+            ),
             const SizedBox(height: 12),
             TextField(
               controller: _query,

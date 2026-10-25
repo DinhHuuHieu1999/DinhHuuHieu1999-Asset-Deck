@@ -38,6 +38,36 @@ int wmain(int argc, wchar_t** argv) {
   if (!check(WriteNewInventoryJson((directory/L"empty.json").wstring(), empty) == InventorySaveResult::invalid)) return 1;
   if (!check(WriteNewInventoryJson((directory/L"oversize.json").wstring(), std::vector<uint8_t>(1024*1024+1)) == InventorySaveResult::invalid)) return 1;
   if (!check(std::distance(std::filesystem::directory_iterator(directory), std::filesystem::directory_iterator{}) == 1)) return 1;
+  // Inspection contract: existing synthetic files only; never erase fixture data.
+  input.close();
+  std::vector<uint8_t> inspected{9};
+  if (!check(ReadInventoryJson(target.wstring(), &inspected) && inspected == json)) return 1;
+  if (!check(!ReadInventoryJson(target.wstring(), nullptr))) return 1;
+  for (const auto& path : {directory / L"missing.json", directory / L"invalid.txt",
+                          directory / L"CON.json", directory / L"bad.json:stream"}) {
+    inspected = {9};
+    if (!check(!ReadInventoryJson(path.wstring(), &inspected) && inspected.empty())) return 1;
+  }
+  if (!check(!ReadInventoryJson(L"relative.json", &inspected))) return 1;
+  auto create = [&directory](const wchar_t* name, size_t length) {
+    const auto file = directory / name;
+    std::ofstream output(file, std::ios::binary);
+    const std::string content(length, ' ');
+    output.write(content.data(), static_cast<std::streamsize>(content.size()));
+    output.close();
+    return output.good();
+  };
+  if (!check(create(L"zero.json", 0) && create(L"one.json", 1) &&
+             create(L"limit.json", 1024 * 1024) && create(L"large.json", 1024 * 1024 + 1))) return 1;
+  for (const auto* name : {L"zero.json", L"one.json", L"large.json"}) {
+    inspected = {9};
+    if (!check(!ReadInventoryJson((directory / name).wstring(), &inspected) && inspected.empty())) return 1;
+  }
+  if (!check(ReadInventoryJson((directory / L"limit.json").wstring(), &inspected) &&
+             inspected.size() == 1024 * 1024)) return 1;
+  // Native byte selection is not JSON validation; Dart rejects these spaces.
+  if (!check(std::filesystem::file_size(target) == 2 &&
+             std::filesystem::file_size(directory / L"large.json") == 1024 * 1024 + 1)) return 1;
   std::cout << count << " native assertions passed; synthetic output retained\n";
   return 0;
 }

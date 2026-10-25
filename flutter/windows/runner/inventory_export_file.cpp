@@ -94,3 +94,29 @@ InventorySaveResult WriteNewInventoryJson(const std::wstring& path,
           nullptr, 0) == 0) return InventorySaveResult::invalid;
   return WriteNewResult(path, bytes);
 }
+
+// Bounded inspection input, adapted from ToolDeck ReadCatalogJson.
+bool ReadInventoryJson(const std::wstring& path, std::vector<uint8_t>* bytes) {
+  if (!bytes) return false;
+  bytes->clear();
+  if (!ValidDestination(path, L".JSON")) return false;
+  const HANDLE file = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr,
+      OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
+  if (file == INVALID_HANDLE_VALUE) return false;
+  BY_HANDLE_FILE_INFORMATION info{};
+  LARGE_INTEGER size{};
+  const bool valid = GetFileType(file) == FILE_TYPE_DISK &&
+      GetFileInformationByHandle(file, &info) &&
+      !(info.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) &&
+      GetFileSizeEx(file, &size) && size.QuadPart >= 2 && size.QuadPart <= 1024 * 1024;
+  bool read = false;
+  if (valid) {
+    bytes->resize(static_cast<size_t>(size.QuadPart));
+    DWORD count = 0;
+    read = ReadFile(file, bytes->data(), static_cast<DWORD>(bytes->size()), &count, nullptr) &&
+        count == bytes->size();
+  }
+  CloseHandle(file);
+  if (!read) bytes->clear();
+  return read;
+}

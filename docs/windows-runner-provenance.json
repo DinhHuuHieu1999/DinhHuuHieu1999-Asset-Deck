@@ -141,27 +141,27 @@
   "inventoryExport": {
     "sourceCommit": "79e22d0fca9281710c782a9abe7ab151d76b6ef4",
     "adaptedFrom": "ToolDeck catalog_digest.cpp, image_result_file.cpp and image_files_channel.cpp",
-    "changes": "Export-only; 1 MiB bound, local new-file writes, no overwrite/import or private path response. Known reparse parents and network drives are rejected; this is not a filesystem sandbox.",
+    "changes": "Export and explicit read-only inspection; 1 MiB bound, local new-file writes, no overwrite/import or private path response. Known reparse parents and network drives are rejected; this is not a filesystem sandbox.",
     "files": [
       {
         "destination": "flutter/windows/runner/inventory_export_file.h",
         "destinationHashMode": "utf8-lf",
-        "destinationSha256": "36a713675641d8f9beae07f5c22d42472d0bc4d4017cff7f03460e41f235ab87"
+        "destinationSha256": "1610ddf19c5157ecc55ef498ff7886788bdeccc739c3c4be653424f370f5966c"
       },
       {
         "destination": "flutter/windows/runner/inventory_export_file.cpp",
         "destinationHashMode": "utf8-lf",
-        "destinationSha256": "91091d61ebd8dd694d989db39c4f31350fa0d0787282249595103501d006ae76"
+        "destinationSha256": "b550713efb7025e6c746af25bd9f6749e4f56a47eff6515f847c34118781579f"
       },
       {
         "destination": "flutter/windows/runner/inventory_export_channel.h",
         "destinationHashMode": "utf8-lf",
-        "destinationSha256": "bca281c8834210e90ce029519cd2bf47f332b1559c19cfcb0151b0694f6b87c9"
+        "destinationSha256": "3057f9412cf59c764b5d6a78110248595688bc159b5e7940f9f552dbfb9b1c63"
       },
       {
         "destination": "flutter/windows/runner/inventory_export_channel.cpp",
         "destinationHashMode": "utf8-lf",
-        "destinationSha256": "239646146715fa3720d4f32c04c40f2dec19e6bef200557bd460f56ea2341ff7"
+        "destinationSha256": "6f0abb0254763d9714527adac05500b7717a38de195328138b348ca5c11f23e5"
       }
     ]
   }
