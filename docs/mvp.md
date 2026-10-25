@@ -22,8 +22,8 @@ Projects or background image jobs. No team sharing is included.
 
 Asset Desk is a distinct product concept. Do not silently add another permanent
 ToolDeck menu or copy the entire monorepo into a new repository. The selected location is a separate sibling repository using selected base
-components, not an optional ToolDeck domain. Independent packaging still needs
-its own dependency resolution and clean-checkout validation.
+components, not an optional ToolDeck domain. Independent packaging and committed-base checkout validation are recorded in
+the root README; the later Windows runner commit needs its own checkout validation.
 
 ## First vertical slice
 
@@ -65,8 +65,11 @@ notifications, AI, workers, microservices, new infrastructure and team roles.
 ## Acceptance and evidence
 
 Backend typecheck and unit/mock evidence is recorded in the backend README.
-End-to-end acceptance below remains pending; these checks are not replaced by
-source-level tests.
+The root README records isolated repository, API, recovery and Dart HTTPS evidence.
+The operator confirmed the Windows functional flow and keyboard navigation; see
+[the native acceptance boundary](windows-native-acceptance-plan.md). The table below
+defines required evidence, not a blanket claim that every target check passed.
+Native text scaling, screen-reader and error/conflict interactions remain pending.
 
 | Acceptance                                            | Required evidence                               |
 | ----------------------------------------------------- | ----------------------------------------------- |
@@ -80,13 +83,15 @@ source-level tests.
 | Existing base domains remain unaffected               | Scoped regression tests                         |
 | No model credentials are required                     | Intended startup and non-model flow evidence    |
 
-Capture and inspect a synthetic render before UI implementation. Windows SAC
-currently blocks native v2 acceptance on this machine; build/test evidence must
-not be presented as native acceptance or solved by disabling protection.
+Capture and inspect a synthetic render before UI implementation. The Asset Desk release candidate built and ran without changing Smart App Control.
+A historical ToolDeck v2 Application Control block is not evidence that this
+Asset Desk candidate is blocked. Build/test evidence must not be presented as
+manual acceptance, and protection must not be disabled to obtain it.
 
 ## Execution gates and rollback
 
-1. Product location, backend and Flutter source/tests approved; native acceptance remains pending.
+1. Product location, backend and Flutter source/tests approved; native functional
+   and keyboard checks confirmed, remaining native checks documented separately.
 2. Inspect selected base code and runtime contracts; define domain API/schema.
 3. Implement source and offline tests without applying a migration to local data.
 4. Request separate isolated SQL/HTTPS and native acceptance when needed.
