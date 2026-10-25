@@ -145,7 +145,7 @@ def assert_owned(runtime, name, identity):
         raise Refusal('Container ownership mismatch; resource retained')
 
 
-def execute(root, args, runtime):
+def execute(root, args, runtime, acceptance=None):
     """Run once, retain evidence/volume, and stop only resources created here."""
     image = runtime.run(['docker', 'image', 'inspect', '--format', '{{.Id}}', args.image]).decode().strip()
     if image != args.image:
@@ -200,13 +200,17 @@ def execute(root, args, runtime):
         proxy = runtime.start(['node', str(root / 'scripts/client-https-proxy-cli.mjs'), '--synthetic-only',
                                str(args.backend_port), str(args.tls_port), identity, args.cert, args.key], folder)
         runtime.wait_port(args.tls_port, proxy)
-        report['stage'] = 'dart-client'
-        output = runtime.run([args.dart, '--disable-dart-dev', str(root / 'flutter/tool/client_https_acceptance.dart'),
-                              '--synthetic-only', 'https://localhost:%s/api/v1' % args.tls_port, identity], cwd=root / 'flutter')
-        result = json.loads(output)
-        if result != {'status': 'completed', 'syntheticOnly': True, 'assetCount': 51, 'owners': 2}:
-            raise Refusal('Client result is incomplete')
-        report.update(result)
+        if acceptance is None:
+            report['stage'] = 'dart-client'
+            output = runtime.run([args.dart, '--disable-dart-dev', str(root / 'flutter/tool/client_https_acceptance.dart'),
+                                  '--synthetic-only', 'https://localhost:%s/api/v1' % args.tls_port, identity], cwd=root / 'flutter')
+            result = json.loads(output)
+            if result != {'status': 'completed', 'syntheticOnly': True, 'assetCount': 51, 'owners': 2}:
+                raise Refusal('Client result is incomplete')
+            report.update(result)
+        else:
+            report['stage'] = 'native-session'
+            report.update(acceptance(root, args, runtime, folder, identity, backend, proxy))
         report['stage'] = 'completed'
         report['sourceHashes'] = {name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in FILES}
     finally:

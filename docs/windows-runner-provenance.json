@@ -1,0 +1,135 @@
+{
+  "sdkVersion": "3.47.4",
+  "frameworkRevision": "9584c6713b",
+  "origin": "Flutter SDK app/windows.tmpl",
+  "changes": "Render projectName=asset_desk, organization=Asset Desk contributors, year=2026, withPlatformChannelPluginHook=false; otherwise retain template bytes. The empty icon placeholder resolves to the installed flutter_template_images 5.0.0 image, as Flutter template rendering requires.",
+  "files": [
+    {
+      "template": ".gitignore",
+      "sourceSha256": "955e3110cb16494ee76e1cd5df47e2c212309eb94a49a123fe87f718de413cb8",
+      "destination": "flutter/windows/.gitignore",
+      "destinationSha256": "96345475f1a3c66bd32d28178fba151ab1506b35b1f7857b8f7651863093ea11",
+      "destinationHashMode": "utf8-lf"
+    },
+    {
+      "template": "CMakeLists.txt.tmpl",
+      "sourceSha256": "746c7c3e4fad035c07a7ae2f2d857540817c9f856f8aef83a5c1edd1c366e732",
+      "destination": "flutter/windows/CMakeLists.txt",
+      "destinationSha256": "04b61486e3b75ff13e9066ec578b4ec097bcf6ee3318fd0e738bd70bc5bd740d",
+      "destinationHashMode": "utf8-lf"
+    },
+    {
+      "template": "flutter/CMakeLists.txt",
+      "sourceSha256": "bd05e3268b2f246bcbafdb778165fe67a7bafdba04eb73599502563a67b8ae7e",
+      "destination": "flutter/windows/flutter/CMakeLists.txt",
+      "destinationSha256": "1fe418971b6f41bb35ceb3d64113a835f3f6f171ecaa707bf232492b57a588d6",
+      "destinationHashMode": "utf8-lf"
+    },
+    {
+      "template": "runner/CMakeLists.txt",
+      "sourceSha256": "d765fdd05f63ad099e585a2cced0cbff13ec3229b7de68c8681b2107db850089",
+      "destination": "flutter/windows/runner/CMakeLists.txt",
+      "destinationSha256": "34119ec122e36940235ef4bc245fcfb43b6960ed443e28af1a8d833a81209b9e",
+      "destinationHashMode": "utf8-lf"
+    },
+    {
+      "template": "runner/flutter_window.cpp",
+      "sourceSha256": "d615eedc06ae37321e59c2c00c7687d1887dcd97904eb7225fafd8dcb5b83da6",
+      "destination": "flutter/windows/runner/flutter_window.cpp",
+      "destinationSha256": "dd185884c0b5301d400b58f12ebb36b1c8b326531597e531b40e44a6eeb0e943",
+      "destinationHashMode": "utf8-lf"
+    },
+    {
+      "template": "runner/flutter_window.h",
+      "sourceSha256": "0252b804f5da380c7709cbe1daff2b8d18daf6c49d7e6dd43e5af3c99c19f56c",
+      "destination": "flutter/windows/runner/flutter_window.h",
+      "destinationSha256": "38e0fcd3a0b83895852ec295cb70d90179c0dcd40d58f065eb5232a4ecd84898",
+      "destinationHashMode": "utf8-lf"
+    },
+    {
+      "template": "runner/main.cpp.tmpl",
+      "sourceSha256": "7d92d51485acad62c685cccf2d17ff6f691e43fbe3403d80dba517e8e4cef9f9",
+      "destination": "flutter/windows/runner/main.cpp",
+      "destinationSha256": "f0410c316148aea139b12e2f73c735b5f45a08146f5d14730e52b6bc085303df",
+      "destinationHashMode": "utf8-lf"
+    },
+    {
+      "template": "runner/resource.h",
+      "sourceSha256": "d0e8bf7835468b4b6b1f8f0747f2e8f25c19841f2df2ac60aaa584ddae3aa7c6",
+      "destination": "flutter/windows/runner/resource.h",
+      "destinationSha256": "1fa98588b04561590ba1cf0521ab86a9db4a878312f21c9d5861d965ddd8d1ae",
+      "destinationHashMode": "utf8-lf"
+    },
+    {
+      "template": "runner/resources/app_icon.ico.img.tmpl",
+      "sourceSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "destination": "flutter/windows/runner/resources/app_icon.ico",
+      "destinationSha256": "c098d3fc85cacff98b8e69811b48e9f0d852fcee278132d794411d978869cbf8",
+      "imageSource": "flutter_template_images 5.0.0/templates/app/windows.tmpl/runner/resources/app_icon.ico",
+      "imageSourceSha256": "c098d3fc85cacff98b8e69811b48e9f0d852fcee278132d794411d978869cbf8",
+      "destinationHashMode": "binary"
+    },
+    {
+      "template": "runner/runner.exe.manifest",
+      "sourceSha256": "639a56233fcd8cbcb8bbefcd93e4680ec2664f32d9acfb3d2ec1d8726a96e090",
+      "destination": "flutter/windows/runner/runner.exe.manifest",
+      "destinationSha256": "825d243e9fa1542619909c1b72d09b3ed7c1f3b225bb8367c125835e5dc3f8aa",
+      "destinationHashMode": "utf8-lf"
+    },
+    {
+      "template": "runner/Runner.rc.tmpl",
+      "sourceSha256": "3ed650877dfa777ce54712c662f279962f16f5d6a3ad932f2a5cd20d187d886a",
+      "destination": "flutter/windows/runner/Runner.rc",
+      "destinationSha256": "1caade062c17069d01564ffc706b8f2ac695bdc3bbdbc44d1879e31e4107dcf9",
+      "destinationHashMode": "utf8-lf"
+    },
+    {
+      "template": "runner/utils.cpp",
+      "sourceSha256": "a128b67b9f3c2579e2ecef5b0dde2c33f222a097cdfe5da2a3067c73d1485b39",
+      "destination": "flutter/windows/runner/utils.cpp",
+      "destinationSha256": "6c2c87106b4b29d534c7edcafb3b7f7b9079caa3cdafa7e56671ad2adf5a2543",
+      "destinationHashMode": "utf8-lf"
+    },
+    {
+      "template": "runner/utils.h",
+      "sourceSha256": "832e246b6758253f89016fb0374b30791242e97ad950d27fc678b3d9feacfdc4",
+      "destination": "flutter/windows/runner/utils.h",
+      "destinationSha256": "95a7f7dddb832997cefa937a96f89472332277e75734a5de553610760b744b03",
+      "destinationHashMode": "utf8-lf"
+    },
+    {
+      "template": "runner/win32_window.cpp",
+      "sourceSha256": "4e4f4dcf8e86ea6e097562cb3476039e693449bd8045367538afee579c017511",
+      "destination": "flutter/windows/runner/win32_window.cpp",
+      "destinationSha256": "9065f31ccf746cf8b390121f958f9e959033af864aed779597066625ed56bc36",
+      "destinationHashMode": "utf8-lf"
+    },
+    {
+      "template": "runner/win32_window.h",
+      "sourceSha256": "d154cf89ba85f820631a9b5bedacbe64fc5815e428fe6bc5da579ce649f69841",
+      "destination": "flutter/windows/runner/win32_window.h",
+      "destinationSha256": "7dd03746b19dcf3542829b2f6e8ed40a2714ce5f2cb3b0e23f0118a2fcf62d62",
+      "destinationHashMode": "utf8-lf"
+    }
+  ],
+  "pluginMetadata": {
+    "origin": "Flutter 3.47.4 pub get --offline --enforce-lockfile after adding Windows runner; no plugins installed",
+    "files": [
+      {
+        "destination": "flutter/windows/flutter/generated_plugins.cmake",
+        "destinationHashMode": "utf8-lf",
+        "destinationSha256": "286346b0d5303dc6b41072f9582d4c52bca35255b85b27b310f858e264dfdc56"
+      },
+      {
+        "destination": "flutter/windows/flutter/generated_plugin_registrant.cc",
+        "destinationHashMode": "utf8-lf",
+        "destinationSha256": "82e02567f2faf5e732dc92a2fb0d01104f7ba8c48973f8cfd41a860b4fac3f3b"
+      },
+      {
+        "destination": "flutter/windows/flutter/generated_plugin_registrant.h",
+        "destinationHashMode": "utf8-lf",
+        "destinationSha256": "dbc11635d7b1ba1887adf40df5b83d634e9c3ab0bee34510c71528bb4d73602a"
+      }
+    ]
+  }
+}

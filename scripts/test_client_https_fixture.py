@@ -208,6 +208,25 @@ class FixtureTests(unittest.TestCase):
         self.assertFalse(any(c[:2] == ['docker', 'stop'] for c in runtime.calls))
         self.assertFalse(any(c[:2] == ['docker', 'start'] for c in runtime.calls))
 
+    def test_native_callback_reuses_owned_cleanup_without_cli_driver(self):
+        runtime = FakeRuntime()
+        callback = MagicMock(return_value={'status': 'session-ended', 'nativeAcceptance': 'pending'})
+        result = fixture.execute(self.root, self.args, runtime, callback)
+        callback.assert_called_once()
+        self.assertEqual(result['status'], 'session-ended')
+        self.assertEqual(result['cleanup'], 'stopped')
+        self.assertTrue(runtime.stopped)
+        self.assertFalse(any(c[0] == 'dart' for c in runtime.calls))
+
+    def test_native_callback_failure_still_stops_resources_without_retry(self):
+        runtime = FakeRuntime()
+        callback = MagicMock(side_effect=fixture.Refusal('Synthetic native failure'))
+        with self.assertRaises(fixture.Refusal):
+            fixture.execute(self.root, self.args, runtime, callback)
+        callback.assert_called_once()
+        self.assertTrue(runtime.stopped)
+        self.assertEqual(sum(c[:2] == ['docker', 'stop'] for c in runtime.calls), 1)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,8 +1,9 @@
 # Asset Desk Flutter client source
 
 Source for authenticated personal equipment inventory. No regular deployment or
-native acceptance is implied. There is a `main.dart` entry point, but no platform
-runner has been generated or built for this product yet.
+native acceptance is implied. There is a `main.dart` entry point and Windows runner source rendered from the
+installed SDK template. A Windows release candidate built successfully after
+offline plugin metadata generation; the functional operator checks below passed on a synthetic fixture.
 
 Implemented: login/register, bounded native JSON transport, CSRF cookie/header,
 in-memory bearer session, inventory search/status/pagination and manual create/edit.
@@ -35,7 +36,7 @@ flutter analyze --no-pub
 flutter test --no-pub
 ```
 
-Analyzer and 82 unit/widget/harness tests pass using the installed SDK/cache. Transport
+Analyzer and 86 unit/widget/harness tests pass using the installed SDK/cache. Transport
 tests bind an ephemeral loopback HTTP server in-process with synthetic responses;
 they do not start the product backend or database and do not certify HTTPS.
 Widget tests cover draft keep/discard, stale results, paging, account/session
@@ -60,8 +61,14 @@ lockfile enforced, analyzer and all 82 tests using the installed SDK/cache.
 The clone remained Git-clean. Backend dependency installation needed separately
 approved network metadata access; this was not an entirely offline bootstrap.
 
-Pending: Windows runner/build/native acceptance and manual accessibility review.
+The candidate process opened on a separately approved synthetic HTTPS fixture.
+The operator confirmed sign-in, literal search/status filtering, create/edit with
+refresh, draft keep/discard and sign-out/sign-in persistence. These are manual
+functional confirmations, not automated UI observations. The operator also confirmed Tab/Shift+Tab focus and Enter/Space activation.
+Native text scaling, screen-reader and error/conflict interaction checks remain pending.
+See the [native acceptance plan](../docs/windows-native-acceptance-plan.md).
 Source analysis returning an empty result does not establish Dart/security coverage.
-No platform files, fonts, screenshots, credentials or generated builds are committed.
+The Windows runner source is prepared but not yet committed. No fonts, screenshots,
+credentials or generated builds are committed.
 
 See [source provenance](../docs/flutter-source-provenance.json).
