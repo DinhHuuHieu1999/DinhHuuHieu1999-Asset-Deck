@@ -5,12 +5,13 @@ import 'dart:typed_data';
 
 import 'asset.dart';
 import 'asset_export.dart';
+import 'asset_import.dart';
 import 'asset_session.dart';
 import 'asset_store.dart';
 
 /// Native JSON client with bounded responses and in-memory credentials only.
 /// Adapted from ToolDeck's selected auth/CSRF/session transport; no other domains.
-class AssetApi implements AssetSession, AssetExportSource {
+class AssetApi implements AssetSession, AssetExportSource, AssetImportSource {
   AssetApi(
     Uri endpoint, {
     bool allowLocalHttp = false,
@@ -237,6 +238,35 @@ class AssetApi implements AssetSession, AssetExportSource {
     } on FormatException {
       throw const AssetFailure(
         'Invalid asset response; refresh before another write',
+      );
+    }
+  }
+
+  /// Submit exactly one account/session-bound operation; never retries internally.
+  @override
+  Future<AssetImportReceipt> importInventory(
+    AssetImportDraft draft, {
+    required int sessionRevision,
+  }) async {
+    final epoch = _requireAccount();
+    if (epoch != sessionRevision || _account!.id != draft.accountId) {
+      throw const AssetFailure(
+        'Import session changed; review the target account again',
+        definitelyNotSent: true,
+      );
+    }
+    final response = await _request(
+      'POST',
+      'assets/import',
+      epoch,
+      jsonDecode(draft.json) as Map<String, Object?>,
+    );
+    _current(epoch);
+    try {
+      return AssetImportReceipt.parse(response, draft);
+    } on FormatException {
+      throw const AssetFailure(
+        'Import receipt unavailable; retain the same request key',
       );
     }
   }

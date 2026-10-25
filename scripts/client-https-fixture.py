@@ -19,8 +19,25 @@ FILES = ('backend/dist/main.js', 'backend/migrations/001-auth-accounts.sql',
          'flutter/lib/api/asset_store.dart', 'scripts/client-https-backend.cjs')
 
 
+IMPORT_FILES = ('backend/migrations/003-asset-import.sql',
+                'flutter/tool/import_https_acceptance.dart',
+                'flutter/lib/api/asset_import.dart')
+
 class Refusal(Exception):
     """Safe refusal without including subprocess output or credentials."""
+
+
+def import_mode(args):
+    """Accept only an explicit boolean profile, never arbitrary env/SQL input."""
+    value = getattr(args, 'import_mode', False)
+    if type(value) is not bool:
+        raise Refusal('Invalid import fixture profile')
+    return value
+
+
+def fixture_files(args):
+    """Return a fixed source/artifact set for the selected fixture profile."""
+    return FILES + IMPORT_FILES if import_mode(args) else FILES
 
 
 def preflight(root, args):
@@ -29,7 +46,7 @@ def preflight(root, args):
         raise Refusal('Explicit opt-in and an existing immutable image ID are required')
     if any(c not in '0123456789abcdef' for c in args.image[7:]):
         raise Refusal('Invalid image ID')
-    for name in FILES:
+    for name in fixture_files(args):
         if not (root / name).is_file():
             raise Refusal('Required source or artifact is missing')
     for value in (args.cert, args.key):
@@ -147,6 +164,11 @@ def assert_owned(runtime, name, identity):
 
 def execute(root, args, runtime, acceptance=None):
     """Run once, retain evidence/volume, and stop only resources created here."""
+    enabled = import_mode(args)
+    if enabled and acceptance is None:
+        raise Refusal('Import fixture requires its dedicated acceptance driver')
+    if enabled and any(not (root / name).is_file() for name in IMPORT_FILES):
+        raise Refusal('Import fixture source is missing')
     image = runtime.run(['docker', 'image', 'inspect', '--format', '{{.Id}}', args.image]).decode().strip()
     if image != args.image:
         raise Refusal('Existing image identity mismatch')
@@ -186,19 +208,21 @@ def execute(root, args, runtime, acceptance=None):
         if not ready:
             raise Refusal('Database readiness timed out')
         report['stage'] = 'migrations'
-        for migration in FILES[1:3]:
+        migrations = FILES[1:3] + (IMPORT_FILES[:1] if enabled else ())
+        for migration in migrations:
             runtime.run(['docker', 'exec', '-i', name, 'psql', '-v', 'ON_ERROR_STOP=1', '-U', 'fixture', '-d', 'fixture'], data=(root / migration).read_bytes())
         env = dict(runtime.env, NODE_ENV='production', BACKEND_HTTP_PORT=str(args.backend_port),
                    AUTH_POSTGRES_URL='postgresql://fixture:%s@127.0.0.1:%s/fixture' % (password, args.db_port),
                    JWT_ACCESS_SECRET=secrets.token_hex(32), CSRF_SECRET=secrets.token_hex(32),
                    CSRF_ENABLED='true', CSRF_COOKIE_SECURE='true', AUTH_EXPOSE_RESET_TOKEN='false',
                    REQUEST_FRESHNESS_ENABLED='true', THROTTLE_LIMIT='1000', ASSET_DESK_FIXTURE_ID=identity)
+        env['ASSET_IMPORT_ENABLED'] = 'true' if enabled else 'false'
         report['stage'] = 'backend-readiness'
         backend = runtime.start(['node', '--require', str(root / 'scripts/client-https-backend.cjs'), str(root / FILES[0])], folder, env)
         runtime.wait_backend(folder, identity, args.backend_port, backend)
         report['stage'] = 'proxy-readiness'
         proxy = runtime.start(['node', str(root / 'scripts/client-https-proxy-cli.mjs'), '--synthetic-only',
-                               str(args.backend_port), str(args.tls_port), identity, args.cert, args.key], folder)
+                               str(args.backend_port), str(args.tls_port), identity, args.cert, args.key] + (['--import-enabled'] if enabled else []), folder)
         runtime.wait_port(args.tls_port, proxy)
         if acceptance is None:
             report['stage'] = 'dart-client'
@@ -212,7 +236,7 @@ def execute(root, args, runtime, acceptance=None):
             report['stage'] = 'native-session'
             report.update(acceptance(root, args, runtime, folder, identity, backend, proxy))
         report['stage'] = 'completed'
-        report['sourceHashes'] = {name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in FILES}
+        report['sourceHashes'] = {name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in fixture_files(args)}
     finally:
         cleanup_failed = False
         try:

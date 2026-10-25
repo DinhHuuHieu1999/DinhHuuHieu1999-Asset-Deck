@@ -6,6 +6,8 @@ import json
 import os
 from pathlib import Path
 import time
+import uuid
+from datetime import datetime, timezone
 
 _spec = importlib.util.spec_from_file_location('client_fixture', Path(__file__).with_name('client-https-fixture.py'))
 client = importlib.util.module_from_spec(_spec)
@@ -14,6 +16,7 @@ _spec.loader.exec_module(client)
 
 def verify_candidate(root, args):
     """Require a complete hashed deployment, pinned to the intended TLS endpoint."""
+    enabled = client.import_mode(args)
     if not args.execute_native or not args.execute_synthetic:
         raise client.Refusal('Explicit native and synthetic opt-in required')
     if not 1 <= args.minutes <= 30:
@@ -40,6 +43,8 @@ def verify_candidate(root, args):
             value.get('endpoint') != 'https://localhost:%s/api/v1' % args.tls_port or
             value.get('buildMode') != 'release' or not isinstance(value.get('files'), dict)):
         raise client.Refusal('Candidate endpoint or release manifest mismatch')
+    if enabled and value.get('buildDefines') != {'ASSET_DESK_ENABLE_IMPORT': 'true'}:
+        raise client.Refusal('Candidate import build contract missing')
     files = value['files']
     if not {'asset_desk.exe', 'flutter_windows.dll', 'data/icudtl.dat'} <= set(files):
         raise client.Refusal('Required deployment files missing')
@@ -68,6 +73,23 @@ def preflight(root, args):
     client.preflight(root, args)
 
 
+def prepare_import_file(folder):
+    """Create one inert synthetic snapshot; never consume operator inventory."""
+    now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+    record = {'id': str(uuid.uuid4()), 'name': 'Synthetic native imported asset',
+              'category': 'fixture', 'serial': 'IMPORT-%_1', 'status': 'stored',
+              'notes': 'Synthetic import only', 'version': 1,
+              'createdAt': now, 'updatedAt': now}
+    payload = json.dumps({'exportedAt': now, 'complete': True, 'recordCount': 1,
+                          'records': [record]}, ensure_ascii=False, separators=(',', ':'))
+    envelope = {'format': 'asset-desk-inventory', 'schemaVersion': 1, 'payload': payload,
+                'sha256': hashlib.sha256(payload.encode('utf-8')).hexdigest()}
+    destination = folder / 'inventory-import-synthetic.json'
+    with destination.open('x', encoding='utf-8') as stream:
+        stream.write(json.dumps(envelope, ensure_ascii=False, separators=(',', ':'))+'\n')
+    return destination
+
+
 def native_session(root, args, runtime, folder, identity, backend, proxy):
     """Seed through default TLS, then hold exact owned children for a bounded session."""
     executable = verify_candidate(root, args)
@@ -82,6 +104,11 @@ def native_session(root, args, runtime, folder, identity, backend, proxy):
     handoff = dict(seed, endpoint=endpoint, fixtureId=identity, syntheticOnly=True,
                    expiresAtEpoch=int(time.time() + args.minutes * 60),
                    instructions='Sign in, search, create/edit/refresh. Do not use a real account or equipment data.')
+    if client.import_mode(args):
+        import_file = prepare_import_file(folder)
+        handoff.update(importFile=str(import_file), expectedBefore=1, expectedAfter=2,
+                       importedAssetName='Synthetic native imported asset',
+                       instructions='Sign in, open Import, choose the synthetic file, review and explicitly confirm once; refresh. Never use real data.')
     # Credentials are private local fixture evidence, never stdout or tracked source.
     with (folder / 'operator-handoff.json').open('x', encoding='utf-8') as stream:
         stream.write(json.dumps(handoff, indent=2) + '\n')
@@ -108,6 +135,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--execute-native', action='store_true')
     parser.add_argument('--execute-synthetic', action='store_true')
+    parser.add_argument('--import-mode', action='store_true')
     parser.add_argument('--candidate', default='')
     parser.add_argument('--minutes', type=int, default=30)
     for name in ('image', 'cert', 'key'):

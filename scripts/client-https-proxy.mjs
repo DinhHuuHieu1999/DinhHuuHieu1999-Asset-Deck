@@ -14,8 +14,14 @@ const hop = new Set([
 ]);
 
 /** Validate fixed fixture routing before creating a server or reading TLS files. */
-export function validateConfig({ upstreamPort, fixtureId, timeoutMs = 15000 }) {
+export function validateConfig({
+  upstreamPort,
+  fixtureId,
+  timeoutMs = 15000,
+  importEnabled = false,
+}) {
   if (
+    typeof importEnabled !== 'boolean' ||
     !Number.isInteger(upstreamPort) ||
     upstreamPort < 1024 ||
     upstreamPort > 65535 ||
@@ -28,10 +34,41 @@ export function validateConfig({ upstreamPort, fixtureId, timeoutMs = 15000 }) {
   }
 }
 
+/** Parse the fixed fixture CLI; optional import capability must be explicit. */
+export function parseProxyArgs(args) {
+  if (
+    !Array.isArray(args) ||
+    ![6, 7].includes(args.length) ||
+    args[0] !== '--synthetic-only' ||
+    (args.length === 7 && args[6] !== '--import-enabled')
+  )
+    throw new Error('Explicit fixture opt-in required');
+  const [, upstream, listen, fixtureId, cert, key] = args;
+  const config = {
+    upstreamPort: Number(upstream),
+    fixtureId,
+    importEnabled: args.length === 7,
+  };
+  validateConfig(config);
+  const port = Number(listen);
+  if (
+    !Number.isInteger(port) ||
+    port < 1024 ||
+    port > 65535 ||
+    port === config.upstreamPort ||
+    !cert ||
+    !key
+  )
+    throw new Error('Invalid fixture arguments');
+  return { config, port, cert, key };
+}
+
 /** Allow only the API operations exercised by the synthetic client. */
-export function allowed(method, raw) {
+export function allowed(method, raw, importEnabled = false) {
   if (typeof raw !== 'string' || !raw.startsWith('/') || raw.startsWith('//'))
     return false;
+  if (method === 'POST' && raw === '/api/v1/assets/import')
+    return importEnabled === true;
   const path = raw.split('?')[0];
   if (method === 'GET')
     return [
@@ -99,7 +136,7 @@ export function createHandler(config, request = http.request) {
       res.end(JSON.stringify({ fixtureId, syntheticOnly: true }));
       return;
     }
-    if (!allowed(req.method, req.url)) {
+    if (!allowed(req.method, req.url, config.importEnabled)) {
       fail(404);
       req.resume();
       return;
@@ -107,11 +144,14 @@ export function createHandler(config, request = http.request) {
     try {
       const chunks = [];
       let size = 0;
-      for await (const chunk of req) {
+      for await (const chunk of req.iterator({ destroyOnReturn: false })) {
         size += chunk.length;
         if (size > limit) {
+          // Do not tear down the shared socket before the error is flushed.
+          // Returning from the default async iterator would also destroy req.
+          req.pause();
+          res.once('finish', () => req.destroy());
           fail(413);
-          req.destroy();
           return;
         }
         chunks.push(chunk);

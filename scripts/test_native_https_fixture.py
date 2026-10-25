@@ -174,6 +174,48 @@ class NativeTests(unittest.TestCase):
         runtime.run.assert_called_once()
         runtime.start.assert_called_once()
 
+    def test_import_profile_requires_exact_build_metadata(self):
+        self.args.import_mode = True
+        for value in (None, {}, {'ASSET_DESK_ENABLE_IMPORT': True},
+                      {'ASSET_DESK_ENABLE_IMPORT': 'false'}):
+            self.manifest['buildDefines'] = value
+            self.write_manifest()
+            with self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+        self.manifest['buildDefines'] = {'ASSET_DESK_ENABLE_IMPORT': 'true'}
+        self.write_manifest()
+        self.assertEqual(native.verify_candidate(self.root, self.args), Path(self.args.candidate))
+
+    def test_synthetic_import_envelope_exact_checksum_and_no_overwrite(self):
+        folder = self.root / 'import-file'
+        folder.mkdir()
+        path = native.prepare_import_file(folder)
+        raw = path.read_bytes()
+        self.assertFalse(raw.startswith(b'\xef\xbb\xbf'))
+        envelope = json.loads(raw)
+        self.assertEqual(set(envelope), {'format', 'schemaVersion', 'payload', 'sha256'})
+        self.assertEqual(envelope['sha256'], hashlib.sha256(envelope['payload'].encode()).hexdigest())
+        payload = json.loads(envelope['payload'])
+        self.assertEqual(payload['recordCount'], 1)
+        self.assertEqual(len(payload['records']), 1)
+        self.assertEqual(payload['records'][0]['name'], 'Synthetic native imported asset')
+        with self.assertRaises(FileExistsError):
+            native.prepare_import_file(folder)
+        self.assertEqual(path.read_bytes(), raw)
+
+    def test_import_handoff_has_file_but_still_requires_operator_acceptance(self):
+        self.args.import_mode = True
+        self.manifest['buildDefines'] = {'ASSET_DESK_ENABLE_IMPORT': 'true'}
+        self.write_manifest()
+        runtime = self.runtime()
+        result = self.run_session(runtime)
+        handoff = json.loads((self.root/'evidence/operator-handoff.json').read_text())
+        self.assertEqual(handoff['expectedBefore'], 1)
+        self.assertEqual(handoff['expectedAfter'], 2)
+        self.assertTrue(Path(handoff['importFile']).is_file())
+        self.assertEqual(result['nativeAcceptance'], 'pending')
+        runtime.start.assert_called_once()
+
 
 if __name__ == '__main__':
     unittest.main()

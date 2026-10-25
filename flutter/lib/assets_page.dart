@@ -1,3 +1,7 @@
+import 'api/asset_session.dart';
+import 'api/asset_import.dart';
+import 'inventory_import_page.dart';
+
 import 'package:flutter/material.dart';
 
 import 'api/asset.dart';
@@ -16,8 +20,10 @@ class AssetsPage extends StatefulWidget {
     required this.store,
     this.exportFiles,
     this.inspectionFiles,
+    this.enableInventoryImport = false,
   });
   final AssetStore store;
+  final bool enableInventoryImport;
   final InventoryExportFiles? exportFiles;
   final InventoryInspectionFiles? inspectionFiles;
   @override
@@ -141,6 +147,25 @@ class _AssetsPageState extends State<AssetsPage> {
                     ),
               child: const Text('Inspect local JSON (no import)'),
             ),
+            if (widget.enableInventoryImport &&
+                widget.store is AssetSession &&
+                widget.store is AssetImportSource)
+              OutlinedButton(
+                onPressed: _busy
+                    ? null
+                    : () => Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => InventoryImportPage(
+                            session: widget.store as AssetSession,
+                            source: widget.store as AssetImportSource,
+                            files:
+                                widget.inspectionFiles ??
+                                WindowsInventoryInspectionFiles(),
+                          ),
+                        ),
+                      ),
+                child: const Text('Import inventory JSON (add only)'),
+              ),
             const SizedBox(height: 12),
             TextField(
               controller: _query,

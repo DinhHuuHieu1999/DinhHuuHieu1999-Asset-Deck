@@ -8,8 +8,13 @@ import 'sign_in_page.dart';
 
 /// Own the account lifecycle and replace the complete private navigator on change.
 class AssetDeskApp extends StatefulWidget {
-  const AssetDeskApp({super.key, required this.session});
+  const AssetDeskApp({
+    super.key,
+    required this.session,
+    this.enableInventoryImport = false,
+  });
   final AssetSession session;
+  final bool enableInventoryImport;
   @override
   State<AssetDeskApp> createState() => _AssetDeskAppState();
 }
@@ -94,7 +99,10 @@ class _AssetDeskAppState extends State<AssetDeskApp> {
             ),
       home: account == null
           ? SignInPage(session: widget.session)
-          : AssetsPage(store: widget.session),
+          : AssetsPage(
+              store: widget.session,
+              enableInventoryImport: widget.enableInventoryImport,
+            ),
     );
   }
 }

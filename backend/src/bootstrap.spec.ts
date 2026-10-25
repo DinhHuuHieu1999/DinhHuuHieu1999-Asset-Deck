@@ -1,55 +1,88 @@
+jest.mock('./app/modules/app.module', () => ({
+  AppModule: class AppModule {},
+}));
+jest.mock('./domains/auth/auth.module', () => ({
+  AuthModule: class AuthModule {},
+}));
 import { NestFactory } from '@nestjs/core';
 import { bootstrap } from './main';
+import { AssetImportModule } from './domains/assets/asset-import.module';
+import { AppModule } from './app/modules/app.module';
 
-jest.mock('./app/modules/app.module', () => ({ AppModule: class {} }));
 jest.mock('./app/config/env-files', () => ({ loadEnvFiles: jest.fn() }));
 jest.mock('./app/config/startup.config', () => ({
   validateStartup: () => 8180,
 }));
+jest.mock('@nestjs/core', () => ({
+  ...jest.requireActual('@nestjs/core'),
+  NestFactory: { create: jest.fn() },
+}));
 
-describe('bootstrap resource ownership without a real listener', () => {
+describe('opt-in import bootstrap', () => {
+  const original = process.env.ASSET_IMPORT_ENABLED;
   const app = {
-    set: jest.fn(),
     use: jest.fn(),
+    set: jest.fn(),
     setGlobalPrefix: jest.fn(),
     useGlobalPipes: jest.fn(),
     enableShutdownHooks: jest.fn(),
     listen: jest.fn(),
     close: jest.fn(),
   };
-
   beforeEach(() => {
     jest.clearAllMocks();
+    delete process.env.ASSET_IMPORT_ENABLED;
+    jest.mocked(NestFactory.create).mockResolvedValue(app as never);
     app.listen.mockResolvedValue(undefined);
     app.close.mockResolvedValue(undefined);
-    jest.spyOn(NestFactory, 'create').mockResolvedValue(app as never);
   });
-  afterEach(() => jest.restoreAllMocks());
-
-  it('keeps successful application running on loopback', async () => {
+  afterEach(() => {
+    if (original === undefined) delete process.env.ASSET_IMPORT_ENABLED;
+    else process.env.ASSET_IMPORT_ENABLED = original;
+  });
+  it('does not register the write capability by default', async () => {
     await bootstrap();
+    expect(NestFactory.create).toHaveBeenCalledWith(
+      { module: AppModule, imports: [] },
+      { bodyParser: true, abortOnError: false },
+    );
+    expect(app.use).toHaveBeenCalledTimes(2);
     expect(app.listen).toHaveBeenCalledWith(8180, '127.0.0.1');
     expect(app.close).not.toHaveBeenCalled();
   });
-
+  it('registers the separate module and parser before listening only when enabled', async () => {
+    process.env.ASSET_IMPORT_ENABLED = 'true';
+    await bootstrap();
+    expect(NestFactory.create).toHaveBeenCalledWith(
+      { module: AppModule, imports: [AssetImportModule] },
+      { bodyParser: true, abortOnError: false },
+    );
+    expect(app.use).toHaveBeenCalledTimes(3);
+    expect(app.use.mock.invocationCallOrder[0]).toBeLessThan(
+      app.listen.mock.invocationCallOrder[0],
+    );
+  });
+  it('rejects ambiguous configuration before creating an application', async () => {
+    process.env.ASSET_IMPORT_ENABLED = 'TRUE';
+    await expect(bootstrap()).rejects.toThrow('ASSET_IMPORT_ENABLED');
+    expect(NestFactory.create).not.toHaveBeenCalled();
+  });
+  it('closes the application on startup failure without replacing that failure', async () => {
+    const failure = new Error('synthetic startup failure');
+    app.listen.mockRejectedValueOnce(failure);
+    app.close.mockRejectedValueOnce(new Error('synthetic close failure'));
+    await expect(bootstrap()).rejects.toBe(failure);
+    expect(app.close).toHaveBeenCalledTimes(1);
+  });
   it('closes the created app on initialization/listen failure', async () => {
-    const failure = new Error('synthetic startup failure');
-    app.listen.mockRejectedValue(failure);
+    const failure = new Error('synthetic listen failure');
+    app.listen.mockRejectedValueOnce(failure);
     await expect(bootstrap()).rejects.toBe(failure);
     expect(app.close).toHaveBeenCalledTimes(1);
   });
-
-  it('retains the original failure if cleanup also fails', async () => {
-    const failure = new Error('synthetic startup failure');
-    app.listen.mockRejectedValue(failure);
-    app.close.mockRejectedValue(new Error('synthetic cleanup failure'));
-    await expect(bootstrap()).rejects.toBe(failure);
-    expect(app.close).toHaveBeenCalledTimes(1);
-  });
-
-  it('does not attempt to close an application that was never returned', async () => {
+  it('does not close an application the factory never returned', async () => {
     const failure = new Error('synthetic factory failure');
-    jest.spyOn(NestFactory, 'create').mockRejectedValue(failure);
+    jest.mocked(NestFactory.create).mockRejectedValueOnce(failure);
     await expect(bootstrap()).rejects.toBe(failure);
     expect(app.close).not.toHaveBeenCalled();
   });

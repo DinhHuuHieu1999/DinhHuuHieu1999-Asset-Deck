@@ -127,3 +127,11 @@ verification. No lifecycle scripts or product start commands were run.
 The next verification gates are clean-checkout validation and separately
 approved native client acceptance. No destructive migration rollback
 is provided: disable the product/module and retain schema/data on failure.
+
+## Optional add-only import (source in progress)
+
+`ASSET_IMPORT_ENABLED` defaults to `false`. The exact value `true` registers the
+separate authenticated import module and requires migration 003 readiness;
+startup never applies migrations. Do not enable it on a regular database until
+isolated SQL/API acceptance is approved and complete. See the
+[import contract and pending gates](../docs/inventory-import.md).

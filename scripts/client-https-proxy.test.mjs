@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   allowed,
+  parseProxyArgs,
   cleanHeaders,
   createProxy,
   createHandler,
@@ -60,6 +61,7 @@ async function simulate({
   responseChunks = [Buffer.from('{}')],
   timeoutMs = 1000,
   hanging = false,
+  importEnabled = false,
 } = {}) {
   const req = hanging ? new Readable({ read() {} }) : Readable.from(chunks);
   Object.assign(req, {
@@ -82,10 +84,21 @@ async function simulate({
     res.headers = headers;
     res.headersSent = true;
   };
+  let flushed = false,
+    destroyedBeforeFlush = false;
+  const destroyRequest = req.destroy.bind(req);
+  req.destroy = (...args) => {
+    if (!flushed) destroyedBeforeFlush = true;
+    return destroyRequest(...args);
+  };
   res.end = (body) => {
     res.body = body;
     res.writableEnded = true;
-    res.emit('close');
+    queueMicrotask(() => {
+      flushed = true;
+      res.emit('finish');
+      res.emit('close');
+    });
   };
   res.destroy = () => {
     res.destroyed = true;
@@ -115,9 +128,12 @@ async function simulate({
     return outgoing;
   };
   const finished = new Promise((resolve) => res.once('close', resolve));
-  await createHandler({ ...config, timeoutMs }, transport)(req, res);
+  await createHandler({ ...config, timeoutMs, importEnabled }, transport)(
+    req,
+    res,
+  );
   await finished;
-  return { res, calls, options, sent };
+  return { res, calls, options, sent, destroyedBeforeFlush };
 }
 
 test('stream proxy forwards only to fixed loopback with exact body and auth headers', async () => {
@@ -236,4 +252,85 @@ test('export forwarding preserves upstream 200, 401 and 422 without retry', asyn
     assert.deepEqual(result.res.body, payload);
     assert.equal(result.res.headers['cache-control'], 'no-store');
   }
+});
+
+test('import routing is exact and opt-in, never a prefix wildcard', () => {
+  assert.equal(allowed('POST', '/api/v1/assets/import'), false);
+  assert.equal(allowed('POST', '/api/v1/assets/import', true), true);
+  for (const value of ['true', 1, null]) {
+    assert.throws(() => validateConfig({ ...config, importEnabled: value }));
+    assert.equal(allowed('POST', '/api/v1/assets/import', value), false);
+  }
+  for (const path of [
+    '/api/v1/assets/import/',
+    '/api/v1/assets/import?owner=x',
+    '/api/v1/assets/import/other',
+    '/api/v1/assets%2fimport',
+  ]) {
+    assert.equal(allowed('POST', path, true), false);
+  }
+  for (const method of ['GET', 'PUT', 'DELETE'])
+    assert.equal(allowed(method, '/api/v1/assets/import', true), false);
+});
+
+test('default import denial never invokes upstream', async () => {
+  const result = await simulate({ url: '/api/v1/assets/import' });
+  assert.equal(result.res.code, 404);
+  assert.equal(result.calls, 0);
+});
+
+test('opt-in import preserves bytes, fixed upstream and existing body bound', async () => {
+  const body = Buffer.from('{"requestId":"synthetic","records":[]}');
+  const result = await simulate({
+    url: '/api/v1/assets/import',
+    importEnabled: true,
+    chunks: [body],
+  });
+  assert.equal(result.res.code, 200);
+  assert.equal(result.calls, 1);
+  assert.deepEqual(result.sent, body);
+  assert.equal(result.options.hostname, '127.0.0.1');
+  assert.equal(result.options.port, config.upstreamPort);
+  const oversized = await simulate({
+    url: '/api/v1/assets/import',
+    importEnabled: true,
+    chunks: [Buffer.alloc(1024 * 1024 + 1)],
+  });
+  assert.equal(oversized.res.code, 413);
+  assert.equal(oversized.calls, 0);
+});
+
+test('CLI import flag is explicit and malformed arguments fail before TLS', () => {
+  const base = [
+    '--synthetic-only',
+    '19001',
+    '19002',
+    'a'.repeat(32),
+    'cert',
+    'key',
+  ];
+  assert.equal(parseProxyArgs(base).config.importEnabled, false);
+  assert.equal(
+    parseProxyArgs([...base, '--import-enabled']).config.importEnabled,
+    true,
+  );
+  for (const args of [
+    [],
+    base.slice(1),
+    [...base, 'true'],
+    [...base, '--import-enabled', 'extra'],
+    [base[0], base[1], base[1], ...base.slice(3)],
+  ])
+    assert.throws(() => parseProxyArgs(args));
+});
+
+test('oversize response flushes before request destruction', async () => {
+  const result = await simulate({
+    url: '/api/v1/assets/import',
+    importEnabled: true,
+    chunks: [Buffer.alloc(1024 * 1024 + 1)],
+  });
+  assert.equal(result.res.code, 413);
+  assert.equal(result.calls, 0);
+  assert.equal(result.destroyedBeforeFlush, false);
 });

@@ -22,7 +22,14 @@ void main() {
           kDebugMode &&
           const bool.fromEnvironment('ASSET_DESK_ALLOW_LOCAL_HTTP'),
     );
-    runApp(AssetDeskApp(session: api));
+    runApp(
+      AssetDeskApp(
+        session: api,
+        enableInventoryImport: const bool.fromEnvironment(
+          'ASSET_DESK_ENABLE_IMPORT',
+        ),
+      ),
+    );
   } on ArgumentError {
     runApp(
       const _ConfigurationMessage(

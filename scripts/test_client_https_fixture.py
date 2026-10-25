@@ -227,6 +227,55 @@ class FixtureTests(unittest.TestCase):
         self.assertTrue(runtime.stopped)
         self.assertEqual(sum(c[:2] == ['docker', 'stop'] for c in runtime.calls), 1)
 
+    def test_import_profile_refuses_ambiguous_values_before_runtime(self):
+        for value in ('true', 1, None):
+            self.args.import_mode = value
+            runtime = FakeRuntime()
+            with self.assertRaises(fixture.Refusal):
+                fixture.execute(self.root, self.args, runtime)
+            self.assertEqual(runtime.calls, [])
+
+    def test_import_requires_driver_and_all_fixed_artifacts_before_runtime(self):
+        self.args.import_mode = True
+        runtime = FakeRuntime()
+        with self.assertRaises(fixture.Refusal):
+            fixture.execute(self.root, self.args, runtime)
+        self.assertEqual(runtime.calls, [])
+        for name in fixture.IMPORT_FILES:
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('synthetic', encoding='utf-8')
+        for name in fixture.IMPORT_FILES:
+            path = self.root / name
+            path.unlink()
+            with self.assertRaises(fixture.Refusal):
+                fixture.execute(self.root, self.args, runtime, MagicMock())
+            self.assertEqual(runtime.calls, [])
+            path.write_text('synthetic', encoding='utf-8')
+
+    def test_import_profile_uses_three_migrations_and_explicit_child_flags(self):
+        self.args.import_mode = True
+        for name in fixture.IMPORT_FILES:
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('synthetic', encoding='utf-8')
+        runtime = FakeRuntime()
+        original = runtime.start
+        environments = []
+        def start(command, cwd, env=None):
+            environments.append(env)
+            return original(command, cwd, env)
+        runtime.start = start
+        callback = MagicMock(return_value={'status': 'completed'})
+        report = fixture.execute(self.root, self.args, runtime, callback)
+        self.assertEqual(environments[0]['ASSET_IMPORT_ENABLED'], 'true')
+        proxy = next(c for c in runtime.calls if 'scripts' in ' '.join(c) and '--synthetic-only' in c)
+        self.assertEqual(proxy[-1], '--import-enabled')
+        self.assertEqual(sum('psql' in c and '-i' in c for c in runtime.calls), 3)
+        self.assertTrue(set(fixture.IMPORT_FILES).issubset(report['sourceHashes']))
+        self.assertEqual(report['cleanup'], 'stopped')
+        callback.assert_called_once()
+
 
 if __name__ == '__main__':
     unittest.main()

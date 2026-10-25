@@ -7,16 +7,28 @@ import helmet from 'helmet';
 import { loadEnvFiles } from './app/config/env-files';
 import { validateStartup } from './app/config/startup.config';
 import { AppModule } from './app/modules/app.module';
+import { AssetImportModule } from './domains/assets/asset-import.module';
+import { isAssetImportEnabled } from './domains/assets/asset-import.config';
+import { createAssetImportParser } from './domains/assets/asset-import-parser';
 
 /** Start a loopback-only API; release clients require an external HTTPS endpoint. */
 export async function bootstrap(): Promise<void> {
   loadEnvFiles();
   const port = validateStartup();
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
-    bodyParser: true,
-    abortOnError: false,
-  });
+  const importEnabled = isAssetImportEnabled();
+  const app = await NestFactory.create<NestExpressApplication>(
+    {
+      module: AppModule,
+      imports: importEnabled ? [AssetImportModule] : [],
+    },
+    {
+      bodyParser: true,
+      abortOnError: false,
+    },
+  );
   try {
+    // Install before Nest initialization so only this route gets a larger parser.
+    if (importEnabled) app.use(createAssetImportParser());
     app.set('trust proxy', false);
     app.use(helmet());
     app.use(cookieParser());
