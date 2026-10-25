@@ -55,8 +55,9 @@ PASS; screen-reader acceptance remains pending. No export-phase push, regular
 deployment, migration or new production dependency was performed.
 See [inventory export contract and evidence](docs/inventory-export.md).
 
-No AI, team sharing, file attachments, import or deletion is included. Equipment
-labels and notes are inert data. Existing ToolDeck accounts/data are not copied.
+The initial MVP excludes AI, team sharing, file attachments and deletion. Import
+is a separate optional phase described below, not part of the export operation.
+Equipment labels and notes are inert data. Existing ToolDeck accounts/data are not copied.
 
 ## Local inventory inspection (source candidate)
 
@@ -65,3 +66,20 @@ strict checksum/record validation and read-only preview, with no import or
 backend write. The isolated Windows release builds and 29 native helper assertions pass;
 operator dialog acceptance remains pending.
 See [inspection scope and remaining native checks](docs/inventory-inspection.md).
+
+## Optional add-only inventory import
+
+Commit `6319ee7` adds an explicitly opt-in import workflow, separate from read-only
+Inspect. It validates a complete export, reviews editable fields and adds new
+owner-scoped assets without replacing existing records. Defaults remain disabled;
+backend enablement requires migration 003 and Flutter requires its compile flag.
+
+Isolated PostgreSQL and HTTPS fixtures verified transaction/replay and ownership
+contracts. The operator confirmed Windows import from one to two assets,
+sign-out/sign-in persistence, unsent Keep/Discard and picker Cancel behavior.
+These checks do not certify native fault-path handling or security coverage.
+The request identity and draft remain RAM-only: process loss after an uncertain
+write can lose replay identity. Do not blindly create a new operation in that case.
+No regular deployment or import-phase push has been performed.
+
+See [the import contract and remaining gates](docs/inventory-import.md).
