@@ -7,8 +7,14 @@ snapshot checks, the actual Dart export client, and operator-confirmed Windows
 Prepare/Save/Cancel have passed. Two native-saved files were independently checked
 against Python SHA-256. Detailed evidence and limitations are recorded below.
 Screen-reader acceptance and Codacy analyzer coverage remain unverified; native
-session cleanup is recorded separately by its lifecycle. No commit/push, import,
-migration, new dependency, normal deployment or automatic upload is included.
+session cleanup completed at its deadline and container ownership/exit were
+independently verified. The exact 38-file export group was committed locally as
+`16beee5`, with an operator-approved local Codacy coverage exception, not a
+Codacy/security PASS. No push, import, migration, new dependency, normal deployment
+or automatic upload was performed.
+
+The evidence milestones below are chronological: earlier pending statements
+record the boundary at that stage, not the current status above.
 
 ## API and limits
 

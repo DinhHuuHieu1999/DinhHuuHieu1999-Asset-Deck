@@ -70,7 +70,7 @@ Native text scaling, screen-reader and error/conflict interaction checks remain 
 See the [native acceptance plan](../docs/windows-native-acceptance-plan.md).
 Source analysis returning an empty result does not establish Dart/security coverage.
 The baseline Windows runner was committed in `91ed04e`; export-channel changes
-are currently uncommitted. No fonts, screenshots,
+were committed locally in `16beee5`. No fonts, screenshots,
 credentials or generated builds are committed.
 
 See [source provenance](../docs/flutter-source-provenance.json).
@@ -88,10 +88,13 @@ The export contains sensitive plaintext serial numbers and notes, at most 500
 assets and 1 MiB. It is not encrypted, authenticated or importable by this client.
 No automatic clipboard, upload or persistent session storage is added.
 
-The full offline Flutter suite passed 136 tests, including the three additional
-route/session integration tests. Analyzer is clean. Synthetic export
+The full offline Flutter suite passed 138 tests, with one opt-in Python bridge
+test skipped in that run and separately executed successfully. Analyzer is clean. Synthetic export
 renders at 390/1440 pixels and 200% text were inspected. Windows release built from
 a selected uncommitted source copy; a separately compiled native helper passed
 16 assertions for actual BCrypt vectors and synthetic new-file/no-overwrite writes.
-None of these results certify the actual Save As dialog or real export HTTPS/DB.
+Separate isolated HTTPS acceptance verified the actual Dart client and concurrent
+PostgreSQL snapshot behavior. The operator confirmed native Prepare/Save/Cancel;
+two saved files passed independent Python checksum verification. These checks do
+not certify screen-reader behavior or constitute Codacy/security PASS.
 See [export scope and remaining acceptance](../docs/inventory-export.md).
