@@ -2,7 +2,7 @@
 
 Personal equipment inventory built from selected ToolDeck base source.
 
-## Current status
+## Baseline acceptance (before inventory export)
 
 Backend source and unit tests are implemented. Dependencies are installed with
 lifecycle scripts disabled and an independent backend lockfile. Typecheck and
@@ -24,7 +24,10 @@ draft keep/discard and sign-out/sign-in persistence on the synthetic fixture.
 Native accessibility and error/conflict interaction checks remain pending.
 The initial 103 source files are committed as `8e1430c` on
 `feat/asset-desk-bootstrap`. The validation clone has no remote and remained
-Git-clean after checks. No push or regular deployment was performed.
+Git-clean after checks. The initial validation did not perform a push or regular
+deployment. The Windows runner was subsequently committed in `91ed04e`.
+The local remote-tracking ref for `origin/feat/asset-desk-bootstrap` records
+`d7b4593`; this statement is not a live remote-state check.
 
 - [Flutter source and verification limits](flutter/README.md)
 - [HTTPS fixture scope and evidence](docs/client-https-acceptance-plan.md)
@@ -34,5 +37,19 @@ Git-clean after checks. No push or regular deployment was performed.
 - [Source provenance](docs/source-provenance.json)
 - [Backend source and verification limits](backend/README.md)
 
-No AI, team sharing, files, imports/exports or deletion is included. Equipment
+## Inventory export phase (uncommitted)
+
+The current `feat/asset-export-json` source adds complete owner-scoped JSON export,
+strict client validation, explicit Prepare and Windows Save As with no overwrite.
+Limits are 500 assets and 1 MiB, with no partial export. The baseline list filters
+are not export filters. Sensitive plaintext serial numbers/notes are included;
+checksums do not prove authenticity and export is not an encrypted database backup.
+
+Backend unit tests, synthetic Flutter tests, Windows release compilation and native
+helper checks have passed at their recorded scopes. Real PostgreSQL/HTTPS export
+and the actual Save As dialog remain pending. No export-phase commit, push,
+regular deployment, migration or new production dependency has been performed.
+See [inventory export contract and evidence](docs/inventory-export.md).
+
+No AI, team sharing, file attachments, import or deletion is included. Equipment
 labels and notes are inert data. Existing ToolDeck accounts/data are not copied.

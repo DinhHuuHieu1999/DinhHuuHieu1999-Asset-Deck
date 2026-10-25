@@ -9,7 +9,8 @@ Implemented: login/register, bounded native JSON transport, CSRF cookie/header,
 in-memory bearer session, inventory search/status/pagination and manual create/edit.
 Sign-out and HTTP 401 replace the entire private navigator, including draft forms.
 Late responses cannot restore an older account or private list. No credentials
-or equipment records are written to disk by the client.
+are persisted by the client. Inventory remains in memory unless the user
+explicitly prepares an export and selects a new local JSON destination.
 
 Failed writes are never retried automatically. Conflicts and unknown write outcomes
 preserve the draft and block blind resubmission; return and refresh before another
@@ -68,7 +69,29 @@ functional confirmations, not automated UI observations. The operator also confi
 Native text scaling, screen-reader and error/conflict interaction checks remain pending.
 See the [native acceptance plan](../docs/windows-native-acceptance-plan.md).
 Source analysis returning an empty result does not establish Dart/security coverage.
-The Windows runner source is prepared but not yet committed. No fonts, screenshots,
+The baseline Windows runner was committed in `91ed04e`; export-channel changes
+are currently uncommitted. No fonts, screenshots,
 credentials or generated builds are committed.
 
 See [source provenance](../docs/flutter-source-provenance.json).
+
+## Inventory export source phase
+
+Inventory now offers Export all inventory JSON when the store supports exports.
+Opening the route does not fetch or save data. Prepare requests the complete
+account snapshot independently of list filters and validates checksum/count/bounds.
+Save JSON as... opens the Windows dialog; cancellation retains the prepared
+snapshot, existing files are not overwritten and errors do not retry automatically.
+Sign-out clears the private export route, including pending-result UI updates.
+
+The export contains sensitive plaintext serial numbers and notes, at most 500
+assets and 1 MiB. It is not encrypted, authenticated or importable by this client.
+No automatic clipboard, upload or persistent session storage is added.
+
+The full offline Flutter suite passed 136 tests, including the three additional
+route/session integration tests. Analyzer is clean. Synthetic export
+renders at 390/1440 pixels and 200% text were inspected. Windows release built from
+a selected uncommitted source copy; a separately compiled native helper passed
+16 assertions for actual BCrypt vectors and synthetic new-file/no-overwrite writes.
+None of these results certify the actual Save As dialog or real export HTTPS/DB.
+See [export scope and remaining acceptance](../docs/inventory-export.md).

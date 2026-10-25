@@ -34,6 +34,14 @@ boundary fails explicitly with 422 rather than pretending the list is complete.
 Edit conflict and unavailable/non-owned record both return 409 without disclosing
 another owner's record. Requests are not automatically retried.
 
+## Inventory export source
+
+`GET /assets/export` returns an owner-scoped complete JSON snapshot, with explicit
+500-record and 1 MiB envelope limits. It does not reuse filtered list pages.
+See [the export contract and pending acceptance](../docs/inventory-export.md).
+This addition is source/unit-test evidence only; no new database or HTTPS fixture
+has run for export, and no regular backend was updated.
+
 ## Runtime and schema gates
 
 No regular product database or backend service has been started; all live

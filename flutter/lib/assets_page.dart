@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 
 import 'api/asset.dart';
 import 'api/asset_store.dart';
+import 'api/asset_export.dart';
+import 'inventory_export_files.dart';
+import 'inventory_export_page.dart';
 import 'asset_editor.dart';
 
 /// Inventory for one authenticated account; the parent must replace on sign-out.
 class AssetsPage extends StatefulWidget {
-  const AssetsPage({super.key, required this.store});
+  const AssetsPage({super.key, required this.store, this.exportFiles});
   final AssetStore store;
+  final InventoryExportFiles? exportFiles;
   @override
   State<AssetsPage> createState() => _AssetsPageState();
 }
@@ -97,6 +101,24 @@ class _AssetsPageState extends State<AssetsPage> {
               onPressed: _busy ? null : () => _edit(),
               child: const Text('Add asset'),
             ),
+            if (widget.store case final AssetExportSource source) ...[
+              const SizedBox(height: 8),
+              OutlinedButton(
+                onPressed: _busy
+                    ? null
+                    : () => Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => InventoryExportPage(
+                            source: source,
+                            files:
+                                widget.exportFiles ??
+                                WindowsInventoryExportFiles(),
+                          ),
+                        ),
+                      ),
+                child: const Text('Export all inventory JSON'),
+              ),
+            ],
             const SizedBox(height: 12),
             TextField(
               controller: _query,

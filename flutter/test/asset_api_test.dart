@@ -166,6 +166,103 @@ void main() {
         expect(calls.last, 'POST /api/v1/auth/register');
       },
     );
+    Map<String, Object?> exportFixture() => jsonDecode(
+      File('test/fixtures/inventory-export-v1.json').readAsStringSync(),
+    ) as Map<String, Object?>;
+
+    test(
+      'exports through dedicated authenticated endpoint without list filters',
+      () async {
+        await login();
+        final fixture = exportFixture();
+        handler = (request) async {
+          expect(request.method, 'GET');
+          expect(request.uri.path, '/api/v1/assets/export');
+          expect(request.uri.hasQuery, isFalse);
+          expect(
+            request.headers.value('authorization'),
+            'Bearer synthetic-token',
+          );
+          json(request, fixture);
+        };
+        final before = calls.length;
+        final result = await api.exportInventory(
+          digest: (_) async => fixture['sha256']! as String,
+        );
+        expect(result.count, 1);
+        expect(calls.length, before + 1);
+        expect(csrfCount, 1);
+      },
+    );
+
+    test('anonymous export never requests data or digest', () async {
+      await expectLater(
+        api.exportInventory(
+          digest: (_) async => throw StateError('must not run'),
+        ),
+        throwsA(isA<AssetFailure>()),
+      );
+      expect(calls, isEmpty);
+    });
+
+    test('sign-out during digest rejects late prepared export', () async {
+      await login();
+      final fixture = exportFixture();
+      handler = (request) async => json(request, fixture);
+      final entered = Completer<void>();
+      final release = Completer<String>();
+      final result = api.exportInventory(
+        digest: (_) {
+          entered.complete();
+          return release.future;
+        },
+      );
+      final assertion = expectLater(result, throwsA(isA<AssetFailure>()));
+      await entered.future;
+      api.signOut();
+      release.complete(fixture['sha256']! as String);
+      await assertion;
+      expect(api.account, isNull);
+    });
+
+    for (final status in [401, 422, 500]) {
+      test('export failure $status is explicit and is never retried', () async {
+        await login();
+        handler = (request) async => json(request, {}, status: status);
+        final before = calls.length;
+        await expectLater(
+          api.exportInventory(
+            digest: (_) async => throw StateError('must not run'),
+          ),
+          throwsA(
+            isA<AssetFailure>().having((e) => e.statusCode, 'status', status),
+          ),
+        );
+        expect(calls.length, before + 1);
+        expect(api.account == null, status == 401);
+      });
+    }
+
+    test(
+      'invalid export checksum returns a safe failure without retry',
+      () async {
+        await login();
+        handler = (request) async => json(request, exportFixture());
+        final before = calls.length;
+        await expectLater(
+          api.exportInventory(digest: (_) async => '0' * 64),
+          throwsA(
+            isA<AssetFailure>().having(
+              (e) => e.message,
+              'message',
+              contains('checksum'),
+            ),
+          ),
+        );
+        expect(calls.length, before + 1);
+      },
+    );
+
     test('anonymous and invalid inputs make no request', () async {
       await expectLater(
         api.list(query: '', status: '', offset: 0),

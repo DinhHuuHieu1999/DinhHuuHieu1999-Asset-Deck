@@ -36,6 +36,13 @@ export class AssetsController {
     return this.service.list(owner(req), query);
   }
 
+  /** Return a bounded complete snapshot, never a filtered page or partial export. */
+  @Get('export')
+  @Header('Cache-Control', 'no-store')
+  exportInventory(@Req() req: OwnerRequest) {
+    return this.service.exportInventory(owner(req));
+  }
+
   /** Create one manually entered asset. */
   @Post()
   @Header('Cache-Control', 'no-store')

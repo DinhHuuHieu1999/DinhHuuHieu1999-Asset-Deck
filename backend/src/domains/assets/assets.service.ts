@@ -6,6 +6,7 @@ import {
   type OnModuleInit,
 } from '@nestjs/common';
 import { AssetsRepository } from './assets.repository';
+import { buildAssetExport } from './asset-export';
 import type {
   AssetInputDto,
   AssetQueryDto,
@@ -53,6 +54,11 @@ export class AssetsService implements OnModuleInit {
       );
     }
     return result;
+  }
+
+  /** Export the full owner inventory, independently of list filters and pagination. */
+  async exportInventory(owner: string) {
+    return buildAssetExport(await this.repository.snapshot(owner));
   }
 
   /** Add one manual asset. */

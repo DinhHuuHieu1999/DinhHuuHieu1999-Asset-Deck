@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { ASSET_EXPORT_MAX_RECORDS, type AssetSnapshot } from './asset-export';
 import { isAccountId } from '../auth/account.repository';
 import type { PostgresDatabase } from '../../infrastructure/database/postgres.database';
 import type { AssetInputDto, AssetQueryDto } from './assets.dto';
@@ -43,6 +44,22 @@ export class AssetsRepository {
       items: result.rows.slice(0, 50),
       nextOffset: result.rows.length > 50 ? query.offset + 50 : null,
     };
+  }
+
+  /** Read the entire bounded owner inventory in one PostgreSQL statement snapshot. */
+  async snapshot(owner: string): Promise<AssetSnapshot> {
+    this.owner(owner);
+    const result = await this.database.pool.query<AssetSnapshot>(
+      `SELECT to_char(statement_timestamp() AT TIME ZONE 'UTC',
+        'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "exportedAt",
+        COALESCE((SELECT json_agg(record) FROM (
+          SELECT ${projection} FROM assets.assets WHERE owner_id=$1
+          ORDER BY updated_at DESC,id DESC LIMIT $2
+        ) record), '[]'::json) AS records`,
+      [owner.toLowerCase(), ASSET_EXPORT_MAX_RECORDS + 1],
+    );
+    if (!result.rows[0]) throw new Error('asset_snapshot_missing');
+    return result.rows[0];
   }
 
   /** Store one new asset without deduplicating user labels or serial numbers. */

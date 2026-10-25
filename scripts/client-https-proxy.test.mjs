@@ -197,3 +197,43 @@ test('backend readiness is written only after the exact server binds', () => {
     }
   }
 });
+
+test('inventory export is an exact GET-only fixture route', () => {
+  assert.equal(allowed('GET', '/api/v1/assets/export'), true);
+  assert.equal(
+    allowed('GET', '/api/v1/assets/export?q=missing&owner=synthetic'),
+    true,
+  );
+  for (const method of ['POST', 'PUT', 'PATCH', 'DELETE'])
+    assert.equal(allowed(method, '/api/v1/assets/export'), false);
+  for (const path of [
+    '/api/v1/assets/export/other',
+    '/api/v1/assets/export/',
+    '/api/v1/assets/%65xport',
+    '/api/v1/assets/export/../auth',
+  ])
+    assert.equal(allowed('GET', path), false);
+});
+
+test('export forwarding preserves upstream 200, 401 and 422 without retry', async () => {
+  const url = '/api/v1/assets/export?q=missing&owner=synthetic';
+  for (const status of [200, 401, 422]) {
+    const payload = Buffer.from(JSON.stringify({ synthetic: true, status }));
+    const result = await simulate({
+      method: 'GET',
+      url,
+      chunks: [],
+      status,
+      responseChunks: [payload],
+    });
+    assert.equal(result.calls, 1);
+    assert.equal(result.options.path, url);
+    assert.equal(result.options.method, 'GET');
+    assert.equal(result.options.hostname, '127.0.0.1');
+    assert.equal(result.options.headers.authorization, 'synthetic');
+    assert.equal(result.sent.length, 0);
+    assert.equal(result.res.code, status);
+    assert.deepEqual(result.res.body, payload);
+    assert.equal(result.res.headers['cache-control'], 'no-store');
+  }
+});

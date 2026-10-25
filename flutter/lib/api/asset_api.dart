@@ -4,12 +4,13 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'asset.dart';
+import 'asset_export.dart';
 import 'asset_session.dart';
 import 'asset_store.dart';
 
 /// Native JSON client with bounded responses and in-memory credentials only.
 /// Adapted from ToolDeck's selected auth/CSRF/session transport; no other domains.
-class AssetApi implements AssetSession {
+class AssetApi implements AssetSession, AssetExportSource {
   AssetApi(
     Uri endpoint, {
     bool allowLocalHttp = false,
@@ -181,6 +182,23 @@ class AssetApi implements AssetSession {
     }
   }
 
+  /// Fetch one complete snapshot and reject results from an invalidated session.
+  @override
+  Future<AssetExport> exportInventory({
+    required AssetExportDigest digest,
+  }) async {
+    final epoch = _requireAccount();
+    final value = await _request('GET', 'assets/export', epoch);
+    _current(epoch);
+    try {
+      final result = await AssetExport.parse(value, digest: digest);
+      _current(epoch);
+      return result;
+    } on FormatException {
+      throw const AssetFailure('Invalid inventory export or checksum');
+    }
+  }
+
   @override
   Future<AssetRecord> create(AssetInput input) async {
     final epoch = _requireAccount();
@@ -309,7 +327,10 @@ class AssetApi implements AssetSession {
           final message = switch (response.statusCode) {
             403 => 'Request rejected. Sign in again before another write.',
             409 => 'Asset changed or is unavailable; refresh before editing.',
-            422 => 'Pagination limit reached; the list is incomplete. Narrow your filters.',
+            422 =>
+              path == 'assets/export'
+                  ? 'Inventory exceeds export limits (500 assets / 1 MiB); no partial export was produced.'
+                  : 'Pagination limit reached; the list is incomplete. Narrow your filters.',
             429 => 'Too many requests. Wait before trying again.',
             _ => 'Request failed',
           };

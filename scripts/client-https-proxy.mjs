@@ -38,6 +38,7 @@ export function allowed(method, raw) {
       '/api/v1/csrf-token',
       '/api/v1/auth/profile',
       '/api/v1/assets',
+      '/api/v1/assets/export',
     ].includes(path);
   if (method === 'POST')
     return [
