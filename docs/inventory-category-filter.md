@@ -1,6 +1,6 @@
 # Inventory category filter
 
-Status: source candidate; backend and client/UI implemented; repository and HTTPS fixtures passed; native acceptance pending. Not deployed.
+Status: committed source; backend and client/UI implemented; repository and HTTPS fixtures passed; native acceptance pending. Not deployed.
 
 ## Contract
 
@@ -85,7 +85,8 @@ The runner reported cleanup stopped; independent Docker inspection confirmed
 This verifies category predicates, literal/case matching, pagination, owner
 isolation and snapshot independence at the repository boundary. It does not
 prove the HTTP DTO path, real Dart HTTPS transport, native UI or deployment.
-No regular backend/database was changed; source remains uncommitted.
+No regular backend/database was changed. Source was uncommitted at that
+repository acceptance point; the later commit is recorded below.
 
 ## HTTPS acceptance source
 
@@ -113,8 +114,17 @@ Default TLS validation remained enabled. Shared lifecycle reported cleanup
 stopped; independent Docker inspection confirmed the matching label and stopped
 state, and all three selected loopback ports had no listeners. The old backend
 build, fixture files and volume were retained. No regular service was restarted,
-no native app was launched, and no source commit, push or deployment followed.
+no native app was launched, and no push or deployment followed. Source was
+subsequently committed as recorded below.
 
 Native UI acceptance and complete security analyzer coverage remain unproven.
 Do not apply the earlier recovery EXE block as proof this category candidate
 works or fails natively; no category Windows build/launch has been attempted.
+
+## Committed source verification
+
+Commit `7311879` contains the 19 category implementation, test and contract files.
+A separate Git archive of that commit passed all 13 Python orchestration tests
+(eight PostgreSQL-runner tests and five HTTPS-runner tests), without copying local
+dependencies, runtime or env files. This verifies committed offline harness
+contracts, not live execution from a fresh checkout or Windows native behavior.

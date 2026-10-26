@@ -87,3 +87,12 @@ Do not blindly create a new operation after an uncertain write.
 No regular deployment or import-phase push has been performed.
 
 See [the import contract and remaining gates](docs/inventory-import.md).
+
+## Inventory category filter
+
+Inventory supports an exact, case-sensitive category filter combined with Search
+and Status before pagination. Leave category blank to select all categories;
+full JSON export remains independent of list filters.
+Source is committed locally as `7311879`; isolated PostgreSQL and HTTPS checks
+passed, but Windows native acceptance remains pending. Not deployed.
+See [category contract and verification scope](docs/inventory-category-filter.md).
