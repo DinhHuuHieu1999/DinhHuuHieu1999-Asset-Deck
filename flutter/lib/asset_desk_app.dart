@@ -12,11 +12,13 @@ class AssetDeskApp extends StatefulWidget {
     super.key,
     required this.session,
     this.enableInventoryImport = false,
+    this.enableAssetDates = false,
     this.importApiBase = '',
   });
   final String importApiBase;
   final AssetSession session;
   final bool enableInventoryImport;
+  final bool enableAssetDates;
   @override
   State<AssetDeskApp> createState() => _AssetDeskAppState();
 }
@@ -105,6 +107,7 @@ class _AssetDeskAppState extends State<AssetDeskApp> {
               store: widget.session,
               importApiBase: widget.importApiBase,
               enableInventoryImport: widget.enableInventoryImport,
+              enableAssetDates: widget.enableAssetDates,
             ),
     );
   }

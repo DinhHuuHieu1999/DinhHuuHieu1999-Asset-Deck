@@ -98,3 +98,12 @@ PostgreSQL snapshot behavior. The operator confirmed native Prepare/Save/Cancel;
 two saved files passed independent Python checksum verification. These checks do
 not certify screen-reader behavior or constitute Codacy/security PASS.
 See [export scope and remaining acceptance](../docs/inventory-export.md).
+
+## Optional purchase and warranty dates
+
+Separate owner-scoped date reads/updates preserve the legacy inventory contract.
+Backend migration 004 and `ASSET_DATES_ENABLED=true` are explicit prerequisites;
+Flutter uses `ASSET_DESK_ENABLE_ASSET_DATES=true`. Both flags default off.
+JSON v1 excludes dates and is not a warranty backup. Isolated SQL/HTTPS and
+database restart/restore checks passed; Windows native acceptance remains pending.
+See [date behavior and verification limits](../docs/inventory-dates.md).

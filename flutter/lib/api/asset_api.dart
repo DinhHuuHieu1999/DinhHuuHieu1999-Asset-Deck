@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'asset.dart';
+import 'asset_dates.dart';
 import 'asset_overview.dart';
 import 'asset_export.dart';
 import 'asset_import.dart';
@@ -17,7 +18,8 @@ class AssetApi
         AssetSession,
         AssetExportSource,
         AssetImportSource,
-        AssetOverviewSource {
+        AssetOverviewSource,
+        AssetDatesSource {
   AssetApi(
     Uri endpoint, {
     bool allowLocalHttp = false,
@@ -190,6 +192,76 @@ class AssetApi
       return AssetPage.fromJson(result, offset: offset);
     } on FormatException {
       throw const AssetFailure('Invalid inventory response');
+    }
+  }
+
+  /// Read dates separately without changing the legacy inventory contract.
+  @override
+  Future<AssetDates> readDates(String id) async {
+    final epoch = _requireAccount();
+    _dateIdentity(id);
+    final value = await _request('GET', 'assets/$id/dates', epoch);
+    _current(epoch);
+    return _dates(value, id);
+  }
+
+  /// Submit one explicit shared-version update; transport never retries writes.
+  @override
+  Future<AssetDates> updateDates(
+    AssetDates original,
+    AssetDatesInput input,
+  ) async {
+    final epoch = _requireAccount();
+    _dateIdentity(original.id);
+    final Map<String, Object?> body;
+    try {
+      body = input.toJson(version: original.version);
+    } on FormatException {
+      throw const AssetFailure(
+        'Invalid purchase/warranty dates or version',
+        definitelyNotSent: true,
+      );
+    }
+    final value = await _request(
+      'PUT',
+      'assets/${original.id}/dates',
+      epoch,
+      body,
+    );
+    _current(epoch);
+    final result = _dates(value, original.id);
+    if (result.version != original.version + 1 ||
+        result.input.purchasedOn != input.purchasedOn ||
+        result.input.warrantyExpiresOn != input.warrantyExpiresOn) {
+      throw const AssetFailure(
+        'Invalid dates update response; reload before another write',
+      );
+    }
+    return result;
+  }
+
+  void _dateIdentity(String id) {
+    if (!RegExp(
+      r'^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$',
+    ).hasMatch(id)) {
+      throw const AssetFailure(
+        'Reload this asset before editing dates',
+        definitelyNotSent: true,
+      );
+    }
+  }
+
+  AssetDates _dates(Map<String, Object?> value, String id) {
+    try {
+      final result = AssetDates.fromJson(value);
+      if (result.id.toLowerCase() != id.toLowerCase()) {
+        throw const FormatException('Unexpected asset identity');
+      }
+      return result;
+    } on FormatException {
+      throw const AssetFailure(
+        'Invalid asset dates response; reload before another write',
+      );
     }
   }
 

@@ -1,3 +1,5 @@
+import 'api/asset_dates.dart';
+import 'asset_dates_editor.dart';
 import 'api/asset_overview.dart';
 import 'inventory_overview_page.dart';
 import 'api/asset_session.dart';
@@ -23,11 +25,13 @@ class AssetsPage extends StatefulWidget {
     this.exportFiles,
     this.inspectionFiles,
     this.enableInventoryImport = false,
+    this.enableAssetDates = false,
     this.importApiBase = '',
   });
   final String importApiBase;
   final AssetStore store;
   final bool enableInventoryImport;
+  final bool enableAssetDates;
   final InventoryExportFiles? exportFiles;
   final InventoryInspectionFiles? inspectionFiles;
   @override
@@ -104,6 +108,39 @@ class _AssetsPageState extends State<AssetsPage> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Future<void> _editDates(AssetRecord record, AssetDatesSource source) async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    bool saved = false;
+    try {
+      final dates = await source.readDates(record.id);
+      if (!mounted) return;
+      if (dates.id.toLowerCase() != record.id.toLowerCase()) {
+        throw const AssetFailure('Invalid asset dates identity');
+      }
+      saved =
+          await Navigator.of(context).push<bool>(
+            MaterialPageRoute(
+              builder: (_) => AssetDatesEditor(store: source, original: dates),
+            ),
+          ) ==
+          true;
+    } catch (error) {
+      if (mounted)
+        setState(
+          () => _error = error is AssetFailure
+              ? error.message
+              : 'Unable to load asset dates.',
+        );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+    if (saved && mounted) await _load();
   }
 
   Future<void> _edit([AssetRecord? record]) async {
@@ -298,6 +335,14 @@ class _AssetsPageState extends State<AssetsPage> {
                           onPressed: _busy ? null : () => _edit(record),
                           child: const Text('Edit asset'),
                         ),
+                        if (widget.enableAssetDates)
+                          if (widget.store case final AssetDatesSource source)
+                            OutlinedButton(
+                              onPressed: _busy
+                                  ? null
+                                  : () => _editDates(record, source),
+                              child: const Text('Purchase / warranty dates'),
+                            ),
                       ],
                     ),
                   ),

@@ -35,9 +35,23 @@ def import_mode(args):
     return value
 
 
+DATES_FILES = ('backend/migrations/004-asset-dates.sql',
+               'backend/dist/domains/assets/asset-dates.module.js',
+               'flutter/tool/dates_https_acceptance.dart', 'flutter/lib/api/asset_dates.dart')
+
+
+def dates_mode(args):
+    """Dates is a fixed opt-in capability, never an inherited operator setting."""
+    value = getattr(args, 'dates_mode', False)
+    if type(value) is not bool or (value and import_mode(args)):
+        raise Refusal('Invalid dates fixture profile')
+    return value
+
+
 def fixture_files(args):
     """Return a fixed source/artifact set for the selected fixture profile."""
-    return FILES + IMPORT_FILES if import_mode(args) else FILES
+    dates = dates_mode(args)
+    return FILES + (DATES_FILES if dates else IMPORT_FILES if import_mode(args) else ())
 
 
 def preflight(root, args):
@@ -165,7 +179,8 @@ def assert_owned(runtime, name, identity):
 def execute(root, args, runtime, acceptance=None):
     """Run once, retain evidence/volume, and stop only resources created here."""
     enabled = import_mode(args)
-    if enabled and acceptance is None:
+    dates = dates_mode(args)
+    if (enabled or dates) and acceptance is None:
         raise Refusal('Import fixture requires its dedicated acceptance driver')
     if enabled and any(not (root / name).is_file() for name in IMPORT_FILES):
         raise Refusal('Import fixture source is missing')
@@ -208,7 +223,7 @@ def execute(root, args, runtime, acceptance=None):
         if not ready:
             raise Refusal('Database readiness timed out')
         report['stage'] = 'migrations'
-        migrations = FILES[1:3] + (IMPORT_FILES[:1] if enabled else ())
+        migrations = FILES[1:3] + (IMPORT_FILES[:1] if enabled else DATES_FILES[:1] if dates else ())
         for migration in migrations:
             runtime.run(['docker', 'exec', '-i', name, 'psql', '-v', 'ON_ERROR_STOP=1', '-U', 'fixture', '-d', 'fixture'], data=(root / migration).read_bytes())
         env = dict(runtime.env, NODE_ENV='production', BACKEND_HTTP_PORT=str(args.backend_port),
@@ -217,12 +232,13 @@ def execute(root, args, runtime, acceptance=None):
                    CSRF_ENABLED='true', CSRF_COOKIE_SECURE='true', AUTH_EXPOSE_RESET_TOKEN='false',
                    REQUEST_FRESHNESS_ENABLED='true', THROTTLE_LIMIT='1000', ASSET_DESK_FIXTURE_ID=identity)
         env['ASSET_IMPORT_ENABLED'] = 'true' if enabled else 'false'
+        env['ASSET_DATES_ENABLED'] = 'true' if dates else 'false'
         report['stage'] = 'backend-readiness'
         backend = runtime.start(['node', '--require', str(root / 'scripts/client-https-backend.cjs'), str(root / FILES[0])], folder, env)
         runtime.wait_backend(folder, identity, args.backend_port, backend)
         report['stage'] = 'proxy-readiness'
         proxy = runtime.start(['node', str(root / 'scripts/client-https-proxy-cli.mjs'), '--synthetic-only',
-                               str(args.backend_port), str(args.tls_port), identity, args.cert, args.key] + (['--import-enabled'] if enabled else []), folder)
+                               str(args.backend_port), str(args.tls_port), identity, args.cert, args.key] + (['--import-enabled'] if enabled else ['--dates-enabled'] if dates else []), folder)
         runtime.wait_port(args.tls_port, proxy)
         if acceptance is None:
             report['stage'] = 'dart-client'

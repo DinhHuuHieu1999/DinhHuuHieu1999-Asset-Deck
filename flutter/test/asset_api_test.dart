@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:asset_desk/api/asset_api.dart';
 import 'package:asset_desk/api/asset.dart';
+import 'package:asset_desk/api/asset_dates.dart';
 import 'package:asset_desk/api/asset_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -120,6 +121,104 @@ void main() {
       expect(handlerErrors, isEmpty);
     });
     Future<void> login() => api.login(' synthetic ', ' synthetic-pass ');
+
+    const datesId = '11111111-1111-4111-8111-111111111111';
+    Map<String, Object?> datesRow({int version = 1}) => {
+      'id': datesId,
+      'version': version,
+      'purchasedOn': null,
+      'warrantyExpiresOn': '2030-01-01',
+    };
+    test(
+      'dates use separate paths, explicit null and shared version only',
+      () async {
+        await login();
+        handler = (request) async {
+          expect(request.uri.path, '/api/v1/assets/$datesId/dates');
+          expect(request.uri.hasQuery, isFalse);
+          if (request.method == 'PUT') {
+            expect(await body(request), {
+              'version': 1,
+              'purchasedOn': null,
+              'warrantyExpiresOn': null,
+            });
+            json(request, {...datesRow(version: 2), 'warrantyExpiresOn': null});
+          } else {
+            json(request, datesRow());
+          }
+        };
+        final original = await api.readDates(datesId);
+        final saved = await api.updateDates(
+          original,
+          const AssetDatesInput(purchasedOn: null, warrantyExpiresOn: null),
+        );
+        expect(saved.version, 2);
+        expect(saved.input.warrantyExpiresOn, isNull);
+      },
+    );
+    test('invalid dates or identity never send a request', () async {
+      await login();
+      final before = calls.length;
+      await expectLater(
+        api.readDates('../other'),
+        throwsA(
+          isA<AssetFailure>().having(
+            (e) => e.definitelyNotSent,
+            'not sent',
+            isTrue,
+          ),
+        ),
+      );
+      await expectLater(
+        api.updateDates(
+          AssetDates.fromJson(datesRow()),
+          const AssetDatesInput(
+            purchasedOn: '1900-02-29',
+            warrantyExpiresOn: null,
+          ),
+        ),
+        throwsA(
+          isA<AssetFailure>().having(
+            (e) => e.definitelyNotSent,
+            'not sent',
+            isTrue,
+          ),
+        ),
+      );
+      expect(calls.length, before);
+    });
+    test('dates conflict is returned once without retry', () async {
+      await login();
+      handler = (request) async => json(request, {}, status: 409);
+      final before = calls.length;
+      await expectLater(
+        api.updateDates(
+          AssetDates.fromJson(datesRow()),
+          const AssetDatesInput(purchasedOn: null, warrantyExpiresOn: null),
+        ),
+        throwsA(isA<AssetFailure>().having((e) => e.statusCode, 'status', 409)),
+      );
+      expect(calls.length, before + 1);
+    });
+    test(
+      'dates reject foreign identity and unconfirmed mutation response',
+      () async {
+        await login();
+        handler = (request) async => json(request, {
+          ...datesRow(),
+          'id': '22222222-2222-4222-8222-222222222222',
+        });
+        await expectLater(api.readDates(datesId), throwsA(isA<AssetFailure>()));
+        handler = (request) async => json(request, datesRow(version: 2));
+        await expectLater(
+          api.updateDates(
+            AssetDates.fromJson(datesRow()),
+            const AssetDatesInput(purchasedOn: null, warrantyExpiresOn: null),
+          ),
+          throwsA(isA<AssetFailure>()),
+        );
+      },
+    );
 
     test('overview limit failure is not zero and is not retried', () async {
       await login();

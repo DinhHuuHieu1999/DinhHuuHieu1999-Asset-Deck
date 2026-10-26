@@ -135,3 +135,12 @@ separate authenticated import module and requires migration 003 readiness;
 startup never applies migrations. Do not enable it on a regular database until
 isolated SQL/API acceptance is approved and complete. See the
 [import contract and pending gates](../docs/inventory-import.md).
+
+## Optional purchase and warranty dates
+
+Separate owner-scoped date reads/updates preserve the legacy inventory contract.
+Backend migration 004 and `ASSET_DATES_ENABLED=true` are explicit prerequisites;
+Flutter uses `ASSET_DESK_ENABLE_ASSET_DATES=true`. Both flags default off.
+JSON v1 excludes dates and is not a warranty backup. Isolated SQL/HTTPS and
+database restart/restore checks passed; Windows native acceptance remains pending.
+See [date behavior and verification limits](../docs/inventory-dates.md).

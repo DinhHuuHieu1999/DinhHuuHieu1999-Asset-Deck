@@ -1,3 +1,4 @@
+import { AssetDatesModule } from './domains/assets/asset-dates.module';
 jest.mock('./app/modules/app.module', () => ({
   AppModule: class AppModule {},
 }));
@@ -20,6 +21,7 @@ jest.mock('@nestjs/core', () => ({
 
 describe('opt-in import bootstrap', () => {
   const original = process.env.ASSET_IMPORT_ENABLED;
+  const originalDates = process.env.ASSET_DATES_ENABLED;
   const app = {
     use: jest.fn(),
     set: jest.fn(),
@@ -32,13 +34,39 @@ describe('opt-in import bootstrap', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     delete process.env.ASSET_IMPORT_ENABLED;
+    delete process.env.ASSET_DATES_ENABLED;
     jest.mocked(NestFactory.create).mockResolvedValue(app as never);
     app.listen.mockResolvedValue(undefined);
     app.close.mockResolvedValue(undefined);
   });
   afterEach(() => {
+    if (originalDates === undefined) delete process.env.ASSET_DATES_ENABLED;
+    else process.env.ASSET_DATES_ENABLED = originalDates;
     if (original === undefined) delete process.env.ASSET_IMPORT_ENABLED;
     else process.env.ASSET_IMPORT_ENABLED = original;
+  });
+  it('registers date capability only under its explicit flag without the import parser', async () => {
+    process.env.ASSET_DATES_ENABLED = 'true';
+    await bootstrap();
+    expect(NestFactory.create).toHaveBeenCalledWith(
+      { module: AppModule, imports: [AssetDatesModule] },
+      { bodyParser: true, abortOnError: false },
+    );
+    expect(app.use).toHaveBeenCalledTimes(2);
+  });
+  it('supports both independently enabled capabilities', async () => {
+    process.env.ASSET_DATES_ENABLED = 'true';
+    process.env.ASSET_IMPORT_ENABLED = 'true';
+    await bootstrap();
+    expect(NestFactory.create).toHaveBeenCalledWith(
+      { module: AppModule, imports: [AssetImportModule, AssetDatesModule] },
+      { bodyParser: true, abortOnError: false },
+    );
+  });
+  it('rejects malformed date enablement before constructing the app', async () => {
+    process.env.ASSET_DATES_ENABLED = 'TRUE';
+    await expect(bootstrap()).rejects.toThrow('ASSET_DATES_ENABLED');
+    expect(NestFactory.create).not.toHaveBeenCalled();
   });
   it('does not register the write capability by default', async () => {
     await bootstrap();

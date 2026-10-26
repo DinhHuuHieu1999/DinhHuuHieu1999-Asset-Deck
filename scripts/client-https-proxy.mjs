@@ -20,10 +20,12 @@ export function validateConfig({
   fixtureId,
   timeoutMs = 15000,
   importEnabled = false,
+  datesEnabled = false,
   recoveryRequestId,
 }) {
   if (
     typeof importEnabled !== "boolean" ||
+    typeof datesEnabled !== 'boolean' ||
     !Number.isInteger(upstreamPort) ||
     upstreamPort < 1024 ||
     upstreamPort > 65535 ||
@@ -49,14 +51,15 @@ export function parseProxyArgs(args) {
     !Array.isArray(args) ||
     ![6, 7].includes(args.length) ||
     args[0] !== "--synthetic-only" ||
-    (args.length === 7 && args[6] !== "--import-enabled")
+    (args.length === 7 && !['--import-enabled', '--dates-enabled'].includes(args[6]))
   )
     throw new Error("Explicit fixture opt-in required");
   const [, upstream, listen, fixtureId, cert, key] = args;
   const config = {
     upstreamPort: Number(upstream),
     fixtureId,
-    importEnabled: args.length === 7,
+    importEnabled: args[6] === '--import-enabled',
+    datesEnabled: args[6] === '--dates-enabled',
   };
   validateConfig(config);
   const port = Number(listen);
@@ -73,9 +76,11 @@ export function parseProxyArgs(args) {
 }
 
 /** Allow only the API operations exercised by the synthetic client. */
-export function allowed(method, raw, importEnabled = false) {
+export function allowed(method, raw, importEnabled = false, datesEnabled = false) {
   if (typeof raw !== "string" || !raw.startsWith("/") || raw.startsWith("//"))
     return false;
+  if (/^\/api\/v1\/assets\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\/dates$/.test(raw))
+    return datesEnabled === true && ['GET', 'PUT'].includes(method);
   if (method === "POST" && raw === "/api/v1/assets/import")
     return importEnabled === true;
   const path = raw.split("?")[0];
@@ -160,7 +165,7 @@ export function createHandler(config, request = http.request) {
       );
       return;
     }
-    if (!allowed(req.method, req.url, config.importEnabled)) {
+    if (!allowed(req.method, req.url, config.importEnabled, config.datesEnabled)) {
       fail(404);
       req.resume();
       return;

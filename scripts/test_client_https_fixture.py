@@ -276,6 +276,30 @@ class FixtureTests(unittest.TestCase):
         self.assertEqual(report['cleanup'], 'stopped')
         callback.assert_called_once()
 
+    def test_dates_profile_uses_three_migrations_and_explicit_child_flags(self):
+        self.args.dates_mode = True
+        for name in fixture.DATES_FILES:
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('synthetic', encoding='utf-8')
+        runtime = FakeRuntime()
+        original = runtime.start
+        environments = []
+        def start(command, cwd, env=None):
+            environments.append(env)
+            return original(command, cwd, env)
+        runtime.start = start
+        callback = MagicMock(return_value={'status': 'completed'})
+        report = fixture.execute(self.root, self.args, runtime, callback)
+        self.assertEqual(environments[0]['ASSET_DATES_ENABLED'], 'true')
+        self.assertEqual(environments[0]['ASSET_IMPORT_ENABLED'], 'false')
+        proxy = next(c for c in runtime.calls if 'scripts' in ' '.join(c) and '--synthetic-only' in c)
+        self.assertEqual(proxy[-1], '--dates-enabled')
+        self.assertEqual(sum('psql' in c and '-i' in c for c in runtime.calls), 3)
+        self.assertTrue(set(fixture.DATES_FILES).issubset(report['sourceHashes']))
+        self.assertEqual(report['cleanup'], 'stopped')
+        callback.assert_called_once()
+
 
 if __name__ == '__main__':
     unittest.main()

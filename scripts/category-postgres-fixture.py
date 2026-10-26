@@ -21,12 +21,20 @@ OVERVIEW_FILES = (FILES[0], FILES[1],
                   FILES[3], 'backend/src/domains/assets/asset-overview.ts', FILES[-1])
 
 
+DATES_FILES = (FILES[0], FILES[1],
+               'backend/src/domains/assets/assets-dates.postgres.spec.ts',
+               FILES[3], 'backend/src/domains/assets/asset-dates.repository.ts',
+               'backend/migrations/004-asset-dates.sql', FILES[-1])
+
+
 def profile_settings(profile):
     """Only fixed source-owned profiles may choose a suite or fixture identity."""
     if profile == 'category':
         return FILES, 'asset-category-', 'asset_category_fixture_', 'ASSET_CATEGORY', 'isolated-category-v1', 'asset_category_fixture_identity'
     if profile == 'overview':
         return OVERVIEW_FILES, 'asset-overview-', 'asset_overview_fixture_', 'ASSET_OVERVIEW', 'isolated-overview-v1', 'asset_overview_fixture_identity'
+    if profile == 'dates':
+        return DATES_FILES, 'asset-dates-', 'asset_dates_fixture_', 'ASSET_DATES', 'isolated-dates-v1', 'asset_dates_fixture_identity'
     raise client.Refusal('Unknown repository fixture profile')
 
 
@@ -53,10 +61,12 @@ def validate_result(value):
         raise client.Refusal('Repository assertions incomplete')
 
 
-def execute(root, args, runtime, profile='category'):
+def execute(root, args, runtime, profile='category', verification=None):
     """Create one owned database; run once and retain stopped resources/evidence."""
     files, prefix, db_prefix, env_prefix, opt_in, marker_table = profile_settings(profile)
     preflight(root, args, profile)
+    if verification is not None and profile != 'dates':
+        raise client.Refusal('Recovery verification requires dates profile')
     image = runtime.run(['docker', 'image', 'inspect', '--format', '{{.Id}}', args.image]).decode().strip()
     if image != args.image:
         raise client.Refusal('Existing image mismatch')
@@ -93,7 +103,8 @@ def execute(root, args, runtime, profile='category'):
                 raise client.Refusal('Database identity mismatch')
             break
         client.assert_owned(runtime, name, identity)
-        for migration in files[:2]:
+        migrations = files[:2] + (('backend/migrations/004-asset-dates.sql',) if profile == 'dates' else ())
+        for migration in migrations:
             runtime.run(['docker', 'exec', '-i', name, 'psql', '-v', 'ON_ERROR_STOP=1',
                          '-U', 'fixture', '-d', database], data=(root / migration).read_bytes())
         runtime.run(['docker', 'exec', '-i', name, 'psql', '-v', 'ON_ERROR_STOP=1', '-U', 'fixture', '-d', database],
@@ -118,6 +129,9 @@ def execute(root, args, runtime, profile='category'):
         if result_file.stat().st_size > 1024 * 1024:
             raise client.Refusal('Oversized test result')
         validate_result(json.loads(result_file.read_text(encoding='utf-8')))
+        if verification is not None:
+            verification(runtime, name, database, identity, folder)
+            report['datesDatabaseRecovery'] = True
         report.update(status='completed', repositoryTests=4, syntheticOnly=True)
     finally:
         runtime.deadline = time.monotonic() + 30

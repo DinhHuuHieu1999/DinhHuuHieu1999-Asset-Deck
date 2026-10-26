@@ -399,3 +399,19 @@ test('overview allowlist adds only the exact read route', async () => {
   const result = await simulate({ method: 'GET', url: '/api/v1/assets/overview' });
   assert.equal(result.res.code, 200);
 });
+
+test('dates capability permits only exact opted-in UUID GET/PUT routes', () => {
+  const route = '/api/v1/assets/11111111-1111-4111-8111-111111111111/dates';
+  for (const method of ['GET', 'PUT']) {
+    assert.equal(allowed(method, route), false);
+    assert.equal(allowed(method, route, true), false);
+    assert.equal(allowed(method, route, false, true), true);
+    for (const invalid of [route + '?owner=x', route + '/', route.replace('/dates', '/dates/other'), '/api/v1/assets/no-id/dates'])
+      assert.equal(allowed(method, invalid, false, true), false);
+  }
+  for (const method of ['POST', 'DELETE', 'PATCH']) assert.equal(allowed(method, route, false, true), false);
+  assert.throws(() => validateConfig({...config, datesEnabled: 'true'}));
+  const parsed = parseProxyArgs(['--synthetic-only', '19001', '19002', 'a'.repeat(32), 'cert', 'key', '--dates-enabled']);
+  assert.equal(parsed.config.datesEnabled, true);
+  assert.equal(parsed.config.importEnabled, false);
+});

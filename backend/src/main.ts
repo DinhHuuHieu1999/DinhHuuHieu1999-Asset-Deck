@@ -1,4 +1,6 @@
 import 'reflect-metadata';
+import { AssetDatesModule } from './domains/assets/asset-dates.module';
+import { isAssetDatesEnabled } from './domains/assets/asset-dates.config';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
@@ -16,10 +18,14 @@ export async function bootstrap(): Promise<void> {
   loadEnvFiles();
   const port = validateStartup();
   const importEnabled = isAssetImportEnabled();
+  const datesEnabled = isAssetDatesEnabled();
   const app = await NestFactory.create<NestExpressApplication>(
     {
       module: AppModule,
-      imports: importEnabled ? [AssetImportModule] : [],
+      imports: [
+        ...(importEnabled ? [AssetImportModule] : []),
+        ...(datesEnabled ? [AssetDatesModule] : []),
+      ],
     },
     {
       bodyParser: true,

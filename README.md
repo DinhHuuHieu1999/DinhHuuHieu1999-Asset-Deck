@@ -96,3 +96,12 @@ full JSON export remains independent of list filters.
 Source is committed locally as `7311879`; isolated PostgreSQL and HTTPS checks
 passed, but Windows native acceptance remains pending. Not deployed.
 See [category contract and verification scope](docs/inventory-category-filter.md).
+
+## Optional purchase and warranty dates
+
+Separate owner-scoped date reads/updates preserve the legacy inventory contract.
+Backend migration 004 and `ASSET_DATES_ENABLED=true` are explicit prerequisites;
+Flutter uses `ASSET_DESK_ENABLE_ASSET_DATES=true`. Both flags default off.
+JSON v1 excludes dates and is not a warranty backup. Isolated SQL/HTTPS and
+database restart/restore checks passed; Windows native acceptance remains pending.
+See [date behavior and verification limits](docs/inventory-dates.md).
