@@ -1,3 +1,4 @@
+import { AssetExportV2Controller } from './asset-export-v2.controller';
 import { Module, type OnModuleInit } from '@nestjs/common';
 import { DatabaseModule } from '../../app/modules/database.module';
 import { PostgresDatabase } from '../../infrastructure/database/postgres.database';
@@ -8,7 +9,7 @@ import { AssetDatesRepository } from './asset-dates.repository';
 /** Explicitly enabled date capability; existing asset module remains independent. */
 @Module({
   imports: [DatabaseModule, AuthModule],
-  controllers: [AssetDatesController],
+  controllers: [AssetDatesController, AssetExportV2Controller],
   providers: [
     {
       provide: AssetDatesRepository,

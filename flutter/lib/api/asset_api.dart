@@ -7,6 +7,7 @@ import 'asset.dart';
 import 'asset_dates.dart';
 import 'asset_overview.dart';
 import 'asset_export.dart';
+import 'asset_export_v2.dart';
 import 'asset_import.dart';
 import 'asset_session.dart';
 import 'asset_store.dart';
@@ -17,6 +18,7 @@ class AssetApi
     implements
         AssetSession,
         AssetExportSource,
+        AssetExportV2Source,
         AssetImportSource,
         AssetOverviewSource,
         AssetDatesSource {
@@ -292,6 +294,23 @@ class AssetApi
       return result;
     } on FormatException {
       throw const AssetFailure('Invalid inventory export or checksum');
+    }
+  }
+
+  /// Fetch a date-aware snapshot without accepting a stale account's result.
+  @override
+  Future<AssetExportV2> exportInventoryV2({
+    required AssetExportDigest digest,
+  }) async {
+    final epoch = _requireAccount();
+    final value = await _request('GET', 'assets/export/v2', epoch);
+    _current(epoch);
+    try {
+      final result = await AssetExportV2.parse(value, digest: digest);
+      _current(epoch);
+      return result;
+    } on FormatException {
+      throw const AssetFailure('Invalid inventory v2 export or checksum');
     }
   }
 

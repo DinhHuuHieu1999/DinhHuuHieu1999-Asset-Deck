@@ -1,3 +1,5 @@
+import { ASSET_EXPORT_MAX_RECORDS } from './asset-export';
+import type { AssetExportV2Snapshot } from './asset-export-v2';
 import type { PostgresDatabase } from '../../infrastructure/database/postgres.database';
 import { isAccountId } from '../auth/account.repository';
 import type { AssetDatesUpdate } from './asset-dates';
@@ -35,6 +37,26 @@ export class AssetDatesRepository {
       [this.owner(owner), id],
     );
     return result.rows[0] ?? null;
+  }
+
+  /** Read all public fields and dates from one owner-scoped statement snapshot. */
+  async exportSnapshot(owner: string): Promise<AssetExportV2Snapshot> {
+    const result = await this.database.pool.query<AssetExportV2Snapshot>(
+      `SELECT to_char(statement_timestamp() AT TIME ZONE 'UTC',
+        'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "exportedAt",
+        COALESCE((SELECT json_agg(record) FROM (
+          SELECT id,name,category,serial,status,notes,version,
+            to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "createdAt",
+            to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "updatedAt",
+            to_char(purchased_on, 'YYYY-MM-DD') AS "purchasedOn",
+            to_char(warranty_expires_on, 'YYYY-MM-DD') AS "warrantyExpiresOn"
+          FROM assets.assets WHERE owner_id=$1
+          ORDER BY updated_at DESC,id DESC LIMIT $2
+        ) record), '[]'::json) AS records`,
+      [this.owner(owner), ASSET_EXPORT_MAX_RECORDS + 1],
+    );
+    if (!result.rows[0]) throw new Error('asset_snapshot_missing');
+    return result.rows[0];
   }
 
   /** Only dates/version/timestamp change; existing asset fields remain intact. */

@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'api/asset.dart';
 import 'api/asset_store.dart';
 import 'api/asset_export.dart';
+import 'api/asset_export_v2.dart';
 import 'inventory_export_files.dart';
 import 'inventory_export_page.dart';
 import 'asset_editor.dart';
@@ -201,6 +202,27 @@ class _AssetsPageState extends State<AssetsPage> {
                 child: const Text('Export all inventory JSON'),
               ),
             ],
+            if (widget.enableAssetDates)
+              if (widget.store case final AssetExportV2Source source) ...[
+                const SizedBox(height: 8),
+                OutlinedButton(
+                  onPressed: _busy
+                      ? null
+                      : () => Navigator.of(context).push<void>(
+                          MaterialPageRoute(
+                            builder: (_) => InventoryExportPage.v2(
+                              source: source,
+                              files:
+                                  widget.exportFiles is InventoryExportV2Files
+                                  ? widget.exportFiles!
+                                        as InventoryExportV2Files
+                                  : WindowsInventoryExportFiles(),
+                            ),
+                          ),
+                        ),
+                  child: const Text('Export JSON v2 with dates'),
+                ),
+              ],
             OutlinedButton(
               onPressed: _busy
                   ? null

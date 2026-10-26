@@ -415,3 +415,12 @@ test('dates capability permits only exact opted-in UUID GET/PUT routes', () => {
   assert.equal(parsed.config.datesEnabled, true);
   assert.equal(parsed.config.importEnabled, false);
 });
+
+test('export v2 permits only the exact opted-in dates GET route', () => {
+  const path = '/api/v1/assets/export/v2';
+  assert.equal(allowed('GET', path), false);
+  assert.equal(allowed('GET', path, true), false);
+  assert.equal(allowed('GET', path, false, true), true);
+  for (const method of ['POST','PUT','PATCH','DELETE']) assert.equal(allowed(method,path,false,true),false);
+  for (const invalid of [path+'?owner=x',path+'/',path+'/other',path.replace('/v2','/%76%32')]) assert.equal(allowed('GET',invalid,false,true),false);
+});

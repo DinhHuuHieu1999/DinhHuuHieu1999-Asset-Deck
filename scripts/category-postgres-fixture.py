@@ -27,6 +27,15 @@ DATES_FILES = (FILES[0], FILES[1],
                'backend/migrations/004-asset-dates.sql', FILES[-1])
 
 
+EXPORT_V2_FILES = (FILES[0], FILES[1],
+                   'backend/src/domains/assets/assets-export-v2.postgres.spec.ts',
+                   FILES[3], 'backend/src/domains/assets/asset-dates.repository.ts',
+                   'backend/src/domains/assets/asset-export-v2.ts',
+                   'backend/src/domains/assets/asset-export.ts',
+                   'backend/src/domains/assets/asset-dates.ts',
+                   'backend/migrations/004-asset-dates.sql', FILES[-1])
+
+
 def profile_settings(profile):
     """Only fixed source-owned profiles may choose a suite or fixture identity."""
     if profile == 'category':
@@ -35,6 +44,8 @@ def profile_settings(profile):
         return OVERVIEW_FILES, 'asset-overview-', 'asset_overview_fixture_', 'ASSET_OVERVIEW', 'isolated-overview-v1', 'asset_overview_fixture_identity'
     if profile == 'dates':
         return DATES_FILES, 'asset-dates-', 'asset_dates_fixture_', 'ASSET_DATES', 'isolated-dates-v1', 'asset_dates_fixture_identity'
+    if profile == 'export-v2':
+        return EXPORT_V2_FILES, 'asset-export-v2-', 'asset_export_v2_fixture_', 'ASSET_EXPORT_V2', 'isolated-export-v2-v1', 'asset_export_v2_fixture_identity'
     raise client.Refusal('Unknown repository fixture profile')
 
 
@@ -103,7 +114,7 @@ def execute(root, args, runtime, profile='category', verification=None):
                 raise client.Refusal('Database identity mismatch')
             break
         client.assert_owned(runtime, name, identity)
-        migrations = files[:2] + (('backend/migrations/004-asset-dates.sql',) if profile == 'dates' else ())
+        migrations = files[:2] + (('backend/migrations/004-asset-dates.sql',) if profile in ('dates', 'export-v2') else ())
         for migration in migrations:
             runtime.run(['docker', 'exec', '-i', name, 'psql', '-v', 'ON_ERROR_STOP=1',
                          '-U', 'fixture', '-d', database], data=(root / migration).read_bytes())

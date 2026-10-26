@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 
 import 'api/asset_export.dart';
+import 'api/asset_export_v2.dart';
 import 'api/asset_store.dart';
 
 /// Export-only native boundary; the caller owns explicit user actions.
@@ -12,8 +13,15 @@ abstract interface class InventoryExportFiles {
   Future<bool> save(AssetExport snapshot);
 }
 
+/// Separate v2 save capability; existing v1 adapters stay source-compatible.
+abstract interface class InventoryExportV2Files {
+  Future<String> digest(Uint8List bytes);
+  Future<bool> saveV2(AssetExportV2 snapshot);
+}
+
 /// Windows CNG and native Save As; no paths, credentials or implicit disk writes.
-class WindowsInventoryExportFiles implements InventoryExportFiles {
+class WindowsInventoryExportFiles
+    implements InventoryExportFiles, InventoryExportV2Files {
   static const _channel = MethodChannel('asset_desk/inventory_export');
 
   @override
@@ -41,8 +49,13 @@ class WindowsInventoryExportFiles implements InventoryExportFiles {
   }
 
   @override
-  Future<bool> save(AssetExport snapshot) async {
-    final bytes = Uint8List.fromList(utf8.encode(snapshot.json));
+  Future<bool> save(AssetExport snapshot) => _saveJson(snapshot.json);
+
+  @override
+  Future<bool> saveV2(AssetExportV2 snapshot) => _saveJson(snapshot.json);
+
+  Future<bool> _saveJson(String json) async {
+    final bytes = Uint8List.fromList(utf8.encode(json));
     if (bytes.length < 2 || bytes.length > 1024 * 1024) {
       throw const AssetFailure('Inventory export size is invalid');
     }

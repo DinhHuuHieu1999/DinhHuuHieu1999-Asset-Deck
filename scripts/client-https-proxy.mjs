@@ -81,6 +81,8 @@ export function allowed(method, raw, importEnabled = false, datesEnabled = false
     return false;
   if (/^\/api\/v1\/assets\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\/dates$/.test(raw))
     return datesEnabled === true && ['GET', 'PUT'].includes(method);
+  if (raw === '/api/v1/assets/export/v2')
+    return datesEnabled === true && method === 'GET';
   if (method === "POST" && raw === "/api/v1/assets/import")
     return importEnabled === true;
   const path = raw.split("?")[0];

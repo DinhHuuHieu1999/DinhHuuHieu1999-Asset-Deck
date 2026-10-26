@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'api/asset_export.dart';
+import 'api/asset_export_v2.dart';
 import 'api/asset_store.dart';
 import 'inventory_export_files.dart';
 
@@ -8,18 +9,40 @@ import 'inventory_export_files.dart';
 class InventoryExportPage extends StatefulWidget {
   const InventoryExportPage({
     super.key,
-    required this.source,
-    required this.files,
-  });
-  final AssetExportSource source;
-  final InventoryExportFiles files;
+    required AssetExportSource source,
+    required InventoryExportFiles files,
+  }) : source = source,
+       files = files,
+       v2Source = null,
+       v2Files = null;
+
+  const InventoryExportPage.v2({
+    super.key,
+    required AssetExportV2Source source,
+    required InventoryExportV2Files files,
+  }) : v2Source = source,
+       v2Files = files,
+       source = null,
+       files = null;
+
+  final AssetExportSource? source;
+  final InventoryExportFiles? files;
+  final AssetExportV2Source? v2Source;
+  final InventoryExportV2Files? v2Files;
 
   @override
   State<InventoryExportPage> createState() => _InventoryExportPageState();
 }
 
+class _PreparedExport {
+  const _PreparedExport(this.count, this.exportedAt, this.save);
+  final int count;
+  final DateTime exportedAt;
+  final Future<bool> Function() save;
+}
+
 class _InventoryExportPageState extends State<InventoryExportPage> {
-  AssetExport? _snapshot;
+  _PreparedExport? _snapshot;
   bool _busy = false;
   String? _message;
 
@@ -31,10 +54,27 @@ class _InventoryExportPageState extends State<InventoryExportPage> {
       _message = null;
     });
     try {
-      final result = await widget.source.exportInventory(
-        digest: widget.files.digest,
-      );
-      if (mounted) setState(() => _snapshot = result);
+      final _PreparedExport prepared;
+      if (widget.v2Source case final source?) {
+        final files = widget.v2Files!;
+        final result = await source.exportInventoryV2(digest: files.digest);
+        prepared = _PreparedExport(
+          result.count,
+          result.exportedAt,
+          () => files.saveV2(result),
+        );
+      } else {
+        final files = widget.files!;
+        final result = await widget.source!.exportInventory(
+          digest: files.digest,
+        );
+        prepared = _PreparedExport(
+          result.count,
+          result.exportedAt,
+          () => files.save(result),
+        );
+      }
+      if (mounted) setState(() => _snapshot = prepared);
     } catch (error) {
       if (mounted) {
         setState(
@@ -56,7 +96,7 @@ class _InventoryExportPageState extends State<InventoryExportPage> {
       _message = null;
     });
     try {
-      final saved = await widget.files.save(snapshot);
+      final saved = await snapshot.save();
       if (mounted) {
         setState(
           () => _message = saved
@@ -77,7 +117,13 @@ class _InventoryExportPageState extends State<InventoryExportPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Export inventory JSON')),
+    appBar: AppBar(
+      title: Text(
+        widget.v2Source == null
+            ? 'Export inventory JSON'
+            : 'Export inventory v2',
+      ),
+    ),
     body: Align(
       alignment: Alignment.topCenter,
       child: ConstrainedBox(
@@ -90,11 +136,20 @@ class _InventoryExportPageState extends State<InventoryExportPage> {
               'search, status or page. Maximum 500 assets and 1 MiB; no partial export.',
             ),
             const SizedBox(height: 12),
-            const Text(
-              'Sensitive plaintext: serial numbers and notes are included. '
-              'Save privately. JSON v1 is not an encrypted database backup and '
-              'does not provide import or restore.',
+            Text(
+              widget.v2Source == null
+                  ? 'Sensitive plaintext: serial numbers and notes are included. '
+                        'Save privately. JSON v1 is not an encrypted database backup and '
+                        'does not provide import or restore.'
+                  : 'Sensitive plaintext: serial numbers, notes and dates are included. '
+                        'Save privately. JSON v2 is not an encrypted database backup.',
             ),
+            if (widget.v2Source != null) ...[
+              const SizedBox(height: 12),
+              const Text(
+                'JSON v2 includes purchase and warranty dates. No v2 import or restore is available.',
+              ),
+            ],
             const SizedBox(height: 16),
             FilledButton(
               onPressed: _busy ? null : _prepare,

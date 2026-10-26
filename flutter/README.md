@@ -107,3 +107,12 @@ Flutter uses `ASSET_DESK_ENABLE_ASSET_DATES=true`. Both flags default off.
 JSON v1 excludes dates and is not a warranty backup. Isolated SQL/HTTPS and
 database restart/restore checks passed; Windows native acceptance remains pending.
 See [date behavior and verification limits](../docs/inventory-dates.md).
+
+## Date-aware inventory JSON v2
+
+Optional export v2 includes purchase and warranty dates in a complete owner-scoped
+snapshot, while v1 export/import/recovery remains unchanged. It uses the existing
+dates capability flags and migration 004, with no new dependency or migration.
+SQL concurrency and real Dart HTTPS checks passed on isolated synthetic fixtures;
+Windows native v2 acceptance remains pending. No v2 import or restore is provided.
+See [v2 contract and acceptance limits](../docs/inventory-export-v2.md).
