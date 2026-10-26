@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
@@ -7,6 +8,8 @@ import 'api/asset_import_operation.dart';
 import 'api/asset_inspection.dart';
 import 'api/asset_session.dart';
 import 'inventory_inspection_files.dart';
+import 'inventory_recovery_files.dart';
+import 'api/asset_import_recovery.dart';
 
 /// Explicit add-only write review, separate from read-only local inspection.
 class InventoryImportPage extends StatefulWidget {
@@ -15,7 +18,11 @@ class InventoryImportPage extends StatefulWidget {
     required this.session,
     required this.source,
     required this.files,
+    required this.apiBase,
+    this.recoveryFiles,
   });
+  final String apiBase;
+  final InventoryRecoveryFiles? recoveryFiles;
   final AssetSession session;
   final AssetImportSource source;
   final InventoryInspectionFiles files;
@@ -27,6 +34,10 @@ class _InventoryImportPageState extends State<InventoryImportPage> {
   StreamSubscription<int>? _subscription;
   AssetImportOperation? _operation;
   bool _busy = false, _acknowledged = false;
+  bool _recoverySaved = false;
+  final _nativeRecovery = WindowsInventoryRecoveryFiles();
+  InventoryRecoveryFiles get _recoveryFiles =>
+      widget.recoveryFiles ?? _nativeRecovery;
   String? _message;
   bool _contextInvalidated = false;
   int _contextGeneration = 0;
@@ -54,7 +65,9 @@ class _InventoryImportPageState extends State<InventoryImportPage> {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.session, widget.session) ||
         !identical(oldWidget.source, widget.source) ||
-        !identical(oldWidget.files, widget.files)) {
+        !identical(oldWidget.files, widget.files) ||
+        !identical(oldWidget.recoveryFiles, widget.recoveryFiles) ||
+        oldWidget.apiBase != widget.apiBase) {
       _operation?.invalidate();
       _contextInvalidated = true;
       _contextGeneration++;
@@ -92,6 +105,7 @@ class _InventoryImportPageState extends State<InventoryImportPage> {
       }
       setState(() {
         _operation = null;
+        _recoverySaved = false;
         _acknowledged = false;
       });
       final snapshot = await inspectAssetBytes(
@@ -122,6 +136,103 @@ class _InventoryImportPageState extends State<InventoryImportPage> {
     }
   }
 
+  Future<void> _saveRecovery() async {
+    final operation = _operation;
+    final generation = _contextGeneration;
+    if (_busy ||
+        _contextInvalidated ||
+        operation == null ||
+        operation.invalidated ||
+        operation.receipt != null)
+      return;
+    setState(() {
+      _busy = true;
+      _acknowledged = false;
+    });
+    try {
+      final recovery = await AssetImportRecovery.prepare(
+        draft: operation.draft,
+        apiBase: widget.apiBase,
+        digest: _recoveryFiles.digest,
+      );
+      if (!mounted || generation != _contextGeneration) return;
+      final saved = await _recoveryFiles.save(recovery);
+      if (!mounted ||
+          generation != _contextGeneration ||
+          !identical(_operation, operation))
+        return;
+      setState(() {
+        if (saved) _recoverySaved = true;
+        _message = saved
+            ? 'Private recovery file saved. Review and acknowledge before sending.'
+            : 'Save cancelled. No new recovery file saved; draft retained.';
+      });
+    } catch (_) {
+      if (mounted && generation == _contextGeneration) {
+        setState(
+          () => _message = 'Unable to save recovery. Submission requires a saved recovery file.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _restoreRecovery() async {
+    if (_busy || _contextInvalidated || (_operation?.attempted ?? false))
+      return;
+    final account = widget.session.account;
+    final revision = widget.session.sessionRevision;
+    final generation = _contextGeneration;
+    if (account == null) return;
+    setState(() {
+      _busy = true;
+      _message = null;
+    });
+    try {
+      final bytes = await _recoveryFiles.choose();
+      if (!mounted || generation != _contextGeneration) return;
+      if (bytes == null) {
+        setState(
+          () => _message = 'Recovery selection cancelled. Draft retained.',
+        );
+        return;
+      }
+      setState(() {
+        _operation = null;
+        _recoverySaved = false;
+        _acknowledged = false;
+      });
+      if (bytes.length > AssetImportRecovery.maxBytes) {
+        throw const FormatException('Recovery file exceeds bounds');
+      }
+      final recovery = await AssetImportRecovery.parse(
+        utf8.decode(bytes),
+        currentApiBase: widget.apiBase,
+        currentAccountId: account.id,
+        digest: _recoveryFiles.digest,
+      );
+      if (!mounted || generation != _contextGeneration) return;
+      if (revision != widget.session.sessionRevision ||
+          account.id != widget.session.account?.id) {
+        throw StateError('Session changed');
+      }
+      setState(() {
+        _operation = AssetImportOperation.recovered(recovery.draft, revision);
+        _recoverySaved = true;
+        _message = 'Recovery validated; outcome unknown. Nothing submitted. Review before explicit same-key replay.';
+      });
+    } catch (_) {
+      if (mounted && generation == _contextGeneration) {
+        setState(
+          () => _message = 'Unable to restore recovery. Check file, account and configured backend.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _confirm() async {
     final operation = _operation;
     final account = widget.session.account;
@@ -129,7 +240,8 @@ class _InventoryImportPageState extends State<InventoryImportPage> {
         _contextInvalidated ||
         operation == null ||
         account == null ||
-        !_acknowledged)
+        !_acknowledged ||
+        !_recoverySaved)
       return;
     setState(() {
       _busy = true;
@@ -177,7 +289,7 @@ class _InventoryImportPageState extends State<InventoryImportPage> {
         ),
         content: Text(
           uncertain
-              ? 'The result is unknown. Closing loses the in-memory request key and risks duplicates. Keep this review and replay only the same operation.'
+              ? 'The result is unknown. Keep this review or retain your private recovery file. Replay only the same operation; never create a new key blindly.'
               : 'Nothing has been submitted. Discard this local draft?',
         ),
         actions: [
@@ -246,6 +358,15 @@ class _InventoryImportPageState extends State<InventoryImportPage> {
                       : _choose,
                   child: const Text('Choose import JSON (Windows)'),
                 ),
+                OutlinedButton(
+                  onPressed:
+                      _busy ||
+                          _contextInvalidated ||
+                          (operation?.attempted ?? false)
+                      ? null
+                      : _restoreRecovery,
+                  child: const Text('Choose private recovery JSON (Windows)'),
+                ),
                 if (_busy)
                   const LinearProgressIndicator(
                     semanticsLabel: 'Processing inventory import',
@@ -257,6 +378,19 @@ class _InventoryImportPageState extends State<InventoryImportPage> {
                     'New assets: ${operation.draft.count}. Not your current inventory.',
                   ),
                   Text('Operation: ${operation.draft.requestId}'),
+                  Text('Configured backend: ${widget.apiBase}'),
+                  const Text(
+                    'Recovery files contain plaintext private notes and serials. Save privately before submission. A checksum is not authenticity.',
+                  ),
+                  OutlinedButton(
+                    onPressed: available ? _saveRecovery : null,
+                    child: const Text('Save private recovery JSON (Windows)'),
+                  ),
+                  Text(
+                    _recoverySaved
+                        ? 'Recovery file available; retain it until the outcome is resolved.'
+                        : 'Save recovery before confirming. Cancel or failure does not enable submission.',
+                  ),
                   for (final record in operation.draft.records)
                     Card(
                       child: Padding(
@@ -268,7 +402,7 @@ class _InventoryImportPageState extends State<InventoryImportPage> {
                     ),
                   CheckboxListTile(
                     value: _acknowledged,
-                    onChanged: available
+                    onChanged: available && _recoverySaved
                         ? (value) =>
                               setState(() => _acknowledged = value ?? false)
                         : null,
@@ -277,7 +411,9 @@ class _InventoryImportPageState extends State<InventoryImportPage> {
                     ),
                   ),
                   FilledButton(
-                    onPressed: available && _acknowledged ? _confirm : null,
+                    onPressed: available && _recoverySaved && _acknowledged
+                        ? _confirm
+                        : null,
                     child: Text(
                       operation.attempted
                           ? 'Replay same operation'

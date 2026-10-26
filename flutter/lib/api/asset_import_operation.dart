@@ -3,6 +3,10 @@ import 'asset_import.dart';
 /// One reviewed operation. Unknown outcomes lock the draft against replacement.
 class AssetImportOperation {
   AssetImportOperation(this.draft, this.sessionRevision);
+
+  /// A restored file never proves whether the original request was sent.
+  AssetImportOperation.recovered(this.draft, this.sessionRevision)
+    : _attempted = true;
   final AssetImportDraft draft;
   final int sessionRevision;
   bool _busy = false;

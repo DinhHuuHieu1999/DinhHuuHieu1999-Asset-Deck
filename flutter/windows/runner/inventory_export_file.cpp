@@ -64,8 +64,8 @@ InventorySaveResult WriteNewResult(const std::wstring& path,
 }  // namespace
 
 
-std::string InventorySha256(const std::vector<uint8_t>& bytes) {
-  if (bytes.size() > 1024 * 1024) return {};
+static std::string BoundedSha256(const std::vector<uint8_t>& bytes, size_t limit) {
+  if (bytes.size() > limit) return {};
   BCRYPT_ALG_HANDLE algorithm = nullptr;
   if (BCryptOpenAlgorithmProvider(&algorithm, BCRYPT_SHA256_ALGORITHM, nullptr, 0) < 0)
     return {};
@@ -85,10 +85,10 @@ std::string InventorySha256(const std::vector<uint8_t>& bytes) {
   return result;
 }
 
-InventorySaveResult WriteNewInventoryJson(const std::wstring& path,
-                                         const std::vector<uint8_t>& bytes) {
+static InventorySaveResult WriteNewBoundedJson(const std::wstring& path,
+                                         const std::vector<uint8_t>& bytes, size_t limit) {
   if (!ValidDestination(path, L".JSON") || bytes.size() < 2 ||
-      bytes.size() > 1024 * 1024 || bytes.front() != '{' || bytes.back() != '}' ||
+      bytes.size() > limit || bytes.front() != '{' || bytes.back() != '}' ||
       MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS,
           reinterpret_cast<const char*>(bytes.data()), static_cast<int>(bytes.size()),
           nullptr, 0) == 0) return InventorySaveResult::invalid;
@@ -96,7 +96,7 @@ InventorySaveResult WriteNewInventoryJson(const std::wstring& path,
 }
 
 // Bounded inspection input, adapted from ToolDeck ReadCatalogJson.
-bool ReadInventoryJson(const std::wstring& path, std::vector<uint8_t>* bytes) {
+static bool ReadBoundedJson(const std::wstring& path, std::vector<uint8_t>* bytes, size_t limit) {
   if (!bytes) return false;
   bytes->clear();
   if (!ValidDestination(path, L".JSON")) return false;
@@ -108,7 +108,7 @@ bool ReadInventoryJson(const std::wstring& path, std::vector<uint8_t>* bytes) {
   const bool valid = GetFileType(file) == FILE_TYPE_DISK &&
       GetFileInformationByHandle(file, &info) &&
       !(info.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) &&
-      GetFileSizeEx(file, &size) && size.QuadPart >= 2 && size.QuadPart <= 1024 * 1024;
+      GetFileSizeEx(file, &size) && size.QuadPart >= 2 && static_cast<uint64_t>(size.QuadPart) <= limit;
   bool read = false;
   if (valid) {
     bytes->resize(static_cast<size_t>(size.QuadPart));
@@ -119,4 +119,26 @@ bool ReadInventoryJson(const std::wstring& path, std::vector<uint8_t>* bytes) {
   CloseHandle(file);
   if (!read) bytes->clear();
   return read;
+}
+
+// Explicit wrappers prevent recovery's larger envelope from widening inventory limits.
+std::string InventorySha256(const std::vector<uint8_t>& bytes) {
+  return BoundedSha256(bytes, 1024 * 1024);
+}
+std::string RecoverySha256(const std::vector<uint8_t>& bytes) {
+  return BoundedSha256(bytes, 2 * 1024 * 1024);
+}
+InventorySaveResult WriteNewInventoryJson(const std::wstring& path,
+                                         const std::vector<uint8_t>& bytes) {
+  return WriteNewBoundedJson(path, bytes, 1024 * 1024);
+}
+InventorySaveResult WriteNewRecoveryJson(const std::wstring& path,
+                                        const std::vector<uint8_t>& bytes) {
+  return WriteNewBoundedJson(path, bytes, 2 * 1024 * 1024);
+}
+bool ReadInventoryJson(const std::wstring& path, std::vector<uint8_t>* bytes) {
+  return ReadBoundedJson(path, bytes, 1024 * 1024);
+}
+bool ReadRecoveryJson(const std::wstring& path, std::vector<uint8_t>* bytes) {
+  return ReadBoundedJson(path, bytes, 2 * 1024 * 1024);
 }

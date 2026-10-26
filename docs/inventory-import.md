@@ -58,9 +58,11 @@ Unsent drafts permit Keep/Discard confirmation; busy writes block Back.
 
 Session events and replaced session/source/file capabilities invalidate review;
 late results cannot restore it. The app removes the private navigator on sign-out.
-This is in-memory recovery only: process kill, OS shutdown and forced sign-out
-can lose the operation. Persistent recovery is not implemented and must not be
-claimed. Do not start a new key blindly after an uncertain outcome.
+The earlier accepted import candidate retained recovery only in memory. The new
+[source/test recovery candidate](inventory-import-recovery-proposal.md) requires an
+explicit private file before submission and restores the exact request for manual
+replay. Native and real process-loss recovery acceptance remain pending; do not
+start a new key blindly after an uncertain outcome.
 
 ## Evidence and pending gates
 
@@ -68,15 +70,16 @@ claimed. Do not start a new key blindly after an uncertain outcome.
 - Seven additional parser tests passed: bounded large POST, case/trailing-slash
   aliases, other-route/method limits, raw oversize, compressed and malformed JSON.
   Strict backend typecheck passed after these additions.
-- Latest complete Flutter suite: 190 passed, one opt-in test skipped; analyzer clean.
+- Latest complete Flutter suite including recovery candidate: 220 passed, one
+  opt-in test skipped; analyzer clean.
 - Synthetic widget tests cover preview/no write, explicit confirmation, session
   invalidation, capability replacement, departure guards and app sign-out.
 - Captures at 390/768/1440 px and 200% text passed; wide navigation and narrow/wide
   import renders were visually inspected. Narrow confirmation requires scrolling.
   Capture font lacks some fixture Unicode glyphs; native glyph coverage is pending.
 
-Still required: persistent recovery
-scope decision, security/coverage review and remaining native acceptance checks. Fixtures/builds
+Still required: recovery native/live acceptance, security/coverage review and
+remaining native acceptance checks. Fixtures/builds
 require separate execution approval. Prior Inspect exceptions do not extend to
 import; empty Codacy results do not constitute coverage or security PASS.
 

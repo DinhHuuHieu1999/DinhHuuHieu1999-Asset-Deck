@@ -12,7 +12,9 @@ class AssetDeskApp extends StatefulWidget {
     super.key,
     required this.session,
     this.enableInventoryImport = false,
+    this.importApiBase = '',
   });
+  final String importApiBase;
   final AssetSession session;
   final bool enableInventoryImport;
   @override
@@ -101,6 +103,7 @@ class _AssetDeskAppState extends State<AssetDeskApp> {
           ? SignInPage(session: widget.session)
           : AssetsPage(
               store: widget.session,
+              importApiBase: widget.importApiBase,
               enableInventoryImport: widget.enableInventoryImport,
             ),
     );

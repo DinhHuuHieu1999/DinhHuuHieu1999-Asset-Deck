@@ -68,6 +68,22 @@ int wmain(int argc, wchar_t** argv) {
   // Native byte selection is not JSON validation; Dart rejects these spaces.
   if (!check(std::filesystem::file_size(target) == 2 &&
              std::filesystem::file_size(directory / L"large.json") == 1024 * 1024 + 1)) return 1;
+  // Recovery has an independent 2 MiB boundary; no inventory limit is widened.
+  if (!check(RecoverySha256(abc) == InventorySha256(abc))) return 1;
+  if (!check(RecoverySha256(std::vector<uint8_t>(1024*1024+1)).size() == 64)) return 1;
+  if (!check(RecoverySha256(std::vector<uint8_t>(2*1024*1024+1)).empty())) return 1;
+  std::vector<uint8_t> recovery(1024*1024+1, ' ');
+  recovery.front() = '{'; recovery.back() = '}';
+  const auto recovery_target = directory / L"recovery.json";
+  if (!check(WriteNewInventoryJson(recovery_target.wstring(), recovery) == InventorySaveResult::invalid)) return 1;
+  if (!check(WriteNewRecoveryJson(recovery_target.wstring(), recovery) == InventorySaveResult::saved)) return 1;
+  if (!check(WriteNewRecoveryJson(recovery_target.wstring(), json) == InventorySaveResult::exists)) return 1;
+  if (!check(ReadRecoveryJson(recovery_target.wstring(), &inspected) && inspected == recovery)) return 1;
+  if (!check(!ReadInventoryJson(recovery_target.wstring(), &inspected) && inspected.empty())) return 1;
+  if (!check(create(L"recovery-limit.json", 2*1024*1024) && create(L"recovery-large.json", 2*1024*1024+1))) return 1;
+  if (!check(ReadRecoveryJson((directory/L"recovery-limit.json").wstring(), &inspected) && inspected.size() == 2*1024*1024)) return 1;
+  if (!check(!ReadRecoveryJson((directory/L"recovery-large.json").wstring(), &inspected) && inspected.empty())) return 1;
+  if (!check(WriteNewRecoveryJson((directory/L"bad-recovery.txt").wstring(), json) == InventorySaveResult::invalid)) return 1;
   std::cout << count << " native assertions passed; synthetic output retained\n";
   return 0;
 }

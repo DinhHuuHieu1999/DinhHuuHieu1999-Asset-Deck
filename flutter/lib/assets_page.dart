@@ -21,7 +21,9 @@ class AssetsPage extends StatefulWidget {
     this.exportFiles,
     this.inspectionFiles,
     this.enableInventoryImport = false,
+    this.importApiBase = '',
   });
+  final String importApiBase;
   final AssetStore store;
   final bool enableInventoryImport;
   final InventoryExportFiles? exportFiles;
@@ -156,6 +158,7 @@ class _AssetsPageState extends State<AssetsPage> {
                     : () => Navigator.of(context).push<void>(
                         MaterialPageRoute(
                           builder: (_) => InventoryImportPage(
+                            apiBase: widget.importApiBase,
                             session: widget.store as AssetSession,
                             source: widget.store as AssetImportSource,
                             files:

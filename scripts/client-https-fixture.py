@@ -13,7 +13,7 @@ import time
 LABEL = 'asset-desk.client-https'
 FILES = ('backend/dist/main.js', 'backend/migrations/001-auth-accounts.sql',
          'backend/migrations/002-assets.sql', 'scripts/client-https-proxy.mjs',
-         'scripts/client-https-proxy-cli.mjs', 'flutter/tool/client_https_acceptance.dart',
+         'scripts/import-recovery-fault.mjs', 'scripts/client-https-proxy-cli.mjs', 'flutter/tool/client_https_acceptance.dart',
          'flutter/.dart_tool/package_config.json', 'flutter/lib/api/asset_api.dart',
          'flutter/lib/api/asset.dart', 'flutter/lib/api/asset_session.dart',
          'flutter/lib/api/asset_store.dart', 'scripts/client-https-backend.cjs')

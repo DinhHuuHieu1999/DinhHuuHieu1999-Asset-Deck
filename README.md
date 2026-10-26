@@ -78,8 +78,12 @@ Isolated PostgreSQL and HTTPS fixtures verified transaction/replay and ownership
 contracts. The operator confirmed Windows import from one to two assets,
 sign-out/sign-in persistence, unsent Keep/Discard and picker Cancel behavior.
 These checks do not certify native fault-path handling or security coverage.
-The request identity and draft remain RAM-only: process loss after an uncertain
-write can lose replay identity. Do not blindly create a new operation in that case.
+The earlier import candidate retained request identity in RAM only. An explicit
+[private recovery file candidate](docs/inventory-import-recovery-proposal.md) now
+has offline source/tests and passed one isolated HTTPS process-reconstruction
+check. Its Windows release compiled, but Code Integrity blocked launch; native
+recovery acceptance remains pending.
+Do not blindly create a new operation after an uncertain write.
 No regular deployment or import-phase push has been performed.
 
 See [the import contract and remaining gates](docs/inventory-import.md).

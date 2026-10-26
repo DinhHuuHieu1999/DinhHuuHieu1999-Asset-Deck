@@ -4,6 +4,10 @@ import 'dart:convert';
 Object? decodeAssetExportJson(String source) =>
     _decodeBoundedJson(source, 1024 * 1024);
 
+/// Separate recovery envelope bound; inventory export keeps its original 1 MiB.
+Object? decodeAssetRecoveryJson(String source) =>
+    _decodeBoundedJson(source, 2 * 1024 * 1024);
+
 Object? _decodeBoundedJson(String source, int limit) {
   if (source.length > limit || utf8.encode(source).length > limit) {
     throw const FormatException('Inventory JSON exceeds size limit');

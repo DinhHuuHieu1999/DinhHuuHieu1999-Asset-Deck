@@ -32,14 +32,32 @@ class InventoryExportNativeTests(unittest.TestCase):
         self.assertIn('FOS_ALLOWMULTISELECT | FOS_PICKFOLDERS', source)
 
     def test_inspection_reader_is_bounded_and_read_only(self):
-        source = (ROOT / 'inventory_export_file.cpp').read_text(encoding='utf-8').split('bool ReadInventoryJson(', 1)[1]
+        source = (ROOT / 'inventory_export_file.cpp').read_text(encoding='utf-8').split('static bool ReadBoundedJson(', 1)[1].split('// Explicit wrappers', 1)[0]
         for token in ('GENERIC_READ', 'FILE_SHARE_READ', 'OPEN_EXISTING',
                       'FILE_FLAG_OPEN_REPARSE_POINT', 'GetFileType(file) == FILE_TYPE_DISK',
-                      'GetFileSizeEx', 'size.QuadPart <= 1024 * 1024', 'CloseHandle(file)',
+                      'GetFileSizeEx', 'static_cast<uint64_t>(size.QuadPart) <= limit', 'CloseHandle(file)',
                       'if (!read) bytes->clear()'):
             self.assertIn(token, source)
         for token in ('GENERIC_WRITE', 'CREATE_NEW', 'WriteFile(', 'DeleteFile'):
             self.assertNotIn(token, source)
+
+    def test_recovery_limits_are_separate_explicit_wrappers(self):
+        source = (ROOT / 'inventory_export_file.cpp').read_text(encoding='utf-8')
+        for name, helper in [('InventorySha256', 'BoundedSha256'),
+                             ('WriteNewInventoryJson', 'WriteNewBoundedJson'),
+                             ('ReadInventoryJson', 'ReadBoundedJson')]:
+            body = source.split('\n' + ('std::string ' if 'Sha256' in name else
+                    'InventorySaveResult ' if 'Write' in name else 'bool ') + name + '(', 1)[1].split('}', 1)[0]
+            self.assertIn(helper, body)
+            self.assertIn('1024 * 1024', body)
+            self.assertNotIn('2 * 1024', body)
+        for name in ['RecoverySha256', 'WriteNewRecoveryJson', 'ReadRecoveryJson']:
+            body = source.split(name + '(', 1)[1].split('}', 1)[0]
+            self.assertIn('2 * 1024 * 1024', body)
+        channel = (ROOT / 'inventory_export_channel.cpp').read_text(encoding='utf-8')
+        for token in ['chooseRecoveryJson', 'sha256Recovery', 'saveRecoveryJson',
+                      'asset-desk-import-recovery.json', 'No input path or arguments accepted.']:
+            self.assertIn(token, channel)
 
     def test_channel_lifecycle_and_build_inputs(self):
         source = (ROOT / 'flutter_window.cpp').read_text(encoding='utf-8')

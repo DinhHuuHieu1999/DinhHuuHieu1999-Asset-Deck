@@ -25,6 +25,7 @@ void main() {
     runApp(
       AssetDeskApp(
         session: api,
+        importApiBase: api.baseUrl.toString(),
         enableInventoryImport: const bool.fromEnvironment(
           'ASSET_DESK_ENABLE_IMPORT',
         ),

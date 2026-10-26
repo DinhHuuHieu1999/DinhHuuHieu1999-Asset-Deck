@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'asset_export.dart';
+import 'asset.dart';
+import 'strict_export_json.dart';
 
 /// Immutable, account-bound operation prepared only from a verified snapshot.
 /// Keep this exact instance after an unknown outcome; never mint a new key.
@@ -39,6 +41,60 @@ class AssetImportDraft {
       throw const FormatException('Import exceeds 1 MiB');
     }
     return AssetImportDraft._(accountId.toLowerCase(), key, records, json);
+  }
+
+  /// Restore a validated exact request; never generate a replacement key.
+  factory AssetImportDraft.restore({
+    required String accountId,
+    required String requestJson,
+  }) {
+    if (!RegExp(r'^[0-9a-f]{24}$').hasMatch(accountId)) {
+      throw const FormatException('Invalid recovery account');
+    }
+    final value = decodeAssetExportJson(requestJson);
+    if (value is! Map<String, Object?> ||
+        value.length != 2 ||
+        value['requestId'] is! String ||
+        value['records'] is! List) {
+      throw const FormatException('Invalid recovery request');
+    }
+    final key = value['requestId']! as String;
+    final rows = value['records']! as List;
+    if (!RegExp(
+          r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        ).hasMatch(key) ||
+        rows.isEmpty ||
+        rows.length > 500) {
+      throw const FormatException('Invalid recovery operation');
+    }
+    final records = <Map<String, Object?>>[];
+    const fields = ['name', 'category', 'serial', 'status', 'notes'];
+    for (final row in rows) {
+      if (row is! Map<String, Object?> ||
+          row.length != fields.length ||
+          !fields.every((field) => row[field] is String)) {
+        throw const FormatException('Invalid recovery fields');
+      }
+      final input = AssetInput(
+        name: row['name']! as String,
+        category: row['category']! as String,
+        serial: row['serial']! as String,
+        status: row['status']! as String,
+        notes: row['notes']! as String,
+      ).toJson();
+      if (!fields.every((field) => input[field] == row[field])) {
+        throw const FormatException(
+          'Recovery fields must retain reviewed values',
+        );
+      }
+      records.add(Map<String, Object?>.unmodifiable(input));
+    }
+    return AssetImportDraft._(
+      accountId,
+      key,
+      List.unmodifiable(records),
+      requestJson,
+    );
   }
 
   /// Account changes invalidate the operation instead of retargeting its payload.

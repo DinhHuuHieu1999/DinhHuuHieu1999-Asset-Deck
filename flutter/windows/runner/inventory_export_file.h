@@ -11,4 +11,9 @@ InventorySaveResult WriteNewInventoryJson(const std::wstring& path,
                                          const std::vector<uint8_t>& bytes);
 // Read only one explicitly selected local .json; never follow final reparse points.
 bool ReadInventoryJson(const std::wstring& path, std::vector<uint8_t>* bytes);
+// Recovery-only 2 MiB envelope helpers; existing inventory wrappers stay at 1 MiB.
+std::string RecoverySha256(const std::vector<uint8_t>& bytes);
+InventorySaveResult WriteNewRecoveryJson(const std::wstring& path,
+                                        const std::vector<uint8_t>& bytes);
+bool ReadRecoveryJson(const std::wstring& path, std::vector<uint8_t>* bytes);
 #endif

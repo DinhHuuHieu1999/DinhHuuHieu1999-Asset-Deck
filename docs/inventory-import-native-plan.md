@@ -54,10 +54,12 @@ alone; those require separate controlled fault tests. Keyboard, screen reader,
 
 ## Recovery limitation
 
-The import key/draft currently lives in RAM only. Closing the app after an unknown
-write can lose replay identity. Never advise a new key blindly in that state.
-Persistent recovery is a separate product decision; do not silently expand native
-acceptance into a recovery implementation or claim production readiness.
+The earlier native candidate retained its import key/draft only in RAM. The new
+[recovery candidate](inventory-import-recovery-proposal.md) requires an explicit
+private recovery file before submission. Its isolated HTTPS process-reconstruction
+check passed, but the Windows recovery controls have not yet been accepted. Never
+apply the historical import acceptance to the new recovery controls or advise a
+new key blindly after an uncertain write.
 
 ## Prepared runner and offline evidence
 
@@ -80,3 +82,42 @@ This proves format compatibility, not native selection/render/confirmation.
 A separately approved Windows candidate was built and opened on synthetic HTTPS
 fixtures. Operator confirmations cover the successful import and draft-navigation
 checks listed above, not unknown-outcome replay, accessibility or process loss.
+
+## Recovery candidate native checks (pending)
+
+Use a newly built, hashed release deployment with the existing explicit import
+flag and a fresh native HTTPS fixture. Do not reuse the older import executable.
+The current native runner stops services when its app process closes; it does not
+support an unreviewed automatic relaunch. Actual separate-process recovery is
+covered by the dedicated HTTPS driver, not by this manual session.
+
+1. Sign in to the synthetic fixture and confirm one existing asset. Open Import
+   and select `inventory-import-synthetic.json`; preview shows one new asset.
+2. Choose Save private recovery JSON and Cancel. Confirm remains unavailable.
+3. Save to a new filename. Check the suggested name is
+   `asset-desk-import-recovery.json`; acknowledge that it is plaintext private data.
+   Do not submit yet. Check that saving alone has not added an asset.
+4. Choose private recovery JSON and select the saved file. Confirm outcome unknown
+   is shown and no asset has been added. Canceling this picker first must preserve
+   the existing review. A restored operation requires a fresh acknowledgement.
+5. Acknowledge and Replay same operation exactly once. Refresh inventory: two
+   assets, original unchanged, imported record with the expected fixture fields.
+6. Record native checks individually. No-repeat-write, keyboard/screen-reader,
+   crash durability and controlled native lost-acknowledgement behavior must not
+   be inferred from a successful happy-path dialog test.
+
+Build/session execution requires separate approval. Keep Smart App Control and
+TLS trust unchanged; stop on a block, do not bypass or rename binaries to evade it.
+
+## Recovery release attempt
+
+The separately approved recovery release build succeeded using the installed SDK
+and cache with `--no-pub`. A new isolated HTTPS fixture reached native launch,
+but Windows Code Integrity events 3077 and 3033 identified the candidate EXE as
+failing the active signing requirements. No recovery dialog or manual UI check
+was completed. Build success is not native acceptance.
+
+The runner reported failure at `native-session` and cleanup `stopped`. Synthetic
+files and the candidate were retained. No retry, policy change, trust change or
+regular backend deployment followed. Keep all recovery native checks pending
+until an explicitly approved launch succeeds without weakening machine security.
