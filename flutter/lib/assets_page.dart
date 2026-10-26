@@ -1,3 +1,5 @@
+import 'api/asset_overview.dart';
+import 'inventory_overview_page.dart';
 import 'api/asset_session.dart';
 import 'api/asset_import.dart';
 import 'inventory_import_page.dart';
@@ -131,6 +133,19 @@ class _AssetsPageState extends State<AssetsPage> {
               onPressed: _busy ? null : () => _edit(),
               child: const Text('Add asset'),
             ),
+            if (widget.store case final AssetOverviewSource source) ...[
+              const SizedBox(height: 8),
+              OutlinedButton(
+                onPressed: _busy
+                    ? null
+                    : () => Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => InventoryOverviewPage(source: source),
+                        ),
+                      ),
+                child: const Text('Inventory overview'),
+              ),
+            ],
             if (widget.store case final AssetExportSource source) ...[
               const SizedBox(height: 8),
               OutlinedButton(

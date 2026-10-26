@@ -388,3 +388,14 @@ test("recovery selector requires import capability before server construction", 
     ),
   );
 });
+
+test('overview allowlist adds only the exact read route', async () => {
+  assert.equal(allowed('GET', '/api/v1/assets/overview'), true);
+  for (const method of ['POST', 'PUT', 'PATCH', 'DELETE'])
+    assert.equal(allowed(method, '/api/v1/assets/overview'), false);
+  for (const path of ['/api/v1/assets/overview/extra', '/api/v1/assets/Overview',
+    '/api/v1/assets/%6fverview', '/api/v1/assets/overview/../import'])
+    assert.equal(allowed('GET', path), false);
+  const result = await simulate({ method: 'GET', url: '/api/v1/assets/overview' });
+  assert.equal(result.res.code, 200);
+});

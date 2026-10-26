@@ -36,6 +36,13 @@ export class AssetsController {
     return this.service.list(owner(req), query);
   }
 
+  /** Read complete owner counts without exposing other accounts or record details. */
+  @Get('overview')
+  @Header('Cache-Control', 'no-store')
+  overview(@Req() req: OwnerRequest) {
+    return this.service.overview(owner(req));
+  }
+
   /** Return a bounded complete snapshot, never a filtered page or partial export. */
   @Get('export')
   @Header('Cache-Control', 'no-store')

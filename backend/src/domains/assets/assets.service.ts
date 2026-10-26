@@ -56,6 +56,11 @@ export class AssetsService implements OnModuleInit {
     return result;
   }
 
+  /** Return complete owner counts independently of list filters. */
+  overview(owner: string) {
+    return this.repository.overview(owner);
+  }
+
   /** Export the full owner inventory, independently of list filters and pagination. */
   async exportInventory(owner: string) {
     return buildAssetExport(await this.repository.snapshot(owner));

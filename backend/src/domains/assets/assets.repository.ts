@@ -1,3 +1,8 @@
+import {
+  ASSET_OVERVIEW_MAX_CATEGORIES,
+  buildAssetOverview,
+  type AssetOverviewRow,
+} from './asset-overview';
 import { randomUUID } from 'node:crypto';
 import { ASSET_EXPORT_MAX_RECORDS, type AssetSnapshot } from './asset-export';
 import { isAccountId } from '../auth/account.repository';
@@ -51,6 +56,18 @@ export class AssetsRepository {
       items: result.rows.slice(0, 50),
       nextOffset: result.rows.length > 50 ? query.offset + 50 : null,
     };
+  }
+
+  /** Aggregate the full owner inventory in one statement, independently of list filters. */
+  async overview(owner: string) {
+    this.owner(owner);
+    const result = await this.database.pool.query<AssetOverviewRow>(
+      `SELECT category, status, count(*)::text AS count
+       FROM assets.assets WHERE owner_id=$1
+       GROUP BY category, status ORDER BY category, status LIMIT $2`,
+      [owner.toLowerCase(), ASSET_OVERVIEW_MAX_CATEGORIES * 4 + 1],
+    );
+    return buildAssetOverview(result.rows);
   }
 
   /** Read the entire bounded owner inventory in one PostgreSQL statement snapshot. */

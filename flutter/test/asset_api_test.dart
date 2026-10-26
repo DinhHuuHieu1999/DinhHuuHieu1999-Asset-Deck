@@ -8,6 +8,7 @@ import 'package:asset_desk/api/asset_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'asset_test.dart' show record;
+import 'asset_overview_test.dart' show summary;
 
 void main() {
   for (final url in [
@@ -120,6 +121,65 @@ void main() {
     });
     Future<void> login() => api.login(' synthetic ', ' synthetic-pass ');
 
+    test('overview limit failure is not zero and is not retried', () async {
+      await login();
+      handler = (request) async =>
+          json(request, {'message': 'limit'}, status: 422);
+      final before = calls.length;
+      await expectLater(
+        api.overview(),
+        throwsA(
+          isA<AssetFailure>()
+              .having((failure) => failure.statusCode, 'statusCode', 422)
+              .having(
+                (failure) => failure.message,
+                'message',
+                contains('200 categories'),
+              ),
+        ),
+      );
+      expect(calls.length - before, 1);
+    });
+    test('sign-out discards a late overview response', () async {
+      await login();
+      final entered = Completer<void>(), release = Completer<void>();
+      handler = (request) async {
+        entered.complete();
+        await release.future;
+        json(request, summary());
+      };
+      final pending = api.overview();
+      final assertion = expectLater(pending, throwsA(isA<AssetFailure>()));
+      await entered.future;
+      api.signOut();
+      release.complete();
+      await assertion;
+      expect(api.account, isNull);
+    });
+    test('overview requires auth and fetches unfiltered counts', () async {
+      await expectLater(api.overview(), throwsA(isA<AssetFailure>()));
+      expect(calls, isEmpty);
+      await login();
+      handler = (request) async {
+        expect(request.method, 'GET');
+        expect(request.uri.path, '/api/v1/assets/overview');
+        expect(request.uri.hasQuery, isFalse);
+        expect(
+          request.headers.value('authorization'),
+          'Bearer synthetic-token',
+        );
+        json(request, summary());
+      };
+      expect((await api.overview()).total, 53);
+    });
+    test(
+      'overview rejects malformed counts rather than showing zero',
+      () async {
+        await login();
+        handler = (request) async => json(request, {...summary(), 'total': 0});
+        await expectLater(api.overview(), throwsA(isA<AssetFailure>()));
+      },
+    );
     test(
       'login, cookie/header timestamp and literal query are preserved',
       () async {

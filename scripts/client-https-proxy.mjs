@@ -85,6 +85,7 @@ export function allowed(method, raw, importEnabled = false) {
       "/api/v1/auth/profile",
       "/api/v1/assets",
       "/api/v1/assets/export",
+      '/api/v1/assets/overview',
     ].includes(path);
   if (method === "POST")
     return [

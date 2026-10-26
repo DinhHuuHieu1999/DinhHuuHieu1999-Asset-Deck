@@ -16,13 +16,28 @@ FILES = ('backend/migrations/001-auth-accounts.sql', 'backend/migrations/002-ass
          'backend/node_modules/jest/bin/jest.js')
 
 
-def preflight(root, args):
+OVERVIEW_FILES = (FILES[0], FILES[1],
+                  'backend/src/domains/assets/assets-overview.postgres.spec.ts',
+                  FILES[3], 'backend/src/domains/assets/asset-overview.ts', FILES[-1])
+
+
+def profile_settings(profile):
+    """Only fixed source-owned profiles may choose a suite or fixture identity."""
+    if profile == 'category':
+        return FILES, 'asset-category-', 'asset_category_fixture_', 'ASSET_CATEGORY', 'isolated-category-v1', 'asset_category_fixture_identity'
+    if profile == 'overview':
+        return OVERVIEW_FILES, 'asset-overview-', 'asset_overview_fixture_', 'ASSET_OVERVIEW', 'isolated-overview-v1', 'asset_overview_fixture_identity'
+    raise client.Refusal('Unknown repository fixture profile')
+
+
+def preflight(root, args, profile='category'):
     """Refuse missing source, tools or explicit immutable-image opt-in before writes."""
+    files = profile_settings(profile)[0]
     if (args.execute_synthetic is not True or not isinstance(args.image, str) or
             len(args.image) != 71 or not args.image.startswith('sha256:') or
             any(c not in '0123456789abcdef' for c in args.image[7:])):
         raise client.Refusal('Explicit synthetic opt-in and immutable image required')
-    if any(not (root / name).is_file() for name in FILES):
+    if any(not (root / name).is_file() for name in files):
         raise client.Refusal('Required source or local Jest missing')
     if any(not shutil.which(name) for name in ('docker', 'node')):
         raise client.Refusal('Required executable missing')
@@ -38,15 +53,16 @@ def validate_result(value):
         raise client.Refusal('Repository assertions incomplete')
 
 
-def execute(root, args, runtime):
+def execute(root, args, runtime, profile='category'):
     """Create one owned database; run once and retain stopped resources/evidence."""
-    preflight(root, args)
+    files, prefix, db_prefix, env_prefix, opt_in, marker_table = profile_settings(profile)
+    preflight(root, args, profile)
     image = runtime.run(['docker', 'image', 'inspect', '--format', '{{.Id}}', args.image]).decode().strip()
     if image != args.image:
         raise client.Refusal('Existing image mismatch')
     identity = secrets.token_hex(16)
-    name = 'asset-category-' + identity
-    database = 'asset_category_fixture_' + identity[:12]
+    name = prefix + identity
+    database = db_prefix + identity[:12]
     volume = name + '-data'
     folder = root / '.local' / name
     folder.mkdir(parents=True, exist_ok=False)
@@ -77,12 +93,12 @@ def execute(root, args, runtime):
                 raise client.Refusal('Database identity mismatch')
             break
         client.assert_owned(runtime, name, identity)
-        for migration in FILES[:2]:
+        for migration in files[:2]:
             runtime.run(['docker', 'exec', '-i', name, 'psql', '-v', 'ON_ERROR_STOP=1',
                          '-U', 'fixture', '-d', database], data=(root / migration).read_bytes())
         runtime.run(['docker', 'exec', '-i', name, 'psql', '-v', 'ON_ERROR_STOP=1', '-U', 'fixture', '-d', database],
-                    data=("CREATE TABLE public.asset_category_fixture_identity(marker text NOT NULL);"
-                          "INSERT INTO public.asset_category_fixture_identity VALUES ('" + identity + "');").encode())
+                    data=("CREATE TABLE public." + marker_table + "(marker text NOT NULL);"
+                          "INSERT INTO public." + marker_table + " VALUES ('" + identity + "');").encode())
         ports = json.loads(runtime.run(['docker', 'inspect', '--format', '{{json .NetworkSettings.Ports}}', name]))
         binding = ports.get('5432/tcp') if isinstance(ports, dict) else None
         if (not isinstance(binding, list) or len(binding) != 1 or binding[0].get('HostIp') != '127.0.0.1' or
@@ -91,12 +107,13 @@ def execute(root, args, runtime):
         port = int(binding[0]['HostPort'])
         if not 1024 <= port <= 65535 or port in (5432, 5433):
             raise client.Refusal('Unexpected fixture port')
-        test_env = dict(runtime.env, ASSET_CATEGORY_FIXTURE_OPT_IN='isolated-category-v1',
-                        ASSET_CATEGORY_FIXTURE_MARKER=identity,
-                        ASSET_CATEGORY_FIXTURE_URL='postgresql://fixture:%s@127.0.0.1:%s/%s' % (password, port, database))
+        test_env = dict(runtime.env)
+        test_env.update({env_prefix + '_FIXTURE_OPT_IN': opt_in,
+                         env_prefix + '_FIXTURE_MARKER': identity,
+                         env_prefix + '_FIXTURE_URL': 'postgresql://fixture:%s@127.0.0.1:%s/%s' % (password, port, database)})
         result_file = folder / 'jest-result.json'
-        runtime.run(['node', str(root / FILES[-1]), '--runInBand', '--runTestsByPath',
-                     str(root / FILES[2]), '--json', '--outputFile=' + str(result_file)],
+        runtime.run(['node', str(root / files[-1]), '--runInBand', '--runTestsByPath',
+                     str(root / files[2]), '--json', '--outputFile=' + str(result_file)],
                     cwd=root / 'backend', env=test_env)
         if result_file.stat().st_size > 1024 * 1024:
             raise client.Refusal('Oversized test result')

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'asset.dart';
+import 'asset_overview.dart';
 import 'asset_export.dart';
 import 'asset_import.dart';
 import 'asset_session.dart';
@@ -11,7 +12,12 @@ import 'asset_store.dart';
 
 /// Native JSON client with bounded responses and in-memory credentials only.
 /// Adapted from ToolDeck's selected auth/CSRF/session transport; no other domains.
-class AssetApi implements AssetSession, AssetExportSource, AssetImportSource {
+class AssetApi
+    implements
+        AssetSession,
+        AssetExportSource,
+        AssetImportSource,
+        AssetOverviewSource {
   AssetApi(
     Uri endpoint, {
     bool allowLocalHttp = false,
@@ -184,6 +190,19 @@ class AssetApi implements AssetSession, AssetExportSource, AssetImportSource {
       return AssetPage.fromJson(result, offset: offset);
     } on FormatException {
       throw const AssetFailure('Invalid inventory response');
+    }
+  }
+
+  /// Fetch complete counts without passing list filters or accepting stale sessions.
+  @override
+  Future<AssetOverview> overview() async {
+    final epoch = _requireAccount();
+    final result = await _request('GET', 'assets/overview', epoch);
+    _current(epoch);
+    try {
+      return AssetOverview.fromJson(result);
+    } on FormatException {
+      throw const AssetFailure('Invalid inventory overview response');
     }
   }
 
@@ -364,6 +383,8 @@ class AssetApi implements AssetSession, AssetExportSource, AssetImportSource {
             422 =>
               path == 'assets/export'
                   ? 'Inventory exceeds export limits (500 assets / 1 MiB); no partial export was produced.'
+                  : path == 'assets/overview'
+                  ? 'Inventory exceeds the overview limit (200 categories); no partial counts were returned.'
                   : 'Pagination limit reached; the list is incomplete. Narrow your filters.',
             429 => 'Too many requests. Wait before trying again.',
             _ => 'Request failed',
