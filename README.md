@@ -127,3 +127,11 @@ Existing dates flags and migration 004 are required; defaults remain off. No
 new dependency, migration, automated notification or regular deployment is added.
 Isolated PostgreSQL and real Dart HTTPS checks passed. Windows native acceptance
 remains pending. See [warranty contract and evidence](docs/inventory-warranty-filter.md).
+
+## Optional warranty overview
+
+The dates capability also exposes a separate complete-owner warranty overview:
+expired, upcoming within 30 days, later and unknown dates. It is independent of
+list filters and pagination, and shows its UTC reference with explicit refresh.
+Source/unit, synthetic UI, isolated PostgreSQL and real Dart HTTPS checks are verified;
+Windows native acceptance remains pending. See the [warranty overview contract](docs/inventory-warranty-overview.md).

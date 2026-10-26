@@ -10,13 +10,31 @@ import { Auth } from '../../shared/decorators/auth.decorator';
 import { isAccountId } from '../auth/account.repository';
 import { AssetDatesRepository } from './asset-dates.repository';
 import { assetWarrantyWindow } from './asset-warranty';
-import { AssetWarrantyQueryDto } from './asset-warranty.dto';
+import {
+  AssetWarrantyQueryDto,
+  AssetWarrantyOverviewQueryDto,
+} from './asset-warranty.dto';
 
 /** Owner-scoped warranty list exists only inside the dates capability. */
 @Auth()
 @Controller('assets/warranty')
 export class AssetWarrantyController {
   constructor(private readonly repository: AssetDatesRepository) {}
+
+  /** Count the entire authenticated inventory in four disjoint calendar buckets. */
+  @Get('overview')
+  @Header('Cache-Control', 'no-store')
+  overview(
+    @Req() request: { user?: { userId?: string } },
+    @Query() query: AssetWarrantyOverviewQueryDto,
+  ) {
+    const owner = request.user?.userId;
+    if (!owner || !isAccountId(owner)) throw new UnauthorizedException();
+    return this.repository.warrantyOverview(
+      owner,
+      assetWarrantyWindow('expired', query.asOf),
+    );
+  }
 
   /** Intersect warranty/search/status/category before pagination with a stable date. */
   @Get()

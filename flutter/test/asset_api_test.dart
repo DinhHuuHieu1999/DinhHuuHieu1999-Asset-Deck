@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'asset_test.dart' show record;
 import 'asset_warranty_test.dart' show warrantyFixture;
+import 'asset_warranty_overview_test.dart' show warrantyOverviewFixture;
 import 'asset_export_v2_test.dart' show exportV2Fixture;
 import 'asset_overview_test.dart' show summary;
 
@@ -124,6 +125,108 @@ void main() {
     });
     Future<void> login() => api.login(' synthetic ', ' synthetic-pass ');
 
+    test(
+      'warranty overview requires auth and sends only optional reference',
+      () async {
+        await expectLater(api.warrantyOverview(), throwsA(isA<AssetFailure>()));
+        expect(calls, isEmpty);
+        await login();
+        handler = (request) async {
+          expect(request.method, 'GET');
+          expect(request.uri.path, '/api/v1/assets/warranty/overview');
+          expect(
+            request.headers.value('authorization'),
+            'Bearer synthetic-token',
+          );
+          expect(request.uri.queryParameters, {'asOf': '2026-10-27'});
+          json(request, warrantyOverviewFixture());
+        };
+        expect((await api.warrantyOverview(asOf: '2026-10-27')).total, 57);
+        handler = (request) async {
+          expect(request.uri.hasQuery, false);
+          json(request, warrantyOverviewFixture());
+        };
+        expect((await api.warrantyOverview()).unknown, 1);
+      },
+    );
+    test('invalid warranty overview reference never sends a request', () async {
+      await login();
+      final before = calls.length;
+      for (final day in [
+        '2026-02-29',
+        '2026-10-27\n',
+        '0000-01-01',
+        ' 2026-10-27',
+      ]) {
+        await expectLater(
+          api.warrantyOverview(asOf: day),
+          throwsA(
+            isA<AssetFailure>().having(
+              (e) => e.definitelyNotSent,
+              'not sent',
+              true,
+            ),
+          ),
+        );
+      }
+      expect(calls.length, before);
+    });
+    for (final status in [401, 404, 422, 500]) {
+      test('warranty overview $status never retries or falls back', () async {
+        await login();
+        final before = calls.length;
+        handler = (request) async =>
+            json(request, {'message': 'synthetic refusal'}, status: status);
+        await expectLater(
+          api.warrantyOverview(asOf: '2026-10-27'),
+          throwsA(
+            isA<AssetFailure>().having((e) => e.statusCode, 'status', status),
+          ),
+        );
+        expect(calls.length, before + 1);
+        expect(calls.last, 'GET /api/v1/assets/warranty/overview');
+      });
+    }
+    test(
+      'warranty overview rejects malformed counts and calendar echo',
+      () async {
+        await login();
+        for (final change in <Map<String, Object?>>[
+          {'total': 0},
+          {'complete': false},
+          {'asOf': '2026-10-26'},
+        ]) {
+          handler = (request) async =>
+              json(request, {...warrantyOverviewFixture(), ...change});
+          await expectLater(
+            api.warrantyOverview(asOf: '2026-10-27'),
+            throwsA(
+              isA<AssetFailure>().having(
+                (e) => e.message,
+                'message',
+                'Invalid warranty overview response',
+              ),
+            ),
+          );
+        }
+      },
+    );
+    test('sign-out discards late warranty overview without retry', () async {
+      await login();
+      final entered = Completer<void>(), release = Completer<void>();
+      handler = (request) async {
+        entered.complete();
+        await release.future;
+        json(request, warrantyOverviewFixture());
+      };
+      final pending = api.warrantyOverview();
+      final assertion = expectLater(pending, throwsA(isA<AssetFailure>()));
+      await entered.future;
+      api.signOut();
+      release.complete();
+      await assertion;
+      expect(api.account, isNull);
+    });
     test('warranty uses a separate authenticated exact path and encoded literal filters', () async {
       await login();
       handler = (request) async {

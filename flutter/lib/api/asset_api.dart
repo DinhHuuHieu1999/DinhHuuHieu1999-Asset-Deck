@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'asset.dart';
 import 'asset_dates.dart';
 import 'asset_warranty.dart';
+import 'asset_warranty_overview.dart';
 import 'asset_overview.dart';
 import 'asset_export.dart';
 import 'asset_export_v2.dart';
@@ -23,7 +24,8 @@ class AssetApi
         AssetImportSource,
         AssetOverviewSource,
         AssetDatesSource,
-        AssetWarrantySource {
+        AssetWarrantySource,
+        AssetWarrantyOverviewSource {
   AssetApi(
     Uri endpoint, {
     bool allowLocalHttp = false,
@@ -196,6 +198,29 @@ class AssetApi
       return AssetPage.fromJson(result, offset: offset);
     } on FormatException {
       throw const AssetFailure('Invalid inventory response');
+    }
+  }
+
+  /// Fetch complete owner counts independently of every inventory list filter.
+  @override
+  Future<AssetWarrantyOverview> warrantyOverview({String asOf = ''}) async {
+    final epoch = _requireAccount();
+    if (asOf.isNotEmpty && !isAssetCalendarDate(asOf)) {
+      throw const AssetFailure(
+        'Invalid warranty reference date',
+        definitelyNotSent: true,
+      );
+    }
+    final path = Uri(
+      path: 'assets/warranty/overview',
+      queryParameters: asOf.isEmpty ? null : {'asOf': asOf},
+    ).toString();
+    final result = await _request('GET', path, epoch);
+    _current(epoch);
+    try {
+      return AssetWarrantyOverview.fromJson(result, asOf: asOf);
+    } on FormatException {
+      throw const AssetFailure('Invalid warranty overview response');
     }
   }
 
@@ -527,6 +552,8 @@ class AssetApi
             422 =>
               path == 'assets/export'
                   ? 'Inventory exceeds export limits (500 assets / 1 MiB); no partial export was produced.'
+                  : path.split('?').first == 'assets/warranty/overview'
+                  ? 'Warranty counts exceed the safe integer limit; no partial overview was returned.'
                   : path == 'assets/overview'
                   ? 'Inventory exceeds the overview limit (200 categories); no partial counts were returned.'
                   : 'Pagination limit reached; the list is incomplete. Narrow your filters.',

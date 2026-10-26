@@ -45,6 +45,13 @@ WARRANTY_FILES = (FILES[0], FILES[1],
                   'backend/migrations/004-asset-dates.sql', FILES[-1])
 
 
+WARRANTY_OVERVIEW_FILES = WARRANTY_FILES[:2] + (
+    'backend/src/domains/assets/assets-warranty-overview.postgres.spec.ts',
+) + WARRANTY_FILES[3:-1] + (
+    'backend/src/domains/assets/asset-warranty-overview.ts', FILES[-1],
+)
+
+
 def profile_settings(profile):
     """Only fixed source-owned profiles may choose a suite or fixture identity."""
     if profile == 'category':
@@ -55,6 +62,8 @@ def profile_settings(profile):
         return DATES_FILES, 'asset-dates-', 'asset_dates_fixture_', 'ASSET_DATES', 'isolated-dates-v1', 'asset_dates_fixture_identity'
     if profile == 'export-v2':
         return EXPORT_V2_FILES, 'asset-export-v2-', 'asset_export_v2_fixture_', 'ASSET_EXPORT_V2', 'isolated-export-v2-v1', 'asset_export_v2_fixture_identity'
+    if profile == 'warranty-overview':
+        return WARRANTY_OVERVIEW_FILES, 'asset-warranty-overview-', 'asset_warranty_overview_fixture_', 'ASSET_WARRANTY_OVERVIEW', 'isolated-warranty-overview-v1', 'asset_warranty_overview_fixture_identity'
     if profile == 'warranty':
         return WARRANTY_FILES, 'asset-warranty-', 'asset_warranty_fixture_', 'ASSET_WARRANTY', 'isolated-warranty-v1', 'asset_warranty_fixture_identity'
     raise client.Refusal('Unknown repository fixture profile')
@@ -73,11 +82,11 @@ def preflight(root, args, profile='category'):
         raise client.Refusal('Required executable missing')
 
 
-def validate_result(value):
+def validate_result(value, expected=4):
     """Skipped, partial or malformed Jest output cannot satisfy live acceptance."""
     if (not isinstance(value, dict) or value.get('success') is not True or
             any(type(value.get(k)) is not int or value[k] != n for k, n in
-                (('numPassedTests', 4), ('numTotalTests', 4), ('numFailedTests', 0),
+                (('numPassedTests', expected), ('numTotalTests', expected), ('numFailedTests', 0),
                  ('numPendingTests', 0), ('numRuntimeErrorTestSuites', 0),
                  ('numPassedTestSuites', 1)))):
         raise client.Refusal('Repository assertions incomplete')
@@ -125,7 +134,7 @@ def execute(root, args, runtime, profile='category', verification=None):
                 raise client.Refusal('Database identity mismatch')
             break
         client.assert_owned(runtime, name, identity)
-        migrations = files[:2] + (('backend/migrations/004-asset-dates.sql',) if profile in ('dates', 'export-v2', 'warranty') else ())
+        migrations = files[:2] + (('backend/migrations/004-asset-dates.sql',) if profile in ('dates', 'export-v2', 'warranty', 'warranty-overview') else ())
         for migration in migrations:
             runtime.run(['docker', 'exec', '-i', name, 'psql', '-v', 'ON_ERROR_STOP=1',
                          '-U', 'fixture', '-d', database], data=(root / migration).read_bytes())
@@ -150,11 +159,12 @@ def execute(root, args, runtime, profile='category', verification=None):
                     cwd=root / 'backend', env=test_env)
         if result_file.stat().st_size > 1024 * 1024:
             raise client.Refusal('Oversized test result')
-        validate_result(json.loads(result_file.read_text(encoding='utf-8')))
+        expected = 7 if profile == 'warranty-overview' else 4
+        validate_result(json.loads(result_file.read_text(encoding='utf-8')), expected)
         if verification is not None:
             verification(runtime, name, database, identity, folder)
             report['datesDatabaseRecovery'] = True
-        report.update(status='completed', repositoryTests=4, syntheticOnly=True)
+        report.update(status='completed', repositoryTests=expected, syntheticOnly=True)
     finally:
         runtime.deadline = time.monotonic() + 30
         cleanup = 'stopped'

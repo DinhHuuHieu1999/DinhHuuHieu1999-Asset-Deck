@@ -1,3 +1,7 @@
+import {
+  buildAssetWarrantyOverview,
+  type AssetWarrantyOverviewRow,
+} from './asset-warranty-overview';
 import { UnprocessableEntityException } from '@nestjs/common';
 import type { AssetWarrantyQueryDto } from './asset-warranty.dto';
 import type { AssetWarrantyWindow } from './asset-warranty';
@@ -41,6 +45,24 @@ export class AssetDatesRepository {
       [this.owner(owner), id],
     );
     return result.rows[0] ?? null;
+  }
+
+  /** One statement snapshot counts all owned assets; no list or category limits. */
+  async warrantyOverview(owner: string, window: Readonly<AssetWarrantyWindow>) {
+    const result = await this.database.pool.query<AssetWarrantyOverviewRow>(
+      `SELECT count(*)::text AS total,
+        (count(*) FILTER (WHERE warranty_expires_on < $2::date))::text AS expired,
+        (count(*) FILTER (WHERE warranty_expires_on >= $2::date
+          AND warranty_expires_on <= $3::date))::text AS "expiringSoon",
+        (count(*) FILTER (WHERE warranty_expires_on > $3::date))::text AS later,
+        (count(*) FILTER (WHERE warranty_expires_on IS NULL))::text AS unknown
+       FROM assets.assets WHERE owner_id=$1`,
+      [this.owner(owner), window.asOf, window.through],
+    );
+    if (result.rows.length !== 1 || !result.rows[0]) {
+      throw new Error('asset_warranty_overview_missing_aggregate');
+    }
+    return buildAssetWarrantyOverview(result.rows[0], window);
   }
 
   /** Apply all predicates before a bounded page; NULL warranty never matches. */

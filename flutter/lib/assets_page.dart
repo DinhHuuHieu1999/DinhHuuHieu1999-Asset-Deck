@@ -1,3 +1,5 @@
+import 'api/asset_warranty_overview.dart';
+import 'warranty_overview_page.dart';
 import 'api/asset_warranty.dart';
 import 'api/asset_dates.dart';
 import 'asset_dates_editor.dart';
@@ -203,6 +205,22 @@ class _AssetsPageState extends State<AssetsPage> {
               onPressed: _busy ? null : () => _edit(),
               child: const Text('Add asset'),
             ),
+            if (widget.enableAssetDates &&
+                widget.store is AssetWarrantyOverviewSource) ...[
+              const SizedBox(height: 8),
+              OutlinedButton(
+                onPressed: _busy
+                    ? null
+                    : () => Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => WarrantyOverviewPage(
+                            source: widget.store as AssetWarrantyOverviewSource,
+                          ),
+                        ),
+                      ),
+                child: const Text('Warranty overview'),
+              ),
+            ],
             if (widget.store case final AssetOverviewSource source) ...[
               const SizedBox(height: 8),
               OutlinedButton(

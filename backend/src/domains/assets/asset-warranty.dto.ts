@@ -10,3 +10,10 @@ export class AssetWarrantyQueryDto extends AssetQueryDto {
   @MaxLength(10)
   asOf = '';
 }
+
+/** Complete counts accept only a calendar reference, never list filters or owner. */
+export class AssetWarrantyOverviewQueryDto {
+  @IsString()
+  @MaxLength(10)
+  asOf = '';
+}

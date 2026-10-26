@@ -437,3 +437,15 @@ test('warranty route is exact GET-only and dates opt-in; queries reach backend v
   for (const invalid of [path+'/', path+'/other', path.replace('warranty', '%77arranty')])
     assert.equal(allowed('GET', invalid, false, true), false);
 });
+
+
+test('warranty overview is GET-only and requires explicit dates capability', () => {
+  for (const path of ['/api/v1/assets/warranty/overview', '/api/v1/assets/warranty/overview?asOf=2026-10-26']) {
+    assert.equal(allowed('GET', path, false, true), true);
+    assert.equal(allowed('GET', path), false);
+    assert.equal(allowed('GET', path, true, false), false);
+    for (const method of ['POST', 'PUT', 'DELETE', 'PATCH'])
+      assert.equal(allowed(method, path, false, true), false);
+  }
+  assert.equal(allowed('GET', '/api/v1/assets/warranty/overview/extra', false, true), false);
+});
