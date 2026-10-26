@@ -34,6 +34,8 @@ class AssetsPage extends StatefulWidget {
 
 class _AssetsPageState extends State<AssetsPage> {
   final _query = TextEditingController();
+  final _category = TextEditingController();
+  String _loadedCategory = '';
   String _status = '', _loadedQuery = '', _loadedStatus = '';
   String? _error;
   AssetPage? _page;
@@ -48,6 +50,7 @@ class _AssetsPageState extends State<AssetsPage> {
   @override
   void dispose() {
     _query.dispose();
+    _category.dispose();
     super.dispose();
   }
 
@@ -55,6 +58,15 @@ class _AssetsPageState extends State<AssetsPage> {
     if (_busy) return;
     final query = apply ? _query.text.trim() : _loadedQuery;
     final status = apply ? _status : _loadedStatus;
+    final category = apply ? _category.text.trim() : _loadedCategory;
+    if (_category.text.length > 64 || category.contains('\u0000')) {
+      if (apply) {
+        setState(
+          () => _error = 'Category must be at most 64 characters without NUL.',
+        );
+        return;
+      }
+    }
     if (query.length > 120 || query.contains('\u0000')) {
       setState(
         () => _error = 'Search must be at most 120 characters without NUL.',
@@ -69,6 +81,7 @@ class _AssetsPageState extends State<AssetsPage> {
       final page = await widget.store.list(
         query: query,
         status: status,
+        category: category,
         offset: offset,
       );
       if (!mounted) return;
@@ -77,6 +90,7 @@ class _AssetsPageState extends State<AssetsPage> {
         _offset = offset;
         _loadedQuery = query;
         _loadedStatus = status;
+        _loadedCategory = category;
       });
     } catch (error) {
       if (mounted)
@@ -183,6 +197,19 @@ class _AssetsPageState extends State<AssetsPage> {
               onSubmitted: (_) => _load(apply: true),
             ),
             const SizedBox(height: 12),
+            TextField(
+              controller: _category,
+              enabled: !_busy,
+              maxLength: 64,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: 'Category filter',
+                helperText: 'Exact, case-sensitive; blank means all categories',
+                helperMaxLines: 3,
+              ),
+              onSubmitted: (_) => _load(apply: true),
+            ),
+            const SizedBox(height: 12),
             DropdownButtonFormField<String>(
               initialValue: _status,
               isExpanded: true,
@@ -230,7 +257,7 @@ class _AssetsPageState extends State<AssetsPage> {
                 'Page ${_offset ~/ 50 + 1} - ${_page!.items.length} records',
               ),
               Text(
-                'Applied search: ${_loadedQuery.isEmpty ? '(none)' : _loadedQuery}; status: ${_loadedStatus.isEmpty ? 'all' : _loadedStatus}',
+                'Applied search: ${_loadedQuery.isEmpty ? '(none)' : _loadedQuery}; status: ${_loadedStatus.isEmpty ? 'all' : _loadedStatus}; category: ${_loadedCategory.isEmpty ? 'all' : _loadedCategory}',
               ),
               if (_page!.items.isEmpty) const Text('No matching assets.'),
               for (final record in _page!.items)

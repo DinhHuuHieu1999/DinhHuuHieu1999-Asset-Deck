@@ -13,6 +13,7 @@ import 'asset_test.dart' show record;
 
 class FakeStore implements AssetStore {
   final calls = <String>[];
+  final categories = <String>[];
   AssetFailure? failure;
   int writes = 0;
   AssetInput? saved;
@@ -21,9 +22,11 @@ class FakeStore implements AssetStore {
   Future<AssetPage> list({
     required String query,
     required String status,
+    String category = '',
     required int offset,
   }) async {
     calls.add('$query|$status|$offset');
+    categories.add(category);
     if (failure != null) throw failure!;
     return pages?[offset] ?? AssetPage([AssetRecord.fromJson(record())], null);
   }
@@ -57,20 +60,33 @@ void main() {
       final store = FakeStore();
       await open(tester, store);
       await tester.enterText(find.byType(TextField).first, '%_');
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Category filter'),
+        '  Network%_  ',
+      );
       expect(store.calls, ['||0']);
       await tester.tap(find.text('Apply filters'));
       await tester.pumpAndSettle();
       expect(store.calls.last, '%_||0');
+      expect(store.categories.last, 'Network%_');
       store.failure = const AssetFailure('Unable to load');
       await tester.enterText(find.byType(TextField).first, 'other');
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Category filter'),
+        'Other',
+      );
       await tester.tap(find.text('Apply filters'));
       await tester.pumpAndSettle();
       expect(find.text('Laptop'), findsOneWidget);
       expect(find.textContaining('may be stale'), findsOneWidget);
-      expect(find.text('Applied search: %_; status: all'), findsOneWidget);
+      expect(
+        find.text('Applied search: %_; status: all; category: Network%_'),
+        findsOneWidget,
+      );
       await tester.tap(find.text('Refresh inventory'));
       await tester.pumpAndSettle();
       expect(store.calls.last, '%_||0');
+      expect(store.categories.last, 'Network%_');
     },
   );
   testWidgets('pagination uses loaded filters and supports back navigation', (
@@ -86,9 +102,17 @@ void main() {
       };
     await open(tester, store);
     await tester.enterText(find.byType(TextField).first, 'old filter');
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Category filter'),
+      'network',
+    );
     await tester.tap(find.text('Apply filters'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).first, 'unapplied draft');
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Category filter'),
+      'unapplied category',
+    );
     await tester.scrollUntilVisible(
       find.text('Next page'),
       1000,
@@ -99,13 +123,36 @@ void main() {
     await tester.tap(find.text('Next page'));
     await tester.pumpAndSettle();
     expect(store.calls.last, 'old filter||50');
+    expect(store.categories.last, 'network');
     expect(find.text('Next page'), findsNothing);
     await tester.ensureVisible(find.text('Previous page'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Previous page'));
     await tester.pumpAndSettle();
     expect(store.calls.last, 'old filter||0');
+    expect(store.categories.last, 'network');
   });
+  testWidgets(
+    'invalid category never sends and refresh retains applied filters',
+    (tester) async {
+      final store = FakeStore();
+      await open(tester, store);
+      final category = find.widgetWithText(TextField, 'Category filter');
+      await tester.enterText(category, 'network');
+      await tester.tap(find.text('Apply filters'));
+      await tester.pumpAndSettle();
+      final count = store.calls.length;
+      await tester.enterText(category, 'bad\u0000category');
+      await tester.tap(find.text('Apply filters'));
+      await tester.pumpAndSettle();
+      expect(store.calls.length, count);
+      expect(find.textContaining('Category must be'), findsOneWidget);
+      await tester.tap(find.text('Refresh inventory'));
+      await tester.pumpAndSettle();
+      expect(store.categories.last, 'network');
+      expect(store.writes, 0);
+    },
+  );
   testWidgets('empty first page and traversal boundary are explicit', (
     tester,
   ) async {

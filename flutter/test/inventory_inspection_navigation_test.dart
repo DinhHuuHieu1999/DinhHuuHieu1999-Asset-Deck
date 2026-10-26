@@ -33,6 +33,10 @@ void main() {
       );
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).first, '%_');
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Category filter'),
+        'network',
+      );
       await tester.tap(find.text('Apply filters'));
       await tester.pumpAndSettle();
       final calls = List<String>.of(store.calls);
@@ -45,7 +49,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(store.calls, calls);
       expect(store.writes, 0);
-      expect(find.text('Applied search: %_; status: all'), findsOneWidget);
+      expect(
+        find.text('Applied search: %_; status: all; category: network'),
+        findsOneWidget,
+      );
     },
   );
   for (final delayed in [false, true]) {

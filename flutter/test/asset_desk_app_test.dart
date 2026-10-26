@@ -62,6 +62,7 @@ class FakeSession implements AssetSession {
   Future<AssetPage> list({
     required String query,
     required String status,
+    String category = '',
     required int offset,
   }) async {
     if (expire) {

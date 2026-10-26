@@ -37,8 +37,15 @@ export class AssetsRepository {
        AND ($3='' OR strpos(lower(name),lower($3))>0
          OR strpos(lower(category),lower($3))>0 OR strpos(lower(serial),lower($3))>0)
        AND ($4='' OR status=$4)
+       AND ($5='' OR category=$5)
        ORDER BY updated_at DESC,id DESC LIMIT 51 OFFSET $2`,
-      [owner.toLowerCase(), query.offset, query.q.trim(), query.status],
+      [
+        owner.toLowerCase(),
+        query.offset,
+        query.q.trim(),
+        query.status,
+        (query.category ?? '').trim(),
+      ],
     );
     return {
       items: result.rows.slice(0, 50),

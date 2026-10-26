@@ -19,6 +19,7 @@ abstract interface class AssetStore {
   Future<AssetPage> list({
     required String query,
     required String status,
+    String category = '',
     required int offset,
   });
   Future<AssetRecord> create(AssetInput input);

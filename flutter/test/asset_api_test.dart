@@ -154,6 +154,35 @@ void main() {
       },
     );
     test(
+      'category is trimmed and encoded literally with other filters',
+      () async {
+        await login();
+        handler = (request) async {
+          expect(request.uri.queryParameters, {
+            'q': 'router',
+            'status': 'stored',
+            'category': '%_ &?#',
+            'offset': '50',
+          });
+          json(request, {'items': <Object?>[], 'nextOffset': null});
+        };
+        await api.list(
+          query: 'router',
+          status: 'stored',
+          category: '  %_ &?#  ',
+          offset: 50,
+        );
+        final before = calls.length;
+        for (final value in ['x' * 65, 'bad\u0000category']) {
+          await expectLater(
+            api.list(query: '', status: '', category: value, offset: 0),
+            throwsA(isA<AssetFailure>()),
+          );
+        }
+        expect(calls.length, before);
+      },
+    );
+    test(
       'register sends only public fields and accepts valid identity',
       () async {
         await api.register(

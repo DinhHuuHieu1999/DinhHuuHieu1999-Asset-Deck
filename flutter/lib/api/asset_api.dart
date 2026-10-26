@@ -156,10 +156,13 @@ class AssetApi implements AssetSession, AssetExportSource, AssetImportSource {
   Future<AssetPage> list({
     required String query,
     required String status,
+    String category = '',
     required int offset,
   }) async {
     final epoch = _requireAccount();
-    if (query.length > 120 ||
+    if (category.length > 64 ||
+        category.contains('\u0000') ||
+        query.length > 120 ||
         query.contains('\u0000') ||
         (status.isNotEmpty && !assetStatuses.contains(status)) ||
         offset < 0 ||
@@ -171,6 +174,7 @@ class AssetApi implements AssetSession, AssetExportSource, AssetImportSource {
       queryParameters: {
         'q': query.trim(),
         'status': status,
+        if (category.trim().isNotEmpty) 'category': category.trim(),
         'offset': '$offset',
       },
     ).toString();

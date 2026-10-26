@@ -1,0 +1,141 @@
+"""Explicit synthetic repository acceptance; import has no runtime side effects."""
+import argparse
+import importlib.util
+import json
+from pathlib import Path
+import secrets
+import shutil
+import time
+
+_spec = importlib.util.spec_from_file_location('category_shared_lifecycle', Path(__file__).with_name('client-https-fixture.py'))
+client = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(client)
+FILES = ('backend/migrations/001-auth-accounts.sql', 'backend/migrations/002-assets.sql',
+         'backend/src/domains/assets/assets-category.postgres.spec.ts',
+         'backend/src/domains/assets/assets.repository.ts', 'backend/src/domains/assets/assets.dto.ts',
+         'backend/node_modules/jest/bin/jest.js')
+
+
+def preflight(root, args):
+    """Refuse missing source, tools or explicit immutable-image opt-in before writes."""
+    if (args.execute_synthetic is not True or not isinstance(args.image, str) or
+            len(args.image) != 71 or not args.image.startswith('sha256:') or
+            any(c not in '0123456789abcdef' for c in args.image[7:])):
+        raise client.Refusal('Explicit synthetic opt-in and immutable image required')
+    if any(not (root / name).is_file() for name in FILES):
+        raise client.Refusal('Required source or local Jest missing')
+    if any(not shutil.which(name) for name in ('docker', 'node')):
+        raise client.Refusal('Required executable missing')
+
+
+def validate_result(value):
+    """Skipped, partial or malformed Jest output cannot satisfy live acceptance."""
+    if (not isinstance(value, dict) or value.get('success') is not True or
+            any(type(value.get(k)) is not int or value[k] != n for k, n in
+                (('numPassedTests', 4), ('numTotalTests', 4), ('numFailedTests', 0),
+                 ('numPendingTests', 0), ('numRuntimeErrorTestSuites', 0),
+                 ('numPassedTestSuites', 1)))):
+        raise client.Refusal('Repository assertions incomplete')
+
+
+def execute(root, args, runtime):
+    """Create one owned database; run once and retain stopped resources/evidence."""
+    preflight(root, args)
+    image = runtime.run(['docker', 'image', 'inspect', '--format', '{{.Id}}', args.image]).decode().strip()
+    if image != args.image:
+        raise client.Refusal('Existing image mismatch')
+    identity = secrets.token_hex(16)
+    name = 'asset-category-' + identity
+    database = 'asset_category_fixture_' + identity[:12]
+    volume = name + '-data'
+    folder = root / '.local' / name
+    folder.mkdir(parents=True, exist_ok=False)
+    report = {'status': 'failed', 'fixtureId': identity, 'nativeAcceptance': 'pending'}
+    owned = False
+    password = secrets.token_hex(24)
+    env = dict(runtime.env, POSTGRES_PASSWORD=password)
+    try:
+        runtime.run(['docker', 'volume', 'create', '--label', client.LABEL + '=' + identity, volume])
+        runtime.run(['docker', 'create', '--name', name, '--label', client.LABEL + '=' + identity,
+                     '-e', 'POSTGRES_PASSWORD', '-e', 'POSTGRES_USER=fixture',
+                     '-e', 'POSTGRES_DB=' + database, '-p', '127.0.0.1::5432',
+                     '--mount', 'type=volume,src=' + volume + ',dst=/var/lib/postgresql/data', args.image], env=env)
+        owned = True
+        client.assert_owned(runtime, name, identity)
+        runtime.run(['docker', 'start', name])
+        until = min(runtime.deadline, time.monotonic() + 30)
+        while True:
+            try:
+                raw = runtime.run(['docker', 'exec', name, 'psql', '-U', 'fixture', '-d', database,
+                                   '-Atqc', "SELECT current_database() || '|' || current_user"])
+            except client.Refusal:
+                if time.monotonic() >= until:
+                    raise client.Refusal('Readiness deadline exceeded') from None
+                time.sleep(0.2)
+                continue
+            if raw.decode().strip() != database + '|fixture':
+                raise client.Refusal('Database identity mismatch')
+            break
+        client.assert_owned(runtime, name, identity)
+        for migration in FILES[:2]:
+            runtime.run(['docker', 'exec', '-i', name, 'psql', '-v', 'ON_ERROR_STOP=1',
+                         '-U', 'fixture', '-d', database], data=(root / migration).read_bytes())
+        runtime.run(['docker', 'exec', '-i', name, 'psql', '-v', 'ON_ERROR_STOP=1', '-U', 'fixture', '-d', database],
+                    data=("CREATE TABLE public.asset_category_fixture_identity(marker text NOT NULL);"
+                          "INSERT INTO public.asset_category_fixture_identity VALUES ('" + identity + "');").encode())
+        ports = json.loads(runtime.run(['docker', 'inspect', '--format', '{{json .NetworkSettings.Ports}}', name]))
+        binding = ports.get('5432/tcp') if isinstance(ports, dict) else None
+        if (not isinstance(binding, list) or len(binding) != 1 or binding[0].get('HostIp') != '127.0.0.1' or
+                not str(binding[0].get('HostPort', '')).isdigit()):
+            raise client.Refusal('Unexpected port binding')
+        port = int(binding[0]['HostPort'])
+        if not 1024 <= port <= 65535 or port in (5432, 5433):
+            raise client.Refusal('Unexpected fixture port')
+        test_env = dict(runtime.env, ASSET_CATEGORY_FIXTURE_OPT_IN='isolated-category-v1',
+                        ASSET_CATEGORY_FIXTURE_MARKER=identity,
+                        ASSET_CATEGORY_FIXTURE_URL='postgresql://fixture:%s@127.0.0.1:%s/%s' % (password, port, database))
+        result_file = folder / 'jest-result.json'
+        runtime.run(['node', str(root / FILES[-1]), '--runInBand', '--runTestsByPath',
+                     str(root / FILES[2]), '--json', '--outputFile=' + str(result_file)],
+                    cwd=root / 'backend', env=test_env)
+        if result_file.stat().st_size > 1024 * 1024:
+            raise client.Refusal('Oversized test result')
+        validate_result(json.loads(result_file.read_text(encoding='utf-8')))
+        report.update(status='completed', repositoryTests=4, syntheticOnly=True)
+    finally:
+        runtime.deadline = time.monotonic() + 30
+        cleanup = 'stopped'
+        if owned:
+            try:
+                client.assert_owned(runtime, name, identity)
+                runtime.run(['docker', 'stop', '--time', '10', name])
+                running = runtime.run(['docker', 'inspect', '--format', '{{json .State.Running}}', name])
+                if json.loads(running) is not False:
+                    raise client.Refusal('Owned container still running')
+            except (client.Refusal, OSError, ValueError):
+                cleanup = 'incomplete'
+                report['status'] = 'failed'
+        report['cleanup'] = cleanup
+        (folder / 'result.json').write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
+        if cleanup != 'stopped':
+            raise client.Refusal('Cleanup incomplete; retain resources')
+    return report
+
+
+def main():
+    """Only an explicit invocation may create synthetic resources."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--execute-synthetic', action='store_true')
+    parser.add_argument('--image', default='')
+    args = parser.parse_args()
+    try:
+        execute(Path(__file__).resolve().parent.parent, args, client.Runtime(seconds=120))
+    except (client.Refusal, OSError, ValueError):
+        print('Category fixture failed/refused; no retry, inspect retained evidence.')
+        return 1
+    print('Category repository assertions completed; owned container stopped.')
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

@@ -58,6 +58,10 @@ export class AssetQueryDto {
   q = '';
   @IsIn(['', ...ASSET_STATUSES])
   status: AssetStatus | '' = '';
+  @IsString()
+  @MaxLength(64)
+  @Matches(/^[^\0]*$/u)
+  category?: string = '';
   @Type(() => Number)
   @IsInt()
   @Min(0)

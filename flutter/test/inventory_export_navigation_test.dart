@@ -61,6 +61,10 @@ void main() {
       await tester.pumpWidget(MaterialApp(home: AssetsPage(store: store)));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).first, '%_');
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Category filter'),
+        'network',
+      );
       await tester.tap(find.text('Apply filters'));
       await tester.pumpAndSettle();
       final calls = List<String>.of(store.calls);
@@ -73,7 +77,10 @@ void main() {
       await tester.pageBack();
       await tester.pumpAndSettle();
       expect(store.calls, calls);
-      expect(find.text('Applied search: %_; status: all'), findsOneWidget);
+      expect(
+        find.text('Applied search: %_; status: all; category: network'),
+        findsOneWidget,
+      );
       expect(store.writes, 0);
     },
   );
