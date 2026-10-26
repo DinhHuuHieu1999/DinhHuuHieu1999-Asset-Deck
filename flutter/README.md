@@ -116,3 +116,16 @@ dates capability flags and migration 004, with no new dependency or migration.
 SQL concurrency and real Dart HTTPS checks passed on isolated synthetic fixtures;
 Windows native v2 acceptance remains pending. No v2 import or restore is provided.
 See [v2 contract and acceptance limits](../docs/inventory-export-v2.md).
+
+## Optional warranty filtering
+
+The dates capability adds Expired and Expiring within 30 days filters, intersected
+with search/status/category before pagination. Unknown dates match neither;
+expiry today belongs to the upcoming window. The UI displays the UTC reference
+date and retains it across pages. Failed requests preserve the previous results
+with a stale-data notice. Full export and overview are not filtered.
+
+Existing dates flags and migration 004 are required; defaults remain off. No
+new dependency, migration, automated notification or regular deployment is added.
+Isolated PostgreSQL and real Dart HTTPS checks passed. Windows native acceptance
+remains pending. See [warranty contract and evidence](../docs/inventory-warranty-filter.md).

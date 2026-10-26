@@ -1,3 +1,4 @@
+import 'api/asset_warranty.dart';
 import 'api/asset_dates.dart';
 import 'asset_dates_editor.dart';
 import 'api/asset_overview.dart';
@@ -43,6 +44,8 @@ class _AssetsPageState extends State<AssetsPage> {
   final _query = TextEditingController();
   final _category = TextEditingController();
   String _loadedCategory = '';
+  String _warranty = '', _loadedWarranty = '';
+  AssetWarrantyPage? _warrantyPage;
   String _status = '', _loadedQuery = '', _loadedStatus = '';
   String? _error;
   AssetPage? _page;
@@ -61,11 +64,16 @@ class _AssetsPageState extends State<AssetsPage> {
     super.dispose();
   }
 
-  Future<void> _load({int offset = 0, bool apply = false}) async {
+  Future<void> _load({
+    int offset = 0,
+    bool apply = false,
+    bool preserveWarrantyDate = false,
+  }) async {
     if (_busy) return;
     final query = apply ? _query.text.trim() : _loadedQuery;
     final status = apply ? _status : _loadedStatus;
     final category = apply ? _category.text.trim() : _loadedCategory;
+    final warranty = apply ? _warranty : _loadedWarranty;
     if (_category.text.length > 64 || category.contains('\u0000')) {
       if (apply) {
         setState(
@@ -85,15 +93,39 @@ class _AssetsPageState extends State<AssetsPage> {
       _error = null;
     });
     try {
-      final page = await widget.store.list(
-        query: query,
-        status: status,
-        category: category,
-        offset: offset,
-      );
+      final AssetPage page;
+      AssetWarrantyPage? warrantyPage;
+      if (warranty.isNotEmpty) {
+        if (!widget.enableAssetDates || widget.store is! AssetWarrantySource) {
+          throw const AssetFailure('Warranty filtering is unavailable.');
+        }
+        warrantyPage = await (widget.store as AssetWarrantySource).listWarranty(
+          query: query,
+          status: status,
+          category: category,
+          warranty: warranty,
+          offset: offset,
+          asOf: offset > 0 || preserveWarrantyDate
+              ? (_warrantyPage?.asOf ?? '')
+              : '',
+        );
+        page = AssetPage(
+          warrantyPage.items.map((item) => item.asset).toList(),
+          warrantyPage.nextOffset,
+        );
+      } else {
+        page = await widget.store.list(
+          query: query,
+          status: status,
+          category: category,
+          offset: offset,
+        );
+      }
       if (!mounted) return;
       setState(() {
         _page = page;
+        _warrantyPage = warrantyPage;
+        _loadedWarranty = warranty;
         _offset = offset;
         _loadedQuery = query;
         _loadedStatus = status;
@@ -305,6 +337,46 @@ class _AssetsPageState extends State<AssetsPage> {
                   : (s) => setState(() => _status = s ?? ''),
             ),
             const SizedBox(height: 12),
+            if (widget.enableAssetDates &&
+                widget.store is AssetWarrantySource) ...[
+              DropdownButtonFormField<String>(
+                initialValue: _warranty,
+                isExpanded: true,
+                itemHeight: null,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Warranty filter (UTC)',
+                  helperText: 'Unknown dates match only All warranties. Expiring includes today and the next 30 days.',
+                  helperMaxLines: 5,
+                ),
+                selectedItemBuilder: (context) => const [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('All warranties'),
+                  ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Expired'),
+                  ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Due within 30d'),
+                  ),
+                ],
+                items: const [
+                  DropdownMenuItem(value: '', child: Text('All warranties')),
+                  DropdownMenuItem(value: 'expired', child: Text('Expired')),
+                  DropdownMenuItem(
+                    value: 'expiring_soon',
+                    child: Text('Expiring within 30 days'),
+                  ),
+                ],
+                onChanged: _busy
+                    ? null
+                    : (value) => setState(() => _warranty = value ?? ''),
+              ),
+              const SizedBox(height: 12),
+            ],
             FilledButton(
               onPressed: _busy ? null : () => _load(apply: true),
               child: const Text('Apply filters'),
@@ -333,6 +405,12 @@ class _AssetsPageState extends State<AssetsPage> {
               Text(
                 'Applied search: ${_loadedQuery.isEmpty ? '(none)' : _loadedQuery}; status: ${_loadedStatus.isEmpty ? 'all' : _loadedStatus}; category: ${_loadedCategory.isEmpty ? 'all' : _loadedCategory}',
               ),
+              if (_warrantyPage case final page?)
+                Text(
+                  'Applied warranty: ${page.warranty == 'expired' ? 'Expired before' : 'Expiring from'} '
+                  '${page.asOf} UTC${page.warranty == 'expired' ? '' : ' through ${page.through} inclusive'}. '
+                  'Apply/Refresh updates the reference date.',
+                ),
               if (_page!.items.isEmpty) const Text('No matching assets.'),
               for (final record in _page!.items)
                 Card(
@@ -352,6 +430,10 @@ class _AssetsPageState extends State<AssetsPage> {
                           Text('Serial: ${record.input.serial}'),
                         if (record.input.notes.isNotEmpty)
                           Text(record.input.notes),
+                        if (_warrantyPage case final page?)
+                          Text(
+                            'Warranty ends: ${page.items.firstWhere((item) => item.asset.id == record.id).dates.warrantyExpiresOn}',
+                          ),
                         Text('Updated: ${record.updatedAt.toIso8601String()}'),
                         OutlinedButton(
                           onPressed: _busy ? null : () => _edit(record),
@@ -376,14 +458,20 @@ class _AssetsPageState extends State<AssetsPage> {
                     OutlinedButton(
                       onPressed: _busy
                           ? null
-                          : () => _load(offset: _offset - 50),
+                          : () => _load(
+                              offset: _offset - 50,
+                              preserveWarrantyDate: true,
+                            ),
                       child: const Text('Previous page'),
                     ),
                   if (_page!.nextOffset != null)
                     OutlinedButton(
                       onPressed: _busy
                           ? null
-                          : () => _load(offset: _page!.nextOffset!),
+                          : () => _load(
+                              offset: _page!.nextOffset!,
+                              preserveWarrantyDate: true,
+                            ),
                       child: const Text('Next page'),
                     ),
                 ],

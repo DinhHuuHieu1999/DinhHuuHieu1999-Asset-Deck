@@ -1,3 +1,7 @@
+import { UnprocessableEntityException } from '@nestjs/common';
+import type { AssetWarrantyQueryDto } from './asset-warranty.dto';
+import type { AssetWarrantyWindow } from './asset-warranty';
+import type { AssetExportV2Record } from './asset-export-v2';
 import { ASSET_EXPORT_MAX_RECORDS } from './asset-export';
 import type { AssetExportV2Snapshot } from './asset-export-v2';
 import type { PostgresDatabase } from '../../infrastructure/database/postgres.database';
@@ -37,6 +41,52 @@ export class AssetDatesRepository {
       [this.owner(owner), id],
     );
     return result.rows[0] ?? null;
+  }
+
+  /** Apply all predicates before a bounded page; NULL warranty never matches. */
+  async warrantyList(
+    owner: string,
+    query: AssetWarrantyQueryDto,
+    window: Readonly<AssetWarrantyWindow>,
+  ) {
+    const result = await this.database.pool.query<AssetExportV2Record>(
+      `SELECT id,name,category,serial,status,notes,version,
+        to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "createdAt",
+        to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "updatedAt",
+        to_char(purchased_on, 'YYYY-MM-DD') AS "purchasedOn",
+        to_char(warranty_expires_on, 'YYYY-MM-DD') AS "warrantyExpiresOn"
+       FROM assets.assets WHERE owner_id=$1
+       AND ($3='' OR strpos(lower(name),lower($3))>0
+         OR strpos(lower(category),lower($3))>0 OR strpos(lower(serial),lower($3))>0)
+       AND ($4='' OR status=$4) AND ($5='' OR category=$5)
+       AND (($6='expired' AND warranty_expires_on < $7::date)
+         OR ($6='expiring_soon' AND warranty_expires_on >= $7::date
+           AND warranty_expires_on <= $8::date))
+       ORDER BY updated_at DESC,id DESC LIMIT 51 OFFSET $2`,
+      [
+        this.owner(owner),
+        query.offset,
+        query.q.trim(),
+        query.status,
+        (query.category ?? '').trim(),
+        window.filter,
+        window.asOf,
+        window.through,
+      ],
+    );
+    const nextOffset = result.rows.length > 50 ? query.offset + 50 : null;
+    if (nextOffset !== null && nextOffset > 100000) {
+      throw new UnprocessableEntityException(
+        'Pagination limit reached; list is incomplete',
+      );
+    }
+    return {
+      items: result.rows.slice(0, 50),
+      nextOffset,
+      warranty: window.filter,
+      asOf: window.asOf,
+      through: window.through,
+    };
   }
 
   /** Read all public fields and dates from one owner-scoped statement snapshot. */

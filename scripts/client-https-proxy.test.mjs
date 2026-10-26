@@ -424,3 +424,16 @@ test('export v2 permits only the exact opted-in dates GET route', () => {
   for (const method of ['POST','PUT','PATCH','DELETE']) assert.equal(allowed(method,path,false,true),false);
   for (const invalid of [path+'?owner=x',path+'/',path+'/other',path.replace('/v2','/%76%32')]) assert.equal(allowed('GET',invalid,false,true),false);
 });
+
+test('warranty route is exact GET-only and dates opt-in; queries reach backend validation', () => {
+  const path = '/api/v1/assets/warranty';
+  for (const query of ['', '?warranty=expired&asOf=2026-10-26', '?ownerId=synthetic']) {
+    assert.equal(allowed('GET', path+query), false);
+    assert.equal(allowed('GET', path+query, true), false);
+    assert.equal(allowed('GET', path+query, false, true), true);
+  }
+  for (const method of ['POST', 'PUT', 'PATCH', 'DELETE'])
+    assert.equal(allowed(method, path, false, true), false);
+  for (const invalid of [path+'/', path+'/other', path.replace('warranty', '%77arranty')])
+    assert.equal(allowed('GET', invalid, false, true), false);
+});

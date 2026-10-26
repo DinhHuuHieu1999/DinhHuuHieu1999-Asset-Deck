@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'asset.dart';
 import 'asset_dates.dart';
+import 'asset_warranty.dart';
 import 'asset_overview.dart';
 import 'asset_export.dart';
 import 'asset_export_v2.dart';
@@ -21,7 +22,8 @@ class AssetApi
         AssetExportV2Source,
         AssetImportSource,
         AssetOverviewSource,
-        AssetDatesSource {
+        AssetDatesSource,
+        AssetWarrantySource {
   AssetApi(
     Uri endpoint, {
     bool allowLocalHttp = false,
@@ -194,6 +196,57 @@ class AssetApi
       return AssetPage.fromJson(result, offset: offset);
     } on FormatException {
       throw const AssetFailure('Invalid inventory response');
+    }
+  }
+
+  /// Read a separate warranty page; subsequent pages preserve the UTC reference.
+  @override
+  Future<AssetWarrantyPage> listWarranty({
+    required String query,
+    required String status,
+    String category = '',
+    required String warranty,
+    String asOf = '',
+    required int offset,
+  }) async {
+    final epoch = _requireAccount();
+    if (!assetWarrantyFilters.contains(warranty) ||
+        (asOf.isNotEmpty && !isAssetCalendarDate(asOf)) ||
+        (offset > 0 && asOf.isEmpty) ||
+        offset < 0 ||
+        offset > 100000 ||
+        query.length > 120 ||
+        query.contains('\u0000') ||
+        category.length > 64 ||
+        category.contains('\u0000') ||
+        (status.isNotEmpty && !assetStatuses.contains(status))) {
+      throw const AssetFailure(
+        'Invalid warranty filters',
+        definitelyNotSent: true,
+      );
+    }
+    final path = Uri(
+      path: 'assets/warranty',
+      queryParameters: {
+        'q': query.trim(),
+        'status': status,
+        if (category.trim().isNotEmpty) 'category': category.trim(),
+        'warranty': warranty,
+        if (asOf.isNotEmpty) 'asOf': asOf,
+        'offset': '$offset',
+      },
+    ).toString();
+    final result = await _request('GET', path, epoch);
+    _current(epoch);
+    try {
+      return AssetWarrantyPage.fromJson(
+        result,
+        warranty: warranty,
+        asOf: asOf,
+        offset: offset,
+      );
+    } on FormatException {
+      throw const AssetFailure('Invalid warranty inventory response');
     }
   }
 

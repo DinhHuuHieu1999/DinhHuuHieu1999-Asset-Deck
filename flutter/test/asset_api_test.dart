@@ -9,6 +9,7 @@ import 'package:asset_desk/api/asset_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'asset_test.dart' show record;
+import 'asset_warranty_test.dart' show warrantyFixture;
 import 'asset_export_v2_test.dart' show exportV2Fixture;
 import 'asset_overview_test.dart' show summary;
 
@@ -122,6 +123,131 @@ void main() {
       expect(handlerErrors, isEmpty);
     });
     Future<void> login() => api.login(' synthetic ', ' synthetic-pass ');
+
+    test('warranty uses a separate authenticated exact path and encoded literal filters', () async {
+      await login();
+      handler = (request) async {
+        expect(request.method, 'GET');
+        expect(request.uri.path, '/api/v1/assets/warranty');
+        expect(
+          request.headers.value('authorization'),
+          'Bearer synthetic-token',
+        );
+        expect(request.uri.queryParameters, {
+          'q': '%_ &?#',
+          'status': 'stored',
+          'category': 'Network / Home',
+          'warranty': 'expiring_soon',
+          'asOf': '2026-10-26',
+          'offset': '0',
+        });
+        json(request, warrantyFixture());
+      };
+      final result = await api.listWarranty(
+        query: ' %_ &?# ',
+        status: 'stored',
+        category: ' Network / Home ',
+        warranty: 'expiring_soon',
+        asOf: '2026-10-26',
+        offset: 0,
+      );
+      expect(result.asOf, '2026-10-26');
+      expect(result.items, hasLength(1));
+    });
+    test(
+      'invalid warranty input never sends HTTP or falls back to the old list',
+      () async {
+        await login();
+        final before = calls.length;
+        for (final args in <Map<String, Object>>[
+          {'warranty': 'all'},
+          {'asOf': '2026-02-29'},
+          {'asOf': '2026-10-26\n'},
+          {'offset': 50},
+          {'offset': -1},
+          {'offset': 100001},
+          {'query': 'x' * 121},
+          {'category': 'x' * 65},
+          {'status': 'active'},
+          {'query': 'bad\u0000text'},
+        ]) {
+          await expectLater(
+            api.listWarranty(
+              query: args['query'] as String? ?? '',
+              status: args['status'] as String? ?? '',
+              category: args['category'] as String? ?? '',
+              warranty: args['warranty'] as String? ?? 'expired',
+              asOf: args['asOf'] as String? ?? '',
+              offset: args['offset'] as int? ?? 0,
+            ),
+            throwsA(
+              isA<AssetFailure>().having(
+                (e) => e.definitelyNotSent,
+                'not sent',
+                true,
+              ),
+            ),
+          );
+        }
+        expect(calls.length, before);
+      },
+    );
+    test('anonymous warranty list never makes a request', () async {
+      await expectLater(
+        api.listWarranty(query: '', status: '', warranty: 'expired', offset: 0),
+        throwsA(isA<AssetFailure>().having((e) => e.statusCode, 'status', 401)),
+      );
+      expect(calls, isEmpty);
+    });
+    for (final status in [401, 404, 422, 500]) {
+      test(
+        'warranty failure $status is not retried or replaced with legacy data',
+        () async {
+          await login();
+          final before = calls.length;
+          handler = (request) async =>
+              json(request, {'message': 'synthetic refusal'}, status: status);
+          await expectLater(
+            api.listWarranty(
+              query: '',
+              status: '',
+              warranty: 'expired',
+              offset: 0,
+            ),
+            throwsA(
+              isA<AssetFailure>().having((e) => e.statusCode, 'status', status),
+            ),
+          );
+          expect(calls.length, before + 1);
+          expect(calls.last, 'GET /api/v1/assets/warranty');
+        },
+      );
+    }
+    test(
+      'warranty default date is omitted and malformed server output is refused',
+      () async {
+        await login();
+        handler = (request) async {
+          expect(request.uri.queryParameters.containsKey('asOf'), false);
+          json(request, {...warrantyFixture(), 'through': '2026-11-24'});
+        };
+        await expectLater(
+          api.listWarranty(
+            query: '',
+            status: '',
+            warranty: 'expiring_soon',
+            offset: 0,
+          ),
+          throwsA(
+            isA<AssetFailure>().having(
+              (e) => e.message,
+              'message',
+              'Invalid warranty inventory response',
+            ),
+          ),
+        );
+      },
+    );
 
     const datesId = '11111111-1111-4111-8111-111111111111';
     Map<String, Object?> datesRow({int version = 1}) => {
@@ -639,6 +765,29 @@ void main() {
       };
       await login();
       expect(csrfCount, 2);
+    });
+    test('sign-out discards a late warranty response without retry', () async {
+      await login();
+      final entered = Completer<void>(), release = Completer<void>();
+      handler = (request) async {
+        entered.complete();
+        await release.future;
+        json(request, warrantyFixture());
+      };
+      final before = calls.length;
+      final pending = api.listWarranty(
+        query: '',
+        status: '',
+        warranty: 'expiring_soon',
+        offset: 0,
+      );
+      final assertion = expectLater(pending, throwsA(isA<AssetFailure>()));
+      await entered.future;
+      api.signOut();
+      release.complete();
+      await assertion;
+      expect(api.account, isNull);
+      expect(calls.length, before + 1);
     });
     test('sign-out discards a late inventory response', () async {
       await login();
