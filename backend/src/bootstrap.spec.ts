@@ -1,3 +1,4 @@
+import { AssetLocationModule } from './domains/assets/asset-location.module';
 import { AssetImportV2Module } from './domains/assets/asset-import-v2.module';
 import { AssetDatesModule } from './domains/assets/asset-dates.module';
 jest.mock('./app/modules/app.module', () => ({
@@ -24,6 +25,7 @@ describe('opt-in import bootstrap', () => {
   const original = process.env.ASSET_IMPORT_ENABLED;
   const originalDates = process.env.ASSET_DATES_ENABLED;
   const originalV2 = process.env.ASSET_IMPORT_V2_ENABLED;
+  const originalLocation = process.env.ASSET_LOCATION_ENABLED;
   const app = {
     use: jest.fn(),
     set: jest.fn(),
@@ -35,6 +37,7 @@ describe('opt-in import bootstrap', () => {
   };
   beforeEach(() => {
     jest.clearAllMocks();
+    delete process.env.ASSET_LOCATION_ENABLED;
     delete process.env.ASSET_IMPORT_ENABLED;
     delete process.env.ASSET_IMPORT_V2_ENABLED;
     delete process.env.ASSET_DATES_ENABLED;
@@ -43,12 +46,28 @@ describe('opt-in import bootstrap', () => {
     app.close.mockResolvedValue(undefined);
   });
   afterEach(() => {
+    if (originalLocation === undefined)
+      delete process.env.ASSET_LOCATION_ENABLED;
+    else process.env.ASSET_LOCATION_ENABLED = originalLocation;
     if (originalV2 === undefined) delete process.env.ASSET_IMPORT_V2_ENABLED;
     else process.env.ASSET_IMPORT_V2_ENABLED = originalV2;
     if (originalDates === undefined) delete process.env.ASSET_DATES_ENABLED;
     else process.env.ASSET_DATES_ENABLED = originalDates;
     if (original === undefined) delete process.env.ASSET_IMPORT_ENABLED;
     else process.env.ASSET_IMPORT_ENABLED = original;
+  });
+  it('registers only the location module when explicitly enabled', async () => {
+    process.env.ASSET_LOCATION_ENABLED = 'true';
+    await bootstrap();
+    expect(NestFactory.create).toHaveBeenCalledWith(
+      { module: AppModule, imports: [AssetLocationModule] },
+      { bodyParser: true, abortOnError: false },
+    );
+  });
+  it('refuses ambiguous location flags before app construction', async () => {
+    process.env.ASSET_LOCATION_ENABLED = 'TRUE';
+    await expect(bootstrap()).rejects.toThrow('ASSET_LOCATION_ENABLED');
+    expect(NestFactory.create).not.toHaveBeenCalled();
   });
   it('registers v2 only with all three flags and its separate parser', async () => {
     process.env.ASSET_IMPORT_ENABLED = 'true';

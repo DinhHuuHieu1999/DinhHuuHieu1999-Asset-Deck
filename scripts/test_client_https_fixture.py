@@ -317,6 +317,46 @@ class FixtureTests(unittest.TestCase):
         self.assertEqual(report['cleanup'], 'stopped')
         callback.assert_called_once()
 
+    def test_default_profile_explicitly_disables_inherited_location(self):
+        runtime = FakeRuntime()
+        runtime.env['ASSET_LOCATION_ENABLED'] = 'true'
+        original = runtime.start
+        environments = []
+        def start(command, cwd, env=None):
+            environments.append(env)
+            return original(command, cwd, env)
+        runtime.start = start
+        fixture.execute(self.root, self.args, runtime)
+        self.assertEqual(environments[0]['ASSET_LOCATION_ENABLED'], 'false')
+
+    def test_location_profile_has_fixed_migrations_flags_and_proxy(self):
+        self.args.location_mode = True
+        for name in fixture.LOCATION_FILES:
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('synthetic', encoding='utf-8')
+        runtime = FakeRuntime()
+        runtime.env['ASSET_LOCATION_ENABLED'] = 'inherited-must-not-win'
+        original = runtime.start
+        environments = []
+        def start(command, cwd, env=None):
+            environments.append(env)
+            return original(command, cwd, env)
+        runtime.start = start
+        callback = MagicMock(return_value={'status': 'completed'})
+        report = fixture.execute(self.root, self.args, runtime, callback)
+        self.assertEqual(environments[0]['ASSET_LOCATION_ENABLED'], 'true')
+        self.assertEqual(environments[0]['ASSET_IMPORT_V2_ENABLED'], 'false')
+        self.assertEqual(environments[0]['ASSET_DATES_ENABLED'], 'true')
+        self.assertEqual(environments[0]['ASSET_IMPORT_ENABLED'], 'false')
+        proxy = next(c for c in runtime.calls if 'scripts' in ' '.join(c) and '--synthetic-only' in c)
+        self.assertEqual(proxy[-1], '--location-enabled')
+        self.assertEqual(sum('psql' in c and '-i' in c for c in runtime.calls), 4)
+        self.assertTrue(set(fixture.LOCATION_FILES).issubset(report['sourceHashes']))
+        self.assertEqual(report['cleanup'], 'stopped')
+        callback.assert_called_once()
+
+
     def test_dates_profile_uses_three_migrations_and_explicit_child_flags(self):
         self.args.dates_mode = True
         for name in fixture.DATES_FILES:

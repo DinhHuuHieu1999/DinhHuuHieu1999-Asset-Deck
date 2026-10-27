@@ -22,12 +22,15 @@ export function validateConfig({
   importEnabled = false,
   datesEnabled = false,
   importV2Enabled = false,
+  locationEnabled = false,
   recoveryRequestId,
 }) {
   if (
     typeof importEnabled !== "boolean" ||
     typeof datesEnabled !== "boolean" ||
     typeof importV2Enabled !== "boolean" ||
+    typeof locationEnabled !== "boolean" ||
+    (locationEnabled && (!datesEnabled || importEnabled || importV2Enabled)) ||
     (importV2Enabled && (!importEnabled || !datesEnabled)) ||
     !Number.isInteger(upstreamPort) ||
     upstreamPort < 1024 ||
@@ -56,9 +59,12 @@ export function parseProxyArgs(args) {
     ![6, 7].includes(args.length) ||
     args[0] !== "--synthetic-only" ||
     (args.length === 7 &&
-      !["--import-enabled", "--dates-enabled", "--import-v2-enabled"].includes(
-        args[6],
-      ))
+      ![
+        "--import-enabled",
+        "--dates-enabled",
+        "--import-v2-enabled",
+        "--location-enabled",
+      ].includes(args[6]))
   )
     throw new Error("Explicit fixture opt-in required");
   const [, upstream, listen, fixtureId, cert, key] = args;
@@ -68,8 +74,13 @@ export function parseProxyArgs(args) {
     importEnabled: ["--import-enabled", "--import-v2-enabled"].includes(
       args[6],
     ),
-    datesEnabled: ["--dates-enabled", "--import-v2-enabled"].includes(args[6]),
+    datesEnabled: [
+      "--dates-enabled",
+      "--import-v2-enabled",
+      "--location-enabled",
+    ].includes(args[6]),
     importV2Enabled: args[6] === "--import-v2-enabled",
+    locationEnabled: args[6] === "--location-enabled",
   };
   validateConfig(config);
   const port = Number(listen);
@@ -92,9 +103,19 @@ export function allowed(
   importEnabled = false,
   datesEnabled = false,
   importV2Enabled = false,
+  locationEnabled = false,
 ) {
   if (typeof raw !== "string" || !raw.startsWith("/") || raw.startsWith("//"))
     return false;
+  if (raw.split("?")[0] === "/api/v1/assets/locations/inventory")
+    return locationEnabled === true && method === "GET";
+  if (
+    /^\/api\/v1\/assets\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\/location$/.test(
+      raw,
+    )
+  )
+    return locationEnabled === true && ["GET", "PUT"].includes(method);
+
   if (
     /^\/api\/v1\/assets\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\/dates$/.test(
       raw,
@@ -206,6 +227,7 @@ export function createHandler(config, request = http.request) {
         config.importEnabled,
         config.datesEnabled,
         config.importV2Enabled,
+        config.locationEnabled,
       )
     ) {
       fail(404);

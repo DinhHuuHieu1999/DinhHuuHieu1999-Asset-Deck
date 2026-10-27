@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'asset.dart';
+import 'asset_location.dart';
 import 'asset_dates.dart';
 import 'asset_warranty.dart';
 import 'asset_warranty_overview.dart';
@@ -26,6 +27,7 @@ class AssetApi
         AssetImportV2Source,
         AssetOverviewSource,
         AssetDatesSource,
+        AssetLocationSource,
         AssetWarrantySource,
         AssetWarrantyOverviewSource {
   AssetApi(
@@ -274,6 +276,137 @@ class AssetApi
       );
     } on FormatException {
       throw const AssetFailure('Invalid warranty inventory response');
+    }
+  }
+
+  /// Read manual location with the current authenticated session.
+  @override
+  Future<AssetLocation> readLocation(String id) async {
+    final epoch = _requireAccount();
+    _locationIdentity(id);
+    final value = await _request('GET', 'assets/$id/location', epoch);
+    _current(epoch);
+    return _location(value, id);
+  }
+
+  /// Replace location once; an unknown write outcome never triggers a retry.
+  @override
+  Future<AssetLocation> updateLocation(
+    AssetLocation original,
+    String? location,
+  ) async {
+    final epoch = _requireAccount();
+    final Map<String, Object?> body;
+    try {
+      body = original.replacement(location);
+    } on FormatException {
+      throw const AssetFailure(
+        'Invalid asset location or version',
+        definitelyNotSent: true,
+      );
+    }
+    final value = await _request(
+      'PUT',
+      'assets/${original.id}/location',
+      epoch,
+      body,
+    );
+    _current(epoch);
+    final result = _location(value, original.id);
+    if (result.version != original.version + 1 ||
+        result.location != body['location']) {
+      throw const AssetFailure(
+        'Invalid location update response; reload before another write',
+      );
+    }
+    return result;
+  }
+
+  void _locationIdentity(String id) {
+    try {
+      AssetLocation.fromJson({'id': id, 'version': 1, 'location': null});
+    } on FormatException {
+      throw const AssetFailure(
+        'Invalid asset identity',
+        definitelyNotSent: true,
+      );
+    }
+  }
+
+  AssetLocation _location(Map<String, Object?> value, String id) {
+    try {
+      final result = AssetLocation.fromJson(value);
+      if (result.id.toLowerCase() != id.toLowerCase())
+        throw const FormatException();
+      return result;
+    } on FormatException {
+      throw const AssetFailure(
+        'Invalid asset location response; reload before another write',
+      );
+    }
+  }
+
+  /// Fetch explicit location filters before paging, separate from the legacy list.
+  @override
+  Future<AssetLocationPage> listLocations({
+    required String query,
+    required String status,
+    String category = '',
+    required int offset,
+    String locationMode = 'all',
+    String? location,
+    String warranty = '',
+    String asOf = '',
+  }) async {
+    final epoch = _requireAccount();
+    String? label;
+    try {
+      if ((warranty.isNotEmpty && !assetWarrantyFilters.contains(warranty)) ||
+          (asOf.isNotEmpty &&
+              (!isAssetCalendarDate(asOf) || warranty.isEmpty)) ||
+          (warranty.isNotEmpty && offset > 0 && asOf.isEmpty) ||
+          !['all', 'unknown', 'exact'].contains(locationMode) ||
+          (locationMode != 'exact' && location != null) ||
+          (locationMode == 'exact' && location == null) ||
+          query.length > 120 ||
+          query.contains('\u0000') ||
+          category.length > 64 ||
+          category.contains('\u0000') ||
+          (status.isNotEmpty && !assetStatuses.contains(status)) ||
+          offset < 0 ||
+          offset > 100000)
+        throw const FormatException();
+      label = normalizeAssetLocation(location);
+    } on FormatException {
+      throw const AssetFailure(
+        'Invalid inventory location filters',
+        definitelyNotSent: true,
+      );
+    }
+    final path = Uri(
+      path: 'assets/locations/inventory',
+      queryParameters: {
+        'q': query.trim(),
+        'status': status,
+        'category': category.trim(),
+        'offset': '$offset',
+        'locationMode': locationMode,
+        if (warranty.isNotEmpty) 'warranty': warranty,
+        if (asOf.isNotEmpty) 'asOf': asOf,
+        if (label != null) 'location': label,
+      },
+    ).toString();
+    final value = await _request('GET', path, epoch);
+    _current(epoch);
+    try {
+      return AssetLocationPage.fromJson(
+        value,
+        offset: offset,
+        warranty: warranty,
+        asOf: asOf,
+      );
+    } on FormatException {
+      throw const AssetFailure('Invalid inventory location response');
     }
   }
 

@@ -146,3 +146,14 @@ Existing dates flags and migration 004 are required; defaults remain off. No
 new dependency, migration, automated notification or regular deployment is added.
 Isolated PostgreSQL and real Dart HTTPS checks passed. Windows native acceptance
 remains pending. See [warranty contract and evidence](../docs/inventory-warranty-filter.md).
+
+## Optional manual locations (source checkpoint)
+
+`ASSET_DESK_ENABLE_ASSET_LOCATION` defaults to false. The matching backend
+`ASSET_LOCATION_ENABLED` requires explicit migration 005. Location editing loads
+a fresh shared asset version; unknown outcomes and conflicts preserve drafts
+without automatic retry. Location filtering is exact and case-sensitive, or
+explicitly unknown, and combines with search/status/category before paging.
+Combined warranty filters require the date capability and migration 004.
+Inventory JSON v1/v2 exclude location labels and are not location backups.
+Source tests and synthetic rendering are not native or database acceptance.

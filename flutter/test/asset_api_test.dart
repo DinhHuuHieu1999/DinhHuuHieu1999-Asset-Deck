@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:asset_desk/api/asset_api.dart';
 import 'package:asset_desk/api/asset.dart';
 import 'package:asset_desk/api/asset_dates.dart';
+import 'package:asset_desk/api/asset_location.dart';
 import 'package:asset_desk/api/asset_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -125,6 +126,195 @@ void main() {
     });
     Future<void> login() => api.login(' synthetic ', ' synthetic-pass ');
 
+    test(
+      'location access requires auth and rejects unsafe input before send',
+      () async {
+        await expectLater(
+          api.readLocation('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'),
+          throwsA(isA<AssetFailure>()),
+        );
+        expect(calls, isEmpty);
+        await login();
+        final before = calls.length;
+        await expectLater(
+          api.readLocation('../other'),
+          throwsA(isA<AssetFailure>()),
+        );
+        await expectLater(
+          api.listLocations(
+            query: '',
+            status: '',
+            offset: 0,
+            locationMode: 'exact',
+          ),
+          throwsA(isA<AssetFailure>()),
+        );
+        await expectLater(
+          api.listLocations(
+            query: '',
+            status: '',
+            offset: 0,
+            locationMode: 'all',
+            location: 'A',
+          ),
+          throwsA(isA<AssetFailure>()),
+        );
+        await expectLater(
+          api.updateLocation(
+            const AssetLocation(
+              id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+              version: 1,
+              location: null,
+            ),
+            ' ',
+          ),
+          throwsA(isA<AssetFailure>()),
+        );
+        expect(calls.length, before);
+      },
+    );
+    test(
+      'location read and explicit replacement retain identity/version and CSRF',
+      () async {
+        await login();
+        const id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+        handler = (request) async {
+          expect(request.uri.path, '/api/v1/assets/$id/location');
+          expect(
+            request.headers.value('authorization'),
+            'Bearer synthetic-token',
+          );
+          if (request.method == 'PUT') {
+            expect(request.headers.value('x-csrf-token'), 'synthetic-csrf');
+            expect(await body(request), {'version': 1, 'location': 'Room A'});
+            json(request, {'id': id, 'version': 2, 'location': 'Room A'});
+          } else {
+            json(request, {'id': id, 'version': 1, 'location': null});
+          }
+        };
+        final original = await api.readLocation(id);
+        expect((await api.updateLocation(original, ' Room A ')).version, 2);
+      },
+    );
+    test(
+      'location filtering encodes literal labels and reads location-aware rows',
+      () async {
+        await login();
+        handler = (request) async {
+          expect(request.uri.path, '/api/v1/assets/locations/inventory');
+          expect(request.uri.queryParameters, {
+            'q': '%_',
+            'status': 'stored',
+            'category': 'device',
+            'offset': '0',
+            'locationMode': 'exact',
+            'location': "Room %_&'",
+          });
+          json(request, {
+            'items': [
+              {...record(), 'location': "Room %_&'"},
+            ],
+            'nextOffset': null,
+          });
+        };
+        final result = await api.listLocations(
+          query: ' %_ ',
+          status: 'stored',
+          category: 'device',
+          offset: 0,
+          locationMode: 'exact',
+          location: "Room %_&'",
+        );
+        expect(result.items.single.location, "Room %_&'");
+      },
+    );
+    test('location transport preserves combined warranty reference and rejects mismatched echoes', () async {
+      await login();
+      var wrongReference = false;
+      handler = (request) async {
+        expect(request.uri.path, '/api/v1/assets/locations/inventory');
+        expect(request.uri.queryParameters['location'], '%_Room');
+        expect(request.uri.queryParameters['warranty'], 'expiring_soon');
+        expect(request.uri.queryParameters['asOf'], '2026-10-26');
+        json(
+          request,
+          warrantyFixture(
+            day: wrongReference ? '2026-10-27' : '2026-10-26',
+            items: [
+              {
+                ...record(),
+                'location': '%_Room',
+                'purchasedOn': null,
+                'warrantyExpiresOn': '2026-10-28',
+              },
+            ],
+          ),
+        );
+      };
+      final result = await api.listLocations(
+        query: '',
+        status: '',
+        offset: 0,
+        locationMode: 'exact',
+        location: '%_Room',
+        warranty: 'expiring_soon',
+        asOf: '2026-10-26',
+      );
+      expect(result.warrantyPage?.asOf, '2026-10-26');
+      expect(result.items.single.location, '%_Room');
+      wrongReference = true;
+      await expectLater(
+        api.listLocations(
+          query: '',
+          status: '',
+          offset: 0,
+          locationMode: 'exact',
+          location: '%_Room',
+          warranty: 'expiring_soon',
+          asOf: '2026-10-26',
+        ),
+        throwsA(isA<AssetFailure>()),
+      );
+      final before = calls.length;
+      await expectLater(
+        api.listLocations(
+          query: '',
+          status: '',
+          offset: 50,
+          locationMode: 'exact',
+          location: '%_Room',
+          warranty: 'expiring_soon',
+        ),
+        throwsA(isA<AssetFailure>()),
+      );
+      expect(calls.length, before);
+    });
+    test(
+      'location response mismatch fails and write is never retried',
+      () async {
+        await login();
+        final before = calls.length;
+        handler = (request) async {
+          json(request, {
+            'id': 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+            'version': 1,
+            'location': 'Wrong',
+          });
+        };
+        await expectLater(
+          api.updateLocation(
+            const AssetLocation(
+              id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+              version: 1,
+              location: null,
+            ),
+            'A',
+          ),
+          throwsA(isA<AssetFailure>()),
+        );
+        expect(calls.length, before + 1);
+      },
+    );
     test(
       'warranty overview requires auth and sends only optional reference',
       () async {

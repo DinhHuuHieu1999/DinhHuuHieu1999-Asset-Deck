@@ -70,8 +70,36 @@ def import_v2_mode(args):
     return value
 
 
+
+LOCATION_FILES = DATES_FILES + (
+    'backend/migrations/005-asset-location.sql',
+    'backend/src/domains/assets/asset-location.ts',
+    'backend/src/domains/assets/asset-location.config.ts',
+    'backend/src/domains/assets/asset-location.module.ts',
+    'backend/src/domains/assets/asset-location.controller.ts',
+    'backend/src/domains/assets/asset-location.repository.ts',
+    'backend/dist/domains/assets/asset-location.js',
+    'backend/dist/domains/assets/asset-location.config.js',
+    'backend/dist/domains/assets/asset-location.module.js',
+    'backend/dist/domains/assets/asset-location.controller.js',
+    'backend/dist/domains/assets/asset-location.repository.js',
+    'flutter/tool/location_https_acceptance.dart',
+    'flutter/lib/api/asset_location.dart',
+)
+
+
+def location_mode(args):
+    """Location is a fixed opt-in profile, incompatible with other profile flags."""
+    value = getattr(args, 'location_mode', False)
+    if type(value) is not bool or (value and (import_mode(args) or dates_mode(args) or import_v2_mode(args))):
+        raise Refusal('Invalid location fixture profile')
+    return value
+
+
 def fixture_files(args):
     """Return a fixed source/artifact set for the selected fixture profile."""
+    if location_mode(args):
+        return FILES + LOCATION_FILES
     if import_v2_mode(args):
         return FILES + IMPORT_V2_FILES
     dates = dates_mode(args)
@@ -219,9 +247,10 @@ def record_progress(folder, identity, stage):
 
 def execute(root, args, runtime, acceptance=None):
     """Run once, retain evidence/volume, and stop only resources created here."""
+    location = location_mode(args)
     v2 = import_v2_mode(args)
     enabled = import_mode(args) or v2
-    dates = dates_mode(args) or v2
+    dates = dates_mode(args) or v2 or location
     if (enabled or dates) and acceptance is None:
         raise Refusal('Import fixture requires its dedicated acceptance driver')
     if enabled and any(not (root / name).is_file() for name in IMPORT_FILES):
@@ -276,6 +305,8 @@ def execute(root, args, runtime, acceptance=None):
         migrations = FILES[1:3] + (IMPORT_FILES[:1] if enabled else DATES_FILES[:1] if dates else ())
         if v2:
             migrations = FILES[1:3] + IMPORT_FILES[:1] + DATES_FILES[:1]
+        if location:
+            migrations = FILES[1:3] + DATES_FILES[:1] + ('backend/migrations/005-asset-location.sql',)
         for migration in migrations:
             runtime.run(['docker', 'exec', '-i', name, 'psql', '-v', 'ON_ERROR_STOP=1', '-U', 'fixture', '-d', 'fixture'], data=(root / migration).read_bytes())
         env = dict(runtime.env, NODE_ENV='production', BACKEND_HTTP_PORT=str(args.backend_port),
@@ -285,6 +316,7 @@ def execute(root, args, runtime, acceptance=None):
                    REQUEST_FRESHNESS_ENABLED='true', THROTTLE_LIMIT='1000', ASSET_DESK_FIXTURE_ID=identity)
         env['ASSET_IMPORT_ENABLED'] = 'true' if enabled else 'false'
         env['ASSET_DATES_ENABLED'] = 'true' if dates else 'false'
+        env['ASSET_LOCATION_ENABLED'] = 'true' if location else 'false'
         env['ASSET_IMPORT_V2_ENABLED'] = 'true' if v2 and not disabled_v2 else 'false'
         report['stage'] = 'backend-readiness'
         record_progress(folder, identity, 'backend-readiness')
@@ -293,7 +325,7 @@ def execute(root, args, runtime, acceptance=None):
         report['stage'] = 'proxy-readiness'
         record_progress(folder, identity, 'proxy-readiness')
         proxy = runtime.start(['node', str(root / 'scripts/client-https-proxy-cli.mjs'), '--synthetic-only',
-                               str(args.backend_port), str(args.tls_port), identity, args.cert, args.key] + (['--import-v2-enabled'] if v2 else ['--import-enabled'] if enabled else ['--dates-enabled'] if dates else []), folder)
+                               str(args.backend_port), str(args.tls_port), identity, args.cert, args.key] + (['--location-enabled'] if location else ['--import-v2-enabled'] if v2 else ['--import-enabled'] if enabled else ['--dates-enabled'] if dates else []), folder)
         runtime.wait_port(args.tls_port, proxy)
         if acceptance is None:
             report['stage'] = 'dart-client'

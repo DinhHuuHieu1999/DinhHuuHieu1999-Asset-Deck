@@ -25,6 +25,9 @@ void main() {
     runApp(
       AssetDeskApp(
         session: api,
+        enableAssetLocation: const bool.fromEnvironment(
+          'ASSET_DESK_ENABLE_ASSET_LOCATION',
+        ),
         enableAssetDates: const bool.fromEnvironment(
           'ASSET_DESK_ENABLE_ASSET_DATES',
         ),

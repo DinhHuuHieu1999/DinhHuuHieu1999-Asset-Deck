@@ -1,3 +1,5 @@
+import 'api/asset_location.dart';
+import 'asset_location_editor.dart';
 import 'api/asset_import_v2.dart';
 import 'inventory_import_v2_page.dart';
 import 'api/asset_warranty_overview.dart';
@@ -33,6 +35,7 @@ class AssetsPage extends StatefulWidget {
     this.enableInventoryImport = false,
     this.enableInventoryImportV2 = false,
     this.enableAssetDates = false,
+    this.enableAssetLocation = false,
     this.importApiBase = '',
   });
   final String importApiBase;
@@ -40,6 +43,7 @@ class AssetsPage extends StatefulWidget {
   final bool enableInventoryImport;
   final bool enableInventoryImportV2;
   final bool enableAssetDates;
+  final bool enableAssetLocation;
   final InventoryExportFiles? exportFiles;
   final InventoryInspectionFiles? inspectionFiles;
   @override
@@ -49,6 +53,12 @@ class AssetsPage extends StatefulWidget {
 class _AssetsPageState extends State<AssetsPage> {
   final _query = TextEditingController();
   final _category = TextEditingController();
+  final _location = TextEditingController();
+  String _locationMode = 'all', _loadedLocationMode = 'all';
+  String? _loadedLocation;
+  Map<String, String?> _locations = {};
+  bool get _hasLocation =>
+      widget.enableAssetLocation && widget.store is AssetLocationSource;
   String _loadedCategory = '';
   String _warranty = '', _loadedWarranty = '';
   AssetWarrantyPage? _warrantyPage;
@@ -67,6 +77,7 @@ class _AssetsPageState extends State<AssetsPage> {
   void dispose() {
     _query.dispose();
     _category.dispose();
+    _location.dispose();
     super.dispose();
   }
 
@@ -80,6 +91,20 @@ class _AssetsPageState extends State<AssetsPage> {
     final status = apply ? _status : _loadedStatus;
     final category = apply ? _category.text.trim() : _loadedCategory;
     final warranty = apply ? _warranty : _loadedWarranty;
+    final locationMode = apply ? _locationMode : _loadedLocationMode;
+    String? location = _loadedLocation;
+    if (apply && _hasLocation) {
+      try {
+        location = locationMode == 'exact'
+            ? normalizeAssetLocation(_location.text)
+            : null;
+      } on FormatException {
+        setState(
+          () => _error = 'Enter a valid exact location (1?120 characters).',
+        );
+        return;
+      }
+    }
     if (_category.text.length > 64 || category.contains('\u0000')) {
       if (apply) {
         setState(
@@ -101,7 +126,30 @@ class _AssetsPageState extends State<AssetsPage> {
     try {
       final AssetPage page;
       AssetWarrantyPage? warrantyPage;
-      if (warranty.isNotEmpty) {
+      Map<String, String?> locations = {};
+      if (_hasLocation) {
+        final result = await (widget.store as AssetLocationSource)
+            .listLocations(
+              query: query,
+              status: status,
+              category: category,
+              offset: offset,
+              locationMode: locationMode,
+              location: location,
+              warranty: warranty,
+              asOf: warranty.isNotEmpty && (offset > 0 || preserveWarrantyDate)
+                  ? (_warrantyPage?.asOf ?? '')
+                  : '',
+            );
+        page = AssetPage(
+          result.items.map((entry) => entry.asset).toList(),
+          result.nextOffset,
+        );
+        warrantyPage = result.warrantyPage;
+        locations = {
+          for (final entry in result.items) entry.asset.id: entry.location,
+        };
+      } else if (warranty.isNotEmpty) {
         if (!widget.enableAssetDates || widget.store is! AssetWarrantySource) {
           throw const AssetFailure('Warranty filtering is unavailable.');
         }
@@ -130,6 +178,9 @@ class _AssetsPageState extends State<AssetsPage> {
       if (!mounted) return;
       setState(() {
         _page = page;
+        _locations = locations;
+        _loadedLocationMode = locationMode;
+        _loadedLocation = location;
         _warrantyPage = warrantyPage;
         _loadedWarranty = warranty;
         _offset = offset;
@@ -147,6 +198,40 @@ class _AssetsPageState extends State<AssetsPage> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Future<void> _editLocation(AssetRecord record) async {
+    if (_busy || !_hasLocation) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    bool saved = false;
+    try {
+      final source = widget.store as AssetLocationSource;
+      final original = await source.readLocation(record.id);
+      if (!mounted) return;
+      if (original.id.toLowerCase() != record.id.toLowerCase())
+        throw const AssetFailure('Invalid asset location identity');
+      saved =
+          await Navigator.of(context).push<bool>(
+            MaterialPageRoute(
+              builder: (_) =>
+                  AssetLocationEditor(source: source, original: original),
+            ),
+          ) ==
+          true;
+    } catch (error) {
+      if (mounted)
+        setState(
+          () => _error = error is AssetFailure
+              ? error.message
+              : 'Unable to load asset location.',
+        );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+    if (saved && mounted) await _load();
   }
 
   Future<void> _editDates(AssetRecord record, AssetDatesSource source) async {
@@ -424,6 +509,44 @@ class _AssetsPageState extends State<AssetsPage> {
               ),
               const SizedBox(height: 12),
             ],
+            if (_hasLocation) ...[
+              DropdownButtonFormField<String>(
+                initialValue: _locationMode,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Location filter',
+                  border: OutlineInputBorder(),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'all', child: Text('All locations')),
+                  DropdownMenuItem(
+                    value: 'unknown',
+                    child: Text('Unknown location'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'exact',
+                    child: Text('Exact location'),
+                  ),
+                ],
+                onChanged: _busy
+                    ? null
+                    : (value) => setState(() => _locationMode = value ?? 'all'),
+              ),
+              const SizedBox(height: 12),
+              if (_locationMode == 'exact')
+                TextField(
+                  controller: _location,
+                  enabled: !_busy,
+                  maxLength: 120,
+                  decoration: const InputDecoration(
+                    labelText: 'Exact location',
+                    helperText: 'Case-sensitive; % and _ are literal.',
+                    helperMaxLines: 3,
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              const SizedBox(height: 12),
+            ],
             FilledButton(
               onPressed: _busy ? null : () => _load(apply: true),
               child: const Text('Apply filters'),
@@ -452,6 +575,14 @@ class _AssetsPageState extends State<AssetsPage> {
               Text(
                 'Applied search: ${_loadedQuery.isEmpty ? '(none)' : _loadedQuery}; status: ${_loadedStatus.isEmpty ? 'all' : _loadedStatus}; category: ${_loadedCategory.isEmpty ? 'all' : _loadedCategory}',
               ),
+              if (_hasLocation)
+                Text(
+                  'Applied location: ${_loadedLocationMode == 'all'
+                      ? 'all'
+                      : _loadedLocationMode == 'unknown'
+                      ? 'unknown'
+                      : _loadedLocation}',
+                ),
               if (_warrantyPage case final page?)
                 Text(
                   'Applied warranty: ${page.warranty == 'expired' ? 'Expired before' : 'Expiring from'} '
@@ -481,6 +612,17 @@ class _AssetsPageState extends State<AssetsPage> {
                           Text(
                             'Warranty ends: ${page.items.firstWhere((item) => item.asset.id == record.id).dates.warrantyExpiresOn}',
                           ),
+                        if (_hasLocation) ...[
+                          Text(
+                            'Location: ${_locations[record.id] ?? 'Unknown'}',
+                          ),
+                          OutlinedButton(
+                            onPressed: _busy
+                                ? null
+                                : () => _editLocation(record),
+                            child: const Text('Edit location'),
+                          ),
+                        ],
                         Text('Updated: ${record.updatedAt.toIso8601String()}'),
                         OutlinedButton(
                           onPressed: _busy ? null : () => _edit(record),

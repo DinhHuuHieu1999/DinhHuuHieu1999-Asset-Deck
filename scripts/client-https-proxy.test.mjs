@@ -527,3 +527,61 @@ test("v2 CLI selects fixed prerequisites without widening legacy profiles", () =
       validateConfig({ ...config, ...flags, importV2Enabled: true }),
     );
 });
+
+test("location routes are opt-in and cannot enable import", () => {
+  const id = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const path = `/api/v1/assets/${id}/location`;
+  assert.equal(allowed("GET", path), false);
+  assert.equal(allowed("PUT", path, false, true, false, true), true);
+  assert.equal(
+    allowed(
+      "GET",
+      "/api/v1/assets/locations/inventory?location=%25_",
+      false,
+      true,
+      false,
+      true,
+    ),
+    true,
+  );
+  assert.equal(allowed("DELETE", path, false, true, false, true), false);
+  assert.equal(
+    allowed(
+      "GET",
+      "/api/v1/assets/not-uuid/location",
+      false,
+      true,
+      false,
+      true,
+    ),
+    false,
+  );
+  assert.equal(
+    allowed("POST", "/api/v1/assets/import", false, true, false, true),
+    false,
+  );
+  assert.throws(() =>
+    validateConfig({ ...config, locationEnabled: "true", datesEnabled: true }),
+  );
+  assert.throws(() => validateConfig({ ...config, locationEnabled: true }));
+  assert.throws(() =>
+    validateConfig({
+      ...config,
+      locationEnabled: true,
+      datesEnabled: true,
+      importEnabled: true,
+    }),
+  );
+  const parsed = parseProxyArgs([
+    "--synthetic-only",
+    "19001",
+    "19002",
+    "a".repeat(32),
+    "cert",
+    "key",
+    "--location-enabled",
+  ]);
+  assert.equal(parsed.config.locationEnabled, true);
+  assert.equal(parsed.config.datesEnabled, true);
+  assert.equal(parsed.config.importEnabled, false);
+});
