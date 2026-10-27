@@ -36,6 +36,16 @@ EXPORT_V2_FILES = (FILES[0], FILES[1],
                    'backend/migrations/004-asset-dates.sql', FILES[-1])
 
 
+EXPORT_V3_FILES = EXPORT_V2_FILES[:2] + (
+    'backend/src/domains/assets/assets-export-v3.postgres.spec.ts',
+) + EXPORT_V2_FILES[3:-1] + (
+    'backend/src/domains/assets/asset-export-v3.repository.ts',
+    'backend/src/domains/assets/asset-export-v3.ts',
+    'backend/src/domains/assets/asset-location.ts',
+    'backend/migrations/005-asset-location.sql', FILES[-1],
+)
+
+
 WARRANTY_FILES = (FILES[0], FILES[1],
                   'backend/src/domains/assets/assets-warranty.postgres.spec.ts',
                   FILES[3], 'backend/src/domains/assets/asset-dates.repository.ts',
@@ -77,6 +87,8 @@ LOCATION_FILES = (FILES[0], FILES[1],
 
 def profile_settings(profile):
     """Only fixed source-owned profiles may choose a suite or fixture identity."""
+    if profile == 'export-v3':
+        return EXPORT_V3_FILES, 'asset-export-v3-', 'asset_export_v3_fixture_', 'ASSET_EXPORT_V3', 'isolated-export-v3-v1', 'asset_export_v3_fixture_identity'
     if profile == 'location':
         return LOCATION_FILES, 'asset-location-', 'asset_location_fixture_', 'ASSET_LOCATION', 'isolated-location-v1', 'asset_location_fixture_identity'
     if profile == 'import-v2':
@@ -162,7 +174,7 @@ def execute(root, args, runtime, profile='category', verification=None):
             break
         client.assert_owned(runtime, name, identity)
         migrations = files[:2] + (('backend/migrations/004-asset-dates.sql',) if profile in ('dates', 'export-v2', 'warranty', 'warranty-overview') else ())
-        if profile == 'location':
+        if profile in ('location', 'export-v3'):
             migrations += ('backend/migrations/004-asset-dates.sql', 'backend/migrations/005-asset-location.sql')
         if profile == 'import-v2':
             migrations += ('backend/migrations/003-asset-import.sql', 'backend/migrations/004-asset-dates.sql')

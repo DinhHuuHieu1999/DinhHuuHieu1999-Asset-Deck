@@ -25,6 +25,9 @@ void main() {
     runApp(
       AssetDeskApp(
         session: api,
+        enableInventoryExportV3: const bool.fromEnvironment(
+          'ASSET_DESK_ENABLE_EXPORT_V3',
+        ),
         enableAssetLocation: const bool.fromEnvironment(
           'ASSET_DESK_ENABLE_ASSET_LOCATION',
         ),

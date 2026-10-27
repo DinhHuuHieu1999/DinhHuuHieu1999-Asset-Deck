@@ -16,6 +16,7 @@ _spec.loader.exec_module(client)
 
 def verify_candidate(root, args):
     """Require a complete hashed deployment, pinned to the intended TLS endpoint."""
+    export_v3 = client.export_v3_mode(args)
     location = client.location_mode(args)
     v2 = client.import_v2_mode(args)
     enabled = client.import_mode(args) or v2
@@ -51,7 +52,11 @@ def verify_candidate(root, args):
     if location:
         defines = {'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
                    'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
-    if (enabled or location) and value.get('buildDefines') != defines:
+    if export_v3:
+        defines = {'ASSET_DESK_ENABLE_EXPORT_V3': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+    if (enabled or location or export_v3) and value.get('buildDefines') != defines:
         raise client.Refusal('Candidate feature build contract missing')
     files = value['files']
     if not {'asset_desk.exe', 'flutter_windows.dll', 'data/icudtl.dat'} <= set(files):
@@ -71,12 +76,17 @@ def verify_candidate(root, args):
     return executable
 
 
+def seed_source(args):
+    """Select a fixed source path without accepting arbitrary seed programs."""
+    return 'flutter/tool/native_export_v3_seed.dart' if client.export_v3_mode(args) else 'flutter/tool/native_https_seed.dart'
+
+
 def preflight(root, args):
     """Validate all source/candidate prerequisites before creating resources."""
     verify_candidate(root, args)
     if os.name != 'nt':
         raise client.Refusal('Native session requires Windows')
-    if not (root / 'flutter/tool/native_https_seed.dart').is_file():
+    if not (root / seed_source(args)).is_file():
         raise client.Refusal('Native seed source missing')
     client.preflight(root, args)
 
@@ -106,7 +116,7 @@ def native_session(root, args, runtime, folder, identity, backend, proxy):
     """Seed through default TLS, then hold exact owned children for a bounded session."""
     executable = verify_candidate(root, args)
     endpoint = 'https://localhost:%s/api/v1' % args.tls_port
-    raw = runtime.run([args.dart, '--disable-dart-dev', str(root / 'flutter/tool/native_https_seed.dart'),
+    raw = runtime.run([args.dart, '--disable-dart-dev', str(root / seed_source(args)),
                        '--synthetic-only', endpoint, identity], cwd=root / 'flutter')
     seed = json.loads(raw)
     if (not isinstance(seed, dict) or set(seed) != {'username', 'password', 'assetName'} or
@@ -125,6 +135,11 @@ def native_session(root, args, runtime, folder, identity, backend, proxy):
         handoff.update(locationMode=True, expectedAssets=1,
                        locationLabel='Synthetic room %_1',
                        instructions='Sign in; edit the synthetic asset location to Synthetic room %_1; save and refresh. Test exact and unknown filters, clear the location and refresh. Verify base fields remain unchanged. Never use real data.')
+    if client.export_v3_mode(args):
+        handoff.update(exportV3Mode=True, expectedAssets=1,
+                       purchasedOn='2024-02-29', warrantyExpiresOn='2027-02-28',
+                       locationLabel='Synthetic room %_1',
+                       instructions='Sign in; export JSON v3, Prepare and Save to a new private file. Inspect that file: checksum, one asset, both dates and location must match. Cancel file selection must retain preview. Invalid JSON must clear preview. No import or real data.')
     # Credentials are private local fixture evidence, never stdout or tracked source.
     with (folder / 'operator-handoff.json').open('x', encoding='utf-8') as stream:
         stream.write(json.dumps(handoff, indent=2) + '\n')
@@ -143,7 +158,7 @@ def native_session(root, args, runtime, folder, identity, backend, proxy):
     return {'status': 'session-ended', 'syntheticOnly': True, 'nativeAcceptance': 'pending',
             'sessionEnd': reason, 'candidateSha256': hashlib.sha256(executable.read_bytes()).hexdigest(),
             'candidateManifestSha256': hashlib.sha256((executable.parent / 'candidate.json').read_bytes()).hexdigest(),
-            'seedSourceSha256': hashlib.sha256((root / 'flutter/tool/native_https_seed.dart').read_bytes()).hexdigest()}
+            'seedSourceSha256': hashlib.sha256((root / seed_source(args)).read_bytes()).hexdigest()}
 
 
 def main():
@@ -151,6 +166,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--execute-native', action='store_true')
     parser.add_argument('--execute-synthetic', action='store_true')
+    parser.add_argument('--export-v3-mode', action='store_true')
     parser.add_argument('--location-mode', action='store_true')
     parser.add_argument('--import-mode', action='store_true')
     parser.add_argument('--import-v2-mode', action='store_true')

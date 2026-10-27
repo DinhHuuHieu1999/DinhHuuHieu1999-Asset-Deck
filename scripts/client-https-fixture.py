@@ -96,8 +96,24 @@ def location_mode(args):
     return value
 
 
+EXPORT_V3_FILES = LOCATION_FILES + tuple(
+    'backend/dist/domains/assets/asset-export-v3' + suffix + '.js'
+    for suffix in ('', '.config', '.module', '.controller', '.repository')
+) + ('flutter/lib/api/asset_export_v3.dart', 'flutter/tool/export_v3_https_acceptance.dart')
+
+
+def export_v3_mode(args):
+    """Export v3 has its own exclusive, explicitly typed fixture profile."""
+    value = getattr(args, 'export_v3_mode', False)
+    if type(value) is not bool or (value and (import_mode(args) or dates_mode(args) or import_v2_mode(args) or location_mode(args))):
+        raise Refusal('Invalid export v3 fixture profile')
+    return value
+
+
 def fixture_files(args):
     """Return a fixed source/artifact set for the selected fixture profile."""
+    if export_v3_mode(args):
+        return FILES + EXPORT_V3_FILES
     if location_mode(args):
         return FILES + LOCATION_FILES
     if import_v2_mode(args):
@@ -247,7 +263,8 @@ def record_progress(folder, identity, stage):
 
 def execute(root, args, runtime, acceptance=None):
     """Run once, retain evidence/volume, and stop only resources created here."""
-    location = location_mode(args)
+    export_v3 = export_v3_mode(args)
+    location = location_mode(args) or export_v3
     v2 = import_v2_mode(args)
     enabled = import_mode(args) or v2
     dates = dates_mode(args) or v2 or location
@@ -316,6 +333,7 @@ def execute(root, args, runtime, acceptance=None):
                    REQUEST_FRESHNESS_ENABLED='true', THROTTLE_LIMIT='1000', ASSET_DESK_FIXTURE_ID=identity)
         env['ASSET_IMPORT_ENABLED'] = 'true' if enabled else 'false'
         env['ASSET_DATES_ENABLED'] = 'true' if dates else 'false'
+        env['ASSET_EXPORT_V3_ENABLED'] = 'true' if export_v3 else 'false'
         env['ASSET_LOCATION_ENABLED'] = 'true' if location else 'false'
         env['ASSET_IMPORT_V2_ENABLED'] = 'true' if v2 and not disabled_v2 else 'false'
         report['stage'] = 'backend-readiness'
@@ -325,7 +343,7 @@ def execute(root, args, runtime, acceptance=None):
         report['stage'] = 'proxy-readiness'
         record_progress(folder, identity, 'proxy-readiness')
         proxy = runtime.start(['node', str(root / 'scripts/client-https-proxy-cli.mjs'), '--synthetic-only',
-                               str(args.backend_port), str(args.tls_port), identity, args.cert, args.key] + (['--location-enabled'] if location else ['--import-v2-enabled'] if v2 else ['--import-enabled'] if enabled else ['--dates-enabled'] if dates else []), folder)
+                               str(args.backend_port), str(args.tls_port), identity, args.cert, args.key] + (['--export-v3-enabled'] if export_v3 else ['--location-enabled'] if location else ['--import-v2-enabled'] if v2 else ['--import-enabled'] if enabled else ['--dates-enabled'] if dates else []), folder)
         runtime.wait_port(args.tls_port, proxy)
         if acceptance is None:
             report['stage'] = 'dart-client'

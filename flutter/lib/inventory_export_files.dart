@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import 'api/asset_export.dart';
 import 'api/asset_export_v2.dart';
+import 'api/asset_export_v3.dart';
 import 'api/asset_store.dart';
 
 /// Export-only native boundary; the caller owns explicit user actions.
@@ -19,9 +20,18 @@ abstract interface class InventoryExportV2Files {
   Future<bool> saveV2(AssetExportV2 snapshot);
 }
 
+/// Separate v3 save capability; old adapters do not need new methods.
+abstract interface class InventoryExportV3Files {
+  Future<String> digest(Uint8List bytes);
+  Future<bool> saveV3(AssetExportV3 snapshot);
+}
+
 /// Windows CNG and native Save As; no paths, credentials or implicit disk writes.
 class WindowsInventoryExportFiles
-    implements InventoryExportFiles, InventoryExportV2Files {
+    implements
+        InventoryExportFiles,
+        InventoryExportV2Files,
+        InventoryExportV3Files {
   static const _channel = MethodChannel('asset_desk/inventory_export');
 
   @override
@@ -53,6 +63,9 @@ class WindowsInventoryExportFiles
 
   @override
   Future<bool> saveV2(AssetExportV2 snapshot) => _saveJson(snapshot.json);
+
+  @override
+  Future<bool> saveV3(AssetExportV3 snapshot) => _saveJson(snapshot.json);
 
   Future<bool> _saveJson(String json) async {
     final bytes = Uint8List.fromList(utf8.encode(json));

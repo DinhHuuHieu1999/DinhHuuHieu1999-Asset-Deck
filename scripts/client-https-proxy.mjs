@@ -23,6 +23,7 @@ export function validateConfig({
   datesEnabled = false,
   importV2Enabled = false,
   locationEnabled = false,
+  exportV3Enabled = false,
   recoveryRequestId,
 }) {
   if (
@@ -30,6 +31,12 @@ export function validateConfig({
     typeof datesEnabled !== "boolean" ||
     typeof importV2Enabled !== "boolean" ||
     typeof locationEnabled !== "boolean" ||
+    typeof exportV3Enabled !== "boolean" ||
+    (exportV3Enabled &&
+      (!locationEnabled ||
+        !datesEnabled ||
+        importEnabled ||
+        importV2Enabled)) ||
     (locationEnabled && (!datesEnabled || importEnabled || importV2Enabled)) ||
     (importV2Enabled && (!importEnabled || !datesEnabled)) ||
     !Number.isInteger(upstreamPort) ||
@@ -64,6 +71,7 @@ export function parseProxyArgs(args) {
         "--dates-enabled",
         "--import-v2-enabled",
         "--location-enabled",
+        "--export-v3-enabled",
       ].includes(args[6]))
   )
     throw new Error("Explicit fixture opt-in required");
@@ -78,9 +86,13 @@ export function parseProxyArgs(args) {
       "--dates-enabled",
       "--import-v2-enabled",
       "--location-enabled",
+      "--export-v3-enabled",
     ].includes(args[6]),
     importV2Enabled: args[6] === "--import-v2-enabled",
-    locationEnabled: args[6] === "--location-enabled",
+    locationEnabled: ["--location-enabled", "--export-v3-enabled"].includes(
+      args[6],
+    ),
+    exportV3Enabled: args[6] === "--export-v3-enabled",
   };
   validateConfig(config);
   const port = Number(listen);
@@ -104,9 +116,12 @@ export function allowed(
   datesEnabled = false,
   importV2Enabled = false,
   locationEnabled = false,
+  exportV3Enabled = false,
 ) {
   if (typeof raw !== "string" || !raw.startsWith("/") || raw.startsWith("//"))
     return false;
+  if (raw.split("?")[0] === "/api/v1/assets/export/v3")
+    return exportV3Enabled === true && method === "GET";
   if (raw.split("?")[0] === "/api/v1/assets/locations/inventory")
     return locationEnabled === true && method === "GET";
   if (
@@ -228,6 +243,7 @@ export function createHandler(config, request = http.request) {
         config.datesEnabled,
         config.importV2Enabled,
         config.locationEnabled,
+        config.exportV3Enabled,
       )
     ) {
       fail(404);

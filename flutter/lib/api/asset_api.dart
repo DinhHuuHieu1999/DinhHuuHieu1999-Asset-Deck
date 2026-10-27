@@ -11,6 +11,7 @@ import 'asset_warranty_overview.dart';
 import 'asset_overview.dart';
 import 'asset_export.dart';
 import 'asset_export_v2.dart';
+import 'asset_export_v3.dart';
 import 'asset_import.dart';
 import 'asset_import_v2.dart';
 import 'asset_session.dart';
@@ -23,6 +24,7 @@ class AssetApi
         AssetSession,
         AssetExportSource,
         AssetExportV2Source,
+        AssetExportV3Source,
         AssetImportSource,
         AssetImportV2Source,
         AssetOverviewSource,
@@ -524,6 +526,23 @@ class AssetApi
       return result;
     } on FormatException {
       throw const AssetFailure('Invalid inventory v2 export or checksum');
+    }
+  }
+
+  /// Fetch a location-aware snapshot without accepting a stale account's result.
+  @override
+  Future<AssetExportV3> exportInventoryV3({
+    required AssetExportDigest digest,
+  }) async {
+    final epoch = _requireAccount();
+    final value = await _request('GET', 'assets/export/v3', epoch);
+    _current(epoch);
+    try {
+      final result = await AssetExportV3.parse(value, digest: digest);
+      _current(epoch);
+      return result;
+    } on FormatException {
+      throw const AssetFailure('Invalid inventory v3 export or checksum');
     }
   }
 

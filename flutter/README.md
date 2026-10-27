@@ -157,3 +157,18 @@ explicitly unknown, and combines with search/status/category before paging.
 Combined warranty filters require the date capability and migration 004.
 Inventory JSON v1/v2 exclude location labels and are not location backups.
 Source tests and synthetic rendering are not native or database acceptance.
+
+## Optional inventory export v3 (source checkpoint)
+
+`ASSET_DESK_ENABLE_EXPORT_V3` defaults false. Navigation also requires the dates
+and manual-location flags. Backend `ASSET_EXPORT_V3_ENABLED` separately requires
+both capabilities and existing migrations 004/005; no schema is applied at startup.
+
+Export v3 includes all owner assets, dates and nullable location labels, not the
+current filtered page. Prepare explicitly, then use Save JSON as. Inspect v3
+validates a local file and previews it without importing or sending it anywhere.
+Files contain private plaintext data; a checksum is not proof of authenticity.
+V1/v2 remain unchanged and there is no v3 import/restore capability.
+
+Database, HTTPS and Windows acceptance for v3 remain pending. See the
+[v3 contract and offline checkpoint](../docs/inventory-export-v3-plan.md).

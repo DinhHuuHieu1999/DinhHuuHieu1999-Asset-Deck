@@ -61,6 +61,65 @@ class NativeTests(unittest.TestCase):
         folder.mkdir()
         return native.native_session(self.root, self.args, runtime, folder, 'a' * 32, *self.services)
 
+    def enable_export_v3(self):
+        self.args.export_v3_mode = True
+        self.manifest['buildDefines'] = {
+            'ASSET_DESK_ENABLE_EXPORT_V3': 'true',
+            'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+            'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+        self.write_manifest()
+        seed = self.root / native.seed_source(self.args)
+        seed.write_text('synthetic v3 seed', encoding='utf-8')
+
+    def test_export_v3_exact_defines(self):
+        self.enable_export_v3()
+        native.verify_candidate(self.root, self.args)
+        for key in tuple(self.manifest['buildDefines']):
+            old = self.manifest['buildDefines'].pop(key)
+            self.write_manifest()
+            with self.subTest(key=key), self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+            self.manifest['buildDefines'][key] = old
+        self.manifest['buildDefines']['ASSET_DESK_ENABLE_IMPORT'] = 'true'
+        self.write_manifest()
+        with self.assertRaises(native.client.Refusal):
+            native.verify_candidate(self.root, self.args)
+
+    def test_export_v3_rejects_mixed_profiles(self):
+        self.enable_export_v3()
+        for field in ('location_mode', 'dates_mode', 'import_mode', 'import_v2_mode'):
+            setattr(self.args, field, True)
+            with self.subTest(field=field), self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+            setattr(self.args, field, False)
+        self.args.export_v3_mode = 'true'
+        with self.assertRaises(native.client.Refusal):
+            native.verify_candidate(self.root, self.args)
+
+    def test_export_v3_missing_seed_refuses_before_shared_preflight(self):
+        self.enable_export_v3()
+        (self.root / native.seed_source(self.args)).unlink()
+        with patch.object(native.os, 'name', 'nt'), patch.object(native.client, 'preflight') as shared:
+            with self.assertRaisesRegex(native.client.Refusal, 'Native seed source missing'):
+                native.preflight(self.root, self.args)
+            shared.assert_not_called()
+
+    def test_export_v3_seed_and_manual_handoff(self):
+        self.enable_export_v3()
+        runtime = self.runtime()
+        result = self.run_session(runtime)
+        command = runtime.run.call_args.args[0]
+        self.assertIn(str(self.root / native.seed_source(self.args)), command)
+        value = json.loads((self.root / 'evidence/operator-handoff.json').read_text(encoding='utf-8'))
+        self.assertTrue(value['exportV3Mode'])
+        self.assertEqual(value['expectedAssets'], 1)
+        self.assertEqual(value['purchasedOn'], '2024-02-29')
+        self.assertEqual(value['warrantyExpiresOn'], '2027-02-28')
+        self.assertEqual(value['locationLabel'], 'Synthetic room %_1')
+        self.assertNotIn('importFile', value)
+        self.assertEqual(result['nativeAcceptance'], 'pending')
+        self.assertEqual(result['seedSourceSha256'], hashlib.sha256(b'synthetic v3 seed').hexdigest())
+
     def test_location_requires_exact_build_defines(self):
         self.args.location_mode = True
         for defines in (None, {}, {'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true'},

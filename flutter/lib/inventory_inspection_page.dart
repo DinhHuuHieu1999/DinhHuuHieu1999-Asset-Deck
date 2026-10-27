@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
 
 import 'api/asset_export.dart';
+import 'api/asset_export_v3.dart';
 import 'api/asset_inspection.dart';
 import 'inventory_inspection_files.dart';
 
 /// Explicit local preview. No store, network client or import capability is held.
 class InventoryInspectionPage extends StatefulWidget {
-  const InventoryInspectionPage({super.key, required this.files});
+  const InventoryInspectionPage({
+    super.key,
+    required this.files,
+    this.v3 = false,
+  });
   final InventoryInspectionFiles files;
+  final bool v3;
   @override
   State<InventoryInspectionPage> createState() =>
       _InventoryInspectionPageState();
@@ -15,6 +21,7 @@ class InventoryInspectionPage extends StatefulWidget {
 
 class _InventoryInspectionPageState extends State<InventoryInspectionPage> {
   AssetExport? _preview;
+  AssetExportV3? _v3Preview;
   bool _busy = false;
   String? _message;
 
@@ -34,7 +41,22 @@ class _InventoryInspectionPageState extends State<InventoryInspectionPage> {
         return;
       }
       // A new selection invalidates old evidence before asynchronous verification.
-      setState(() => _preview = null);
+      setState(() {
+        _preview = null;
+        _v3Preview = null;
+      });
+      if (widget.v3) {
+        final preview = await inspectAssetV3Bytes(
+          bytes,
+          digest: widget.files.digest,
+        );
+        if (!mounted) return;
+        setState(() {
+          _v3Preview = preview;
+          _message = 'Checksum matches';
+        });
+        return;
+      }
       final preview = await inspectAssetBytes(
         bytes,
         digest: widget.files.digest,
@@ -48,6 +70,7 @@ class _InventoryInspectionPageState extends State<InventoryInspectionPage> {
       if (!mounted) return;
       setState(() {
         _preview = null;
+        _v3Preview = null;
         _message =
             'Unable to inspect JSON. Check the format, size and checksum.';
       });
@@ -59,15 +82,22 @@ class _InventoryInspectionPageState extends State<InventoryInspectionPage> {
   @override
   Widget build(BuildContext context) {
     final preview = _preview;
+    final v3Preview = _v3Preview;
+    final count = v3Preview?.count ?? preview?.count ?? 0;
+    final exportedAt = v3Preview?.exportedAt ?? preview?.exportedAt;
     return Scaffold(
-      appBar: AppBar(title: const Text('Inspect inventory JSON')),
+      appBar: AppBar(
+        title: Text(
+          widget.v3 ? 'Inspect inventory JSON v3' : 'Inspect inventory JSON',
+        ),
+      ),
       body: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 900),
           child: ListView.builder(
             padding: const EdgeInsets.all(16),
-            itemCount: 1 + (preview?.count ?? 0),
+            itemCount: 1 + count,
             itemBuilder: (context, index) {
               if (index == 0)
                 return Column(
@@ -76,8 +106,10 @@ class _InventoryInspectionPageState extends State<InventoryInspectionPage> {
                     const Text(
                       'Local file preview only. Nothing is imported or sent to the server.',
                     ),
-                    const Text(
-                      'Files may contain sensitive serial numbers and notes. A matching checksum does not prove authenticity.',
+                    Text(
+                      widget.v3
+                          ? 'Files may contain sensitive serial numbers, notes, dates and locations. A matching checksum does not prove authenticity.'
+                          : 'Files may contain sensitive serial numbers and notes. A matching checksum does not prove authenticity.',
                     ),
                     const SizedBox(height: 16),
                     OutlinedButton(
@@ -90,14 +122,15 @@ class _InventoryInspectionPageState extends State<InventoryInspectionPage> {
                       ),
                     if (_message != null)
                       Semantics(liveRegion: true, child: Text(_message!)),
-                    if (preview != null)
+                    if (exportedAt != null)
                       Text(
-                        'Assets: ${preview.count}; Exported: ${preview.exportedAt.toIso8601String()}',
+                        'Assets: $count; Exported: ${exportedAt.toIso8601String()}',
                       ),
                     const SizedBox(height: 12),
                   ],
                 );
-              final record = preview!.records[index - 1];
+              final v3Record = v3Preview?.records[index - 1];
+              final record = v3Record?.asset ?? preview!.records[index - 1];
               return Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
@@ -108,6 +141,15 @@ class _InventoryInspectionPageState extends State<InventoryInspectionPage> {
                         record.input.name,
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
+                      if (v3Record != null) ...[
+                        Text('Location: ${v3Record.location ?? '(unknown)'}'),
+                        Text(
+                          'Purchased: ${v3Record.dates.purchasedOn ?? '(unknown)'}',
+                        ),
+                        Text(
+                          'Warranty expires: ${v3Record.dates.warrantyExpiresOn ?? '(unknown)'}',
+                        ),
+                      ],
                       Text('Category: ${record.input.category}'),
                       Text('Status: ${record.input.status}'),
                       Text('Serial: ${record.input.serial}'),

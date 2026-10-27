@@ -1,4 +1,6 @@
 import 'reflect-metadata';
+import { AssetExportV3Module } from './domains/assets/asset-export-v3.module';
+import { isAssetExportV3Enabled } from './domains/assets/asset-export-v3.config';
 import { AssetLocationModule } from './domains/assets/asset-location.module';
 import { isAssetLocationEnabled } from './domains/assets/asset-location.config';
 import { AssetImportV2Module } from './domains/assets/asset-import-v2.module';
@@ -22,6 +24,7 @@ import { createAssetImportParser } from './domains/assets/asset-import-parser';
 export async function bootstrap(): Promise<void> {
   loadEnvFiles();
   const port = validateStartup();
+  const exportV3Enabled = isAssetExportV3Enabled();
   const locationEnabled = isAssetLocationEnabled();
   const importEnabled = isAssetImportEnabled();
   const datesEnabled = isAssetDatesEnabled();
@@ -30,6 +33,7 @@ export async function bootstrap(): Promise<void> {
     {
       module: AppModule,
       imports: [
+        ...(exportV3Enabled ? [AssetExportV3Module] : []),
         ...(importEnabled ? [AssetImportModule] : []),
         ...(datesEnabled ? [AssetDatesModule] : []),
         ...(importV2Enabled ? [AssetImportV2Module] : []),

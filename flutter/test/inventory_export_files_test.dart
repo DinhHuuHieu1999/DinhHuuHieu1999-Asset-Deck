@@ -3,6 +3,9 @@ import 'dart:io';
 
 import 'package:asset_desk/api/asset_export.dart';
 import 'package:asset_desk/api/asset_export_v2.dart';
+import 'package:asset_desk/api/asset_export_v3.dart';
+
+import 'asset_export_v3_test.dart' show exportV3Fixture;
 
 import 'asset_export_v2_test.dart' show exportV2Fixture;
 
@@ -136,6 +139,58 @@ void main() {
       });
       await expectLater(
         files.saveV2(snapshot),
+        throwsA(
+          isA<AssetFailure>().having(
+            (e) => e.message,
+            'safe message',
+            allOf(
+              contains('nothing was overwritten'),
+              isNot(contains('private path')),
+            ),
+          ),
+        ),
+      );
+      expect(calls.length, 1);
+    },
+  );
+  for (final outcome in [true, null, false, 'unexpected']) {
+    test(
+      'v3 native save forwards exact bytes and handles $outcome once',
+      () async {
+        final snapshot = await AssetExportV3.parse(
+          exportV3Fixture(),
+          digest: (_) async => 'a' * 64,
+        );
+        messenger.setMockMethodCallHandler(channel, (call) async {
+          calls.add(call);
+          return outcome;
+        });
+        if (outcome == true || outcome == null) {
+          expect(await files.saveV3(snapshot), outcome == true);
+        } else {
+          await expectLater(
+            files.saveV3(snapshot),
+            throwsA(isA<AssetFailure>()),
+          );
+        }
+        expect(calls.single.method, 'saveJson');
+        expect(utf8.decode(calls.single.arguments as Uint8List), snapshot.json);
+      },
+    );
+  }
+  test(
+    'v3 native existing file is refused without retry or path exposure',
+    () async {
+      final snapshot = await AssetExportV3.parse(
+        exportV3Fixture(),
+        digest: (_) async => 'a' * 64,
+      );
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        calls.add(call);
+        throw PlatformException(code: 'file_exists', message: 'private path');
+      });
+      await expectLater(
+        files.saveV3(snapshot),
         throwsA(
           isA<AssetFailure>().having(
             (e) => e.message,

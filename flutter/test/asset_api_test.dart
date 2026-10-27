@@ -1,3 +1,5 @@
+import 'asset_export_v3_test.dart' show exportV3Fixture;
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -854,6 +856,94 @@ void main() {
         handler = (request) async => json(request, {});
         await expectLater(
           api.exportInventoryV2(
+            digest: (_) async => throw StateError('must not run'),
+          ),
+          throwsA(isA<AssetFailure>()),
+        );
+        expect(calls.length, before + 2);
+      },
+    );
+
+    test(
+      'v3 export uses authenticated dedicated endpoint, not list filters',
+      () async {
+        await login();
+        handler = (request) async {
+          expect(request.method, 'GET');
+          expect(request.uri.path, '/api/v1/assets/export/v3');
+          expect(request.uri.hasQuery, isFalse);
+          expect(
+            request.headers.value('authorization'),
+            'Bearer synthetic-token',
+          );
+          json(request, exportV3Fixture());
+        };
+        final before = calls.length;
+        final snapshot = await api.exportInventoryV3(
+          digest: (_) async => 'a' * 64,
+        );
+        expect(snapshot.count, 1);
+        expect(snapshot.records.single.dates.purchasedOn, '2024-02-29');
+        expect(calls.length, before + 1);
+      },
+    );
+    test('anonymous v3 export never requests data or digest', () async {
+      await expectLater(
+        api.exportInventoryV3(
+          digest: (_) async => throw StateError('must not run'),
+        ),
+        throwsA(isA<AssetFailure>()),
+      );
+      expect(calls, isEmpty);
+    });
+    test('sign-out during v3 digest rejects late private data', () async {
+      await login();
+      handler = (request) async => json(request, exportV3Fixture());
+      final entered = Completer<void>();
+      final release = Completer<String>();
+      final result = api.exportInventoryV3(
+        digest: (_) {
+          entered.complete();
+          return release.future;
+        },
+      );
+      final assertion = expectLater(result, throwsA(isA<AssetFailure>()));
+      await entered.future;
+      api.signOut();
+      release.complete('a' * 64);
+      await assertion;
+      expect(api.account, isNull);
+    });
+    for (final status in [401, 404, 422, 500]) {
+      test('v3 failure $status never retries or falls back to v1', () async {
+        await login();
+        handler = (request) async => json(request, {}, status: status);
+        final before = calls.length;
+        await expectLater(
+          api.exportInventoryV3(
+            digest: (_) async => throw StateError('must not run'),
+          ),
+          throwsA(
+            isA<AssetFailure>().having((e) => e.statusCode, 'status', status),
+          ),
+        );
+        expect(calls.length, before + 1);
+        expect(api.account == null, status == 401);
+      });
+    }
+    test(
+      'v3 malformed response and checksum become safe client failure',
+      () async {
+        await login();
+        handler = (request) async => json(request, exportV3Fixture());
+        final before = calls.length;
+        await expectLater(
+          api.exportInventoryV3(digest: (_) async => 'b' * 64),
+          throwsA(isA<AssetFailure>()),
+        );
+        handler = (request) async => json(request, {});
+        await expectLater(
+          api.exportInventoryV3(
             digest: (_) async => throw StateError('must not run'),
           ),
           throwsA(isA<AssetFailure>()),
