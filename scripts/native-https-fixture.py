@@ -16,7 +16,8 @@ _spec.loader.exec_module(client)
 
 def verify_candidate(root, args):
     """Require a complete hashed deployment, pinned to the intended TLS endpoint."""
-    enabled = client.import_mode(args)
+    v2 = client.import_v2_mode(args)
+    enabled = client.import_mode(args) or v2
     if not args.execute_native or not args.execute_synthetic:
         raise client.Refusal('Explicit native and synthetic opt-in required')
     if not 1 <= args.minutes <= 30:
@@ -43,7 +44,10 @@ def verify_candidate(root, args):
             value.get('endpoint') != 'https://localhost:%s/api/v1' % args.tls_port or
             value.get('buildMode') != 'release' or not isinstance(value.get('files'), dict)):
         raise client.Refusal('Candidate endpoint or release manifest mismatch')
-    if enabled and value.get('buildDefines') != {'ASSET_DESK_ENABLE_IMPORT': 'true'}:
+    defines = {'ASSET_DESK_ENABLE_IMPORT': 'true'}
+    if v2:
+        defines.update(ASSET_DESK_ENABLE_IMPORT_V2='true', ASSET_DESK_ENABLE_ASSET_DATES='true')
+    if enabled and value.get('buildDefines') != defines:
         raise client.Refusal('Candidate import build contract missing')
     files = value['files']
     if not {'asset_desk.exe', 'flutter_windows.dll', 'data/icudtl.dat'} <= set(files):
@@ -73,18 +77,22 @@ def preflight(root, args):
     client.preflight(root, args)
 
 
-def prepare_import_file(folder):
+def prepare_import_file(folder, v2=False):
     """Create one inert synthetic snapshot; never consume operator inventory."""
     now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
     record = {'id': str(uuid.uuid4()), 'name': 'Synthetic native imported asset',
               'category': 'fixture', 'serial': 'IMPORT-%_1', 'status': 'stored',
               'notes': 'Synthetic import only', 'version': 1,
               'createdAt': now, 'updatedAt': now}
+    if type(v2) is not bool:
+        raise client.Refusal('Invalid synthetic import version')
+    if v2:
+        record.update(purchasedOn='2024-02-29', warrantyExpiresOn='2027-02-28')
     payload = json.dumps({'exportedAt': now, 'complete': True, 'recordCount': 1,
                           'records': [record]}, ensure_ascii=False, separators=(',', ':'))
-    envelope = {'format': 'asset-desk-inventory', 'schemaVersion': 1, 'payload': payload,
+    envelope = {'format': 'asset-desk-inventory', 'schemaVersion': 2 if v2 else 1, 'payload': payload,
                 'sha256': hashlib.sha256(payload.encode('utf-8')).hexdigest()}
-    destination = folder / 'inventory-import-synthetic.json'
+    destination = folder / ('inventory-import-v2-synthetic.json' if v2 else 'inventory-import-synthetic.json')
     with destination.open('x', encoding='utf-8') as stream:
         stream.write(json.dumps(envelope, ensure_ascii=False, separators=(',', ':'))+'\n')
     return destination
@@ -104,8 +112,8 @@ def native_session(root, args, runtime, folder, identity, backend, proxy):
     handoff = dict(seed, endpoint=endpoint, fixtureId=identity, syntheticOnly=True,
                    expiresAtEpoch=int(time.time() + args.minutes * 60),
                    instructions='Sign in, search, create/edit/refresh. Do not use a real account or equipment data.')
-    if client.import_mode(args):
-        import_file = prepare_import_file(folder)
+    if client.import_mode(args) or client.import_v2_mode(args):
+        import_file = prepare_import_file(folder, v2=client.import_v2_mode(args))
         handoff.update(importFile=str(import_file), expectedBefore=1, expectedAfter=2,
                        importedAssetName='Synthetic native imported asset',
                        instructions='Sign in, open Import, choose the synthetic file, review and explicitly confirm once; refresh. Never use real data.')
@@ -136,6 +144,7 @@ def main():
     parser.add_argument('--execute-native', action='store_true')
     parser.add_argument('--execute-synthetic', action='store_true')
     parser.add_argument('--import-mode', action='store_true')
+    parser.add_argument('--import-v2-mode', action='store_true')
     parser.add_argument('--candidate', default='')
     parser.add_argument('--minutes', type=int, default=30)
     for name in ('image', 'cert', 'key'):

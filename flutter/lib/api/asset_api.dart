@@ -11,6 +11,7 @@ import 'asset_overview.dart';
 import 'asset_export.dart';
 import 'asset_export_v2.dart';
 import 'asset_import.dart';
+import 'asset_import_v2.dart';
 import 'asset_session.dart';
 import 'asset_store.dart';
 
@@ -22,6 +23,7 @@ class AssetApi
         AssetExportSource,
         AssetExportV2Source,
         AssetImportSource,
+        AssetImportV2Source,
         AssetOverviewSource,
         AssetDatesSource,
         AssetWarrantySource,
@@ -463,6 +465,38 @@ class AssetApi
     }
   }
 
+  /// Submit exactly one account/session-bound operation; never retries internally.
+  @override
+  Future<AssetImportV2Receipt> importInventoryV2(
+    AssetImportV2Draft draft, {
+    required int sessionRevision,
+  }) async {
+    final epoch = _requireAccount();
+    if (epoch != sessionRevision || _account!.id != draft.accountId) {
+      throw const AssetFailure(
+        'Import session changed; review the target account again',
+        definitelyNotSent: true,
+      );
+    }
+    await _csrf(epoch);
+    _current(epoch);
+    final response = await _send(
+      'POST',
+      'assets/import/v2',
+      epoch,
+      null,
+      draft.json,
+    );
+    _current(epoch);
+    try {
+      return AssetImportV2Receipt.parse(response, draft);
+    } on FormatException {
+      throw const AssetFailure(
+        'Import receipt unavailable; retain the same request key',
+      );
+    }
+  }
+
   Future<void> _csrf(int epoch) async {
     _current(epoch);
     if (_csrfToken != null) return;
@@ -507,6 +541,7 @@ class AssetApi
     String path,
     int epoch, [
     Map<String, Object?>? body,
+    String? exactJson,
   ]) async {
     _current(epoch);
     final client = HttpClient()..connectionTimeout = timeout;
@@ -535,9 +570,9 @@ class AssetApi
                     cookie.expires!.isAfter(DateTime.now())),
           ),
         );
-        if (body != null) {
+        if (body != null || exactJson != null) {
           request.headers.contentType = ContentType.json;
-          request.write(jsonEncode(body));
+          request.write(exactJson ?? jsonEncode(body));
         }
         final response = await request.close();
         _current(epoch);

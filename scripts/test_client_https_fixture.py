@@ -95,6 +95,47 @@ class FixtureTests(unittest.TestCase):
             fixture.preflight(self.root, self.args)
         self.assertFalse((self.root / '.local').exists())
 
+    def test_progress_contains_only_fixed_milestones_and_is_flushed(self):
+        identity = 'a' * 32
+        with patch.object(fixture.os, 'fsync') as sync:
+            fixture.record_progress(self.root, identity, 'database-create')
+            fixture.record_progress(self.root, identity, 'database-readiness')
+        rows = [json.loads(line) for line in (self.root/'progress.jsonl').read_text().splitlines()]
+        self.assertEqual(rows, [{'fixtureId': identity, 'stage': name}
+                                for name in ('database-create', 'database-readiness')])
+        self.assertEqual(sync.call_count, 2)
+        with self.assertRaises(FileExistsError):
+            fixture.record_progress(self.root, identity, 'database-create')
+        before = (self.root/'progress.jsonl').read_bytes()
+        with self.assertRaises(fixture.Refusal):
+            fixture.record_progress(self.root, identity, 'private-command-or-password')
+        self.assertEqual((self.root/'progress.jsonl').read_bytes(), before)
+
+    def test_progress_failure_before_creation_refuses_without_creating_volume(self):
+        runtime = FakeRuntime()
+        with patch.object(fixture, 'record_progress', side_effect=OSError('synthetic disk error')):
+            with self.assertRaises(OSError):
+                fixture.execute(self.root, self.args, runtime)
+        self.assertFalse(any(c[:3] == ['docker', 'volume', 'create'] for c in runtime.calls))
+        self.assertTrue(runtime.stopped)
+
+    def test_progress_failure_after_readiness_still_cleans_up_owned_resources(self):
+        runtime = FakeRuntime()
+        original = fixture.record_progress
+        def fail_at_migrations(folder, identity, stage):
+            if stage == 'migrations':
+                raise OSError('synthetic private error')
+            original(folder, identity, stage)
+        with patch.object(fixture, 'record_progress', side_effect=fail_at_migrations):
+            with self.assertRaises(OSError):
+                fixture.execute(self.root, self.args, runtime)
+        folder = self.root / '.local' / ('asset-client-' + runtime.identity)
+        rows = [json.loads(line) for line in (folder/'progress.jsonl').read_text().splitlines()]
+        self.assertEqual([row['stage'] for row in rows], ['database-create', 'database-readiness'])
+        self.assertTrue(runtime.stopped)
+        self.assertTrue(any(c[:2] == ['docker', 'stop'] for c in runtime.calls))
+        self.assertEqual(json.loads((folder/'result.json').read_text())['cleanup'], 'stopped')
+
     def test_no_opt_in_refuses_before_any_io(self):
         self.args.execute_synthetic = False
         with patch.object(Path, 'is_file', side_effect=AssertionError('No IO')):
@@ -300,6 +341,53 @@ class FixtureTests(unittest.TestCase):
         self.assertEqual(report['cleanup'], 'stopped')
         callback.assert_called_once()
 
+
+    def test_v2_profile_requires_boolean_and_exclusive_selection(self):
+        for values in [dict(import_v2_mode='true'), dict(import_v2_mode=True, import_mode=True),
+                       dict(import_v2_mode=True, dates_mode=True)]:
+            with self.assertRaises(fixture.Refusal):
+                fixture.fixture_files(argparse.Namespace(**values))
+        self.assertEqual(fixture.fixture_files(arguments()), fixture.FILES)
+
+    def test_v2_missing_each_artifact_refuses_before_process(self):
+        self.args.import_v2_mode = True
+        for name in fixture.IMPORT_V2_FILES:
+            p = self.root / name
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text('synthetic', encoding='utf-8')
+        runtime = FakeRuntime()
+        for name in fixture.IMPORT_V2_FILES:
+            p = self.root / name
+            p.unlink()
+            with self.assertRaises(fixture.Refusal):
+                fixture.execute(self.root, self.args, runtime, MagicMock())
+            self.assertEqual(runtime.calls, [])
+            p.write_text('synthetic', encoding='utf-8')
+
+    def check_v2_flags(self, disabled=False):
+        self.args.import_v2_mode = True
+        for name in fixture.IMPORT_V2_FILES:
+            p = self.root / name
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text('synthetic', encoding='utf-8')
+        self.args.disabled_v2_route = disabled
+        runtime = FakeRuntime()
+        original = runtime.start
+        environments = []
+        def start(command, cwd, env=None):
+            environments.append(env)
+            return original(command, cwd, env)
+        runtime.start = start
+        report = fixture.execute(self.root, self.args, runtime, MagicMock(return_value={}))
+        for flag in ('ASSET_IMPORT_ENABLED', 'ASSET_DATES_ENABLED', 'ASSET_IMPORT_V2_ENABLED'):
+            self.assertEqual(environments[0][flag], 'false' if disabled and flag == 'ASSET_IMPORT_V2_ENABLED' else 'true')
+        proxy = next(c for c in runtime.calls if '--synthetic-only' in c)
+        self.assertEqual(proxy[-1], '--import-v2-enabled')
+        self.assertEqual(sum('psql' in c and '-i' in c for c in runtime.calls), 4)
+        self.assertEqual(report['cleanup'], 'stopped')
+
+    def test_v2_four_migrations_and_explicit_flags(self): self.check_v2_flags()
+    def test_disabled_v2_keeps_proxy_route_but_disables_backend_module(self): self.check_v2_flags(True)
 
 if __name__ == '__main__':
     unittest.main()

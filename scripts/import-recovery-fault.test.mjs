@@ -80,3 +80,44 @@ test("dedicated recovery CLI rejects implicit or malformed fault selection befor
   ])
     assert.throws(() => parseRecoveryProxyArgs(bad));
 });
+
+test("v2 selector cannot suppress v1 or aliases and remains one-shot", () => {
+  const fault = createRecoveryFault({ ...config, schemaVersion: 2 });
+  for (const path of [
+    "/api/v1/assets/import",
+    "/api/v1/assets/import/v2/",
+    "/api/v1/assets/import/v2?x=1",
+  ])
+    assert.equal(fault.claim("POST", path, body), false);
+  assert.equal(fault.claim("POST", "/api/v1/assets/import/v2", body), true);
+  assert.equal(fault.claim("POST", "/api/v1/assets/import/v2", body), false);
+  assert.equal(fault.complete(true, 201, true), true);
+  assert.equal(fault.complete(true, 201, true), false);
+});
+test("legacy selector never claims v2 and rejects unknown schema selectors", () => {
+  assert.equal(
+    createRecoveryFault(config).claim("POST", "/api/v1/assets/import/v2", body),
+    false,
+  );
+  for (const schemaVersion of [0, 3, "2", null, true])
+    assert.throws(() => createRecoveryFault({ ...config, schemaVersion }));
+});
+
+test("dedicated recovery CLI retains v2 capability for the selected key", async () => {
+  const { parseRecoveryProxyArgs } =
+    await import("./import-recovery-proxy-cli.mjs");
+  const parsed = parseRecoveryProxyArgs([
+    "--synthetic-only",
+    "19001",
+    "19002",
+    "a".repeat(32),
+    "cert",
+    "key",
+    "--import-v2-enabled",
+    "--lose-import-ack",
+    requestId,
+  ]);
+  assert.equal(parsed.config.importV2Enabled, true);
+  assert.equal(parsed.config.datesEnabled, true);
+  assert.equal(parsed.config.recoveryRequestId, requestId);
+});

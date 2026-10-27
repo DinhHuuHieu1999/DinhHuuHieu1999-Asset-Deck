@@ -1,4 +1,7 @@
 import 'reflect-metadata';
+import { AssetImportV2Module } from './domains/assets/asset-import-v2.module';
+import { isAssetImportV2Enabled } from './domains/assets/asset-import-v2.config';
+import { createAssetImportV2Parser } from './domains/assets/asset-import-v2-parser';
 import { AssetDatesModule } from './domains/assets/asset-dates.module';
 import { isAssetDatesEnabled } from './domains/assets/asset-dates.config';
 import { ValidationPipe } from '@nestjs/common';
@@ -19,12 +22,14 @@ export async function bootstrap(): Promise<void> {
   const port = validateStartup();
   const importEnabled = isAssetImportEnabled();
   const datesEnabled = isAssetDatesEnabled();
+  const importV2Enabled = isAssetImportV2Enabled();
   const app = await NestFactory.create<NestExpressApplication>(
     {
       module: AppModule,
       imports: [
         ...(importEnabled ? [AssetImportModule] : []),
         ...(datesEnabled ? [AssetDatesModule] : []),
+        ...(importV2Enabled ? [AssetImportV2Module] : []),
       ],
     },
     {
@@ -35,6 +40,7 @@ export async function bootstrap(): Promise<void> {
   try {
     // Install before Nest initialization so only this route gets a larger parser.
     if (importEnabled) app.use(createAssetImportParser());
+    if (importV2Enabled) app.use(createAssetImportV2Parser());
     app.set('trust proxy', false);
     app.use(helmet());
     app.use(cookieParser());

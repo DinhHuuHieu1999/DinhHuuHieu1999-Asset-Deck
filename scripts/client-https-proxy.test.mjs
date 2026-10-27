@@ -389,63 +389,141 @@ test("recovery selector requires import capability before server construction", 
   );
 });
 
-test('overview allowlist adds only the exact read route', async () => {
-  assert.equal(allowed('GET', '/api/v1/assets/overview'), true);
-  for (const method of ['POST', 'PUT', 'PATCH', 'DELETE'])
-    assert.equal(allowed(method, '/api/v1/assets/overview'), false);
-  for (const path of ['/api/v1/assets/overview/extra', '/api/v1/assets/Overview',
-    '/api/v1/assets/%6fverview', '/api/v1/assets/overview/../import'])
-    assert.equal(allowed('GET', path), false);
-  const result = await simulate({ method: 'GET', url: '/api/v1/assets/overview' });
+test("overview allowlist adds only the exact read route", async () => {
+  assert.equal(allowed("GET", "/api/v1/assets/overview"), true);
+  for (const method of ["POST", "PUT", "PATCH", "DELETE"])
+    assert.equal(allowed(method, "/api/v1/assets/overview"), false);
+  for (const path of [
+    "/api/v1/assets/overview/extra",
+    "/api/v1/assets/Overview",
+    "/api/v1/assets/%6fverview",
+    "/api/v1/assets/overview/../import",
+  ])
+    assert.equal(allowed("GET", path), false);
+  const result = await simulate({
+    method: "GET",
+    url: "/api/v1/assets/overview",
+  });
   assert.equal(result.res.code, 200);
 });
 
-test('dates capability permits only exact opted-in UUID GET/PUT routes', () => {
-  const route = '/api/v1/assets/11111111-1111-4111-8111-111111111111/dates';
-  for (const method of ['GET', 'PUT']) {
+test("dates capability permits only exact opted-in UUID GET/PUT routes", () => {
+  const route = "/api/v1/assets/11111111-1111-4111-8111-111111111111/dates";
+  for (const method of ["GET", "PUT"]) {
     assert.equal(allowed(method, route), false);
     assert.equal(allowed(method, route, true), false);
     assert.equal(allowed(method, route, false, true), true);
-    for (const invalid of [route + '?owner=x', route + '/', route.replace('/dates', '/dates/other'), '/api/v1/assets/no-id/dates'])
+    for (const invalid of [
+      route + "?owner=x",
+      route + "/",
+      route.replace("/dates", "/dates/other"),
+      "/api/v1/assets/no-id/dates",
+    ])
       assert.equal(allowed(method, invalid, false, true), false);
   }
-  for (const method of ['POST', 'DELETE', 'PATCH']) assert.equal(allowed(method, route, false, true), false);
-  assert.throws(() => validateConfig({...config, datesEnabled: 'true'}));
-  const parsed = parseProxyArgs(['--synthetic-only', '19001', '19002', 'a'.repeat(32), 'cert', 'key', '--dates-enabled']);
+  for (const method of ["POST", "DELETE", "PATCH"])
+    assert.equal(allowed(method, route, false, true), false);
+  assert.throws(() => validateConfig({ ...config, datesEnabled: "true" }));
+  const parsed = parseProxyArgs([
+    "--synthetic-only",
+    "19001",
+    "19002",
+    "a".repeat(32),
+    "cert",
+    "key",
+    "--dates-enabled",
+  ]);
   assert.equal(parsed.config.datesEnabled, true);
   assert.equal(parsed.config.importEnabled, false);
 });
 
-test('export v2 permits only the exact opted-in dates GET route', () => {
-  const path = '/api/v1/assets/export/v2';
-  assert.equal(allowed('GET', path), false);
-  assert.equal(allowed('GET', path, true), false);
-  assert.equal(allowed('GET', path, false, true), true);
-  for (const method of ['POST','PUT','PATCH','DELETE']) assert.equal(allowed(method,path,false,true),false);
-  for (const invalid of [path+'?owner=x',path+'/',path+'/other',path.replace('/v2','/%76%32')]) assert.equal(allowed('GET',invalid,false,true),false);
-});
-
-test('warranty route is exact GET-only and dates opt-in; queries reach backend validation', () => {
-  const path = '/api/v1/assets/warranty';
-  for (const query of ['', '?warranty=expired&asOf=2026-10-26', '?ownerId=synthetic']) {
-    assert.equal(allowed('GET', path+query), false);
-    assert.equal(allowed('GET', path+query, true), false);
-    assert.equal(allowed('GET', path+query, false, true), true);
-  }
-  for (const method of ['POST', 'PUT', 'PATCH', 'DELETE'])
+test("export v2 permits only the exact opted-in dates GET route", () => {
+  const path = "/api/v1/assets/export/v2";
+  assert.equal(allowed("GET", path), false);
+  assert.equal(allowed("GET", path, true), false);
+  assert.equal(allowed("GET", path, false, true), true);
+  for (const method of ["POST", "PUT", "PATCH", "DELETE"])
     assert.equal(allowed(method, path, false, true), false);
-  for (const invalid of [path+'/', path+'/other', path.replace('warranty', '%77arranty')])
-    assert.equal(allowed('GET', invalid, false, true), false);
+  for (const invalid of [
+    path + "?owner=x",
+    path + "/",
+    path + "/other",
+    path.replace("/v2", "/%76%32"),
+  ])
+    assert.equal(allowed("GET", invalid, false, true), false);
 });
 
+test("warranty route is exact GET-only and dates opt-in; queries reach backend validation", () => {
+  const path = "/api/v1/assets/warranty";
+  for (const query of [
+    "",
+    "?warranty=expired&asOf=2026-10-26",
+    "?ownerId=synthetic",
+  ]) {
+    assert.equal(allowed("GET", path + query), false);
+    assert.equal(allowed("GET", path + query, true), false);
+    assert.equal(allowed("GET", path + query, false, true), true);
+  }
+  for (const method of ["POST", "PUT", "PATCH", "DELETE"])
+    assert.equal(allowed(method, path, false, true), false);
+  for (const invalid of [
+    path + "/",
+    path + "/other",
+    path.replace("warranty", "%77arranty"),
+  ])
+    assert.equal(allowed("GET", invalid, false, true), false);
+});
 
-test('warranty overview is GET-only and requires explicit dates capability', () => {
-  for (const path of ['/api/v1/assets/warranty/overview', '/api/v1/assets/warranty/overview?asOf=2026-10-26']) {
-    assert.equal(allowed('GET', path, false, true), true);
-    assert.equal(allowed('GET', path), false);
-    assert.equal(allowed('GET', path, true, false), false);
-    for (const method of ['POST', 'PUT', 'DELETE', 'PATCH'])
+test("warranty overview is GET-only and requires explicit dates capability", () => {
+  for (const path of [
+    "/api/v1/assets/warranty/overview",
+    "/api/v1/assets/warranty/overview?asOf=2026-10-26",
+  ]) {
+    assert.equal(allowed("GET", path, false, true), true);
+    assert.equal(allowed("GET", path), false);
+    assert.equal(allowed("GET", path, true, false), false);
+    for (const method of ["POST", "PUT", "DELETE", "PATCH"])
       assert.equal(allowed(method, path, false, true), false);
   }
-  assert.equal(allowed('GET', '/api/v1/assets/warranty/overview/extra', false, true), false);
+  assert.equal(
+    allowed("GET", "/api/v1/assets/warranty/overview/extra", false, true),
+    false,
+  );
+});
+
+test("v2 requires all capabilities and an exact POST route", () => {
+  const route = "/api/v1/assets/import/v2";
+  for (const flags of [
+    [false, false, false],
+    [true, true, false],
+    [true, false, true],
+    [false, true, true],
+  ])
+    assert.equal(allowed("POST", route, ...flags), false);
+  assert.equal(allowed("POST", route, true, true, true), true);
+  for (const routeAlias of [route + "/", route + "?x=1", route.toUpperCase()])
+    assert.equal(allowed("POST", routeAlias, true, true, true), false);
+  assert.equal(allowed("GET", route, true, true, true), false);
+});
+test("v2 CLI selects fixed prerequisites without widening legacy profiles", () => {
+  const args = [
+    "--synthetic-only",
+    "19001",
+    "19002",
+    "a".repeat(32),
+    "cert",
+    "key",
+  ];
+  const selected = parseProxyArgs([...args, "--import-v2-enabled"]).config;
+  assert.equal(selected.importEnabled, true);
+  assert.equal(selected.datesEnabled, true);
+  assert.equal(selected.importV2Enabled, true);
+  assert.equal(
+    parseProxyArgs([...args, "--import-enabled"]).config.importV2Enabled,
+    false,
+  );
+  for (const flags of [{}, { importEnabled: true }, { datesEnabled: true }])
+    assert.throws(() =>
+      validateConfig({ ...config, ...flags, importV2Enabled: true }),
+    );
 });

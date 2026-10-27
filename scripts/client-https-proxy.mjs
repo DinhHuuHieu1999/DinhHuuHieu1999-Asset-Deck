@@ -21,11 +21,14 @@ export function validateConfig({
   timeoutMs = 15000,
   importEnabled = false,
   datesEnabled = false,
+  importV2Enabled = false,
   recoveryRequestId,
 }) {
   if (
     typeof importEnabled !== "boolean" ||
-    typeof datesEnabled !== 'boolean' ||
+    typeof datesEnabled !== "boolean" ||
+    typeof importV2Enabled !== "boolean" ||
+    (importV2Enabled && (!importEnabled || !datesEnabled)) ||
     !Number.isInteger(upstreamPort) ||
     upstreamPort < 1024 ||
     upstreamPort > 65535 ||
@@ -41,6 +44,7 @@ export function validateConfig({
       syntheticOnly: true,
       importEnabled,
       requestId: recoveryRequestId,
+      schemaVersion: importV2Enabled ? 2 : 1,
     });
   }
 }
@@ -51,15 +55,21 @@ export function parseProxyArgs(args) {
     !Array.isArray(args) ||
     ![6, 7].includes(args.length) ||
     args[0] !== "--synthetic-only" ||
-    (args.length === 7 && !['--import-enabled', '--dates-enabled'].includes(args[6]))
+    (args.length === 7 &&
+      !["--import-enabled", "--dates-enabled", "--import-v2-enabled"].includes(
+        args[6],
+      ))
   )
     throw new Error("Explicit fixture opt-in required");
   const [, upstream, listen, fixtureId, cert, key] = args;
   const config = {
     upstreamPort: Number(upstream),
     fixtureId,
-    importEnabled: args[6] === '--import-enabled',
-    datesEnabled: args[6] === '--dates-enabled',
+    importEnabled: ["--import-enabled", "--import-v2-enabled"].includes(
+      args[6],
+    ),
+    datesEnabled: ["--dates-enabled", "--import-v2-enabled"].includes(args[6]),
+    importV2Enabled: args[6] === "--import-v2-enabled",
   };
   validateConfig(config);
   const port = Number(listen);
@@ -76,17 +86,34 @@ export function parseProxyArgs(args) {
 }
 
 /** Allow only the API operations exercised by the synthetic client. */
-export function allowed(method, raw, importEnabled = false, datesEnabled = false) {
+export function allowed(
+  method,
+  raw,
+  importEnabled = false,
+  datesEnabled = false,
+  importV2Enabled = false,
+) {
   if (typeof raw !== "string" || !raw.startsWith("/") || raw.startsWith("//"))
     return false;
-  if (/^\/api\/v1\/assets\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\/dates$/.test(raw))
-    return datesEnabled === true && ['GET', 'PUT'].includes(method);
-  if (raw.split('?')[0] === '/api/v1/assets/warranty/overview')
-    return datesEnabled === true && method === 'GET';
-  if (raw.split('?')[0] === '/api/v1/assets/warranty')
-    return datesEnabled === true && method === 'GET';
-  if (raw === '/api/v1/assets/export/v2')
-    return datesEnabled === true && method === 'GET';
+  if (
+    /^\/api\/v1\/assets\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\/dates$/.test(
+      raw,
+    )
+  )
+    return datesEnabled === true && ["GET", "PUT"].includes(method);
+  if (raw.split("?")[0] === "/api/v1/assets/warranty/overview")
+    return datesEnabled === true && method === "GET";
+  if (raw.split("?")[0] === "/api/v1/assets/warranty")
+    return datesEnabled === true && method === "GET";
+  if (raw === "/api/v1/assets/export/v2")
+    return datesEnabled === true && method === "GET";
+  if (raw === "/api/v1/assets/import/v2")
+    return (
+      method === "POST" &&
+      importV2Enabled === true &&
+      importEnabled === true &&
+      datesEnabled === true
+    );
   if (method === "POST" && raw === "/api/v1/assets/import")
     return importEnabled === true;
   const path = raw.split("?")[0];
@@ -96,7 +123,7 @@ export function allowed(method, raw, importEnabled = false, datesEnabled = false
       "/api/v1/auth/profile",
       "/api/v1/assets",
       "/api/v1/assets/export",
-      '/api/v1/assets/overview',
+      "/api/v1/assets/overview",
     ].includes(path);
   if (method === "POST")
     return [
@@ -133,6 +160,7 @@ export function createHandler(config, request = http.request) {
           syntheticOnly: true,
           importEnabled: config.importEnabled,
           requestId: config.recoveryRequestId,
+          schemaVersion: config.importV2Enabled ? 2 : 1,
         });
   return async (req, res) => {
     const fail = (code) => {
@@ -171,7 +199,15 @@ export function createHandler(config, request = http.request) {
       );
       return;
     }
-    if (!allowed(req.method, req.url, config.importEnabled, config.datesEnabled)) {
+    if (
+      !allowed(
+        req.method,
+        req.url,
+        config.importEnabled,
+        config.datesEnabled,
+        config.importV2Enabled,
+      )
+    ) {
       fail(404);
       req.resume();
       return;

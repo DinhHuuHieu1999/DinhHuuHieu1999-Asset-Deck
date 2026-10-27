@@ -52,8 +52,22 @@ WARRANTY_OVERVIEW_FILES = WARRANTY_FILES[:2] + (
 )
 
 
+IMPORT_V2_FILES = (FILES[0], FILES[1],
+    'backend/src/domains/assets/asset-import-v2.postgres.spec.ts',
+    'backend/src/domains/assets/asset-import-v2.repository.ts',
+    'backend/src/domains/assets/asset-import-v2.ts',
+    'backend/src/domains/assets/asset-import.repository.ts',
+    'backend/src/domains/assets/asset-import.ts',
+    'backend/src/domains/assets/asset-dates.ts',
+    'backend/src/domains/assets/assets.dto.ts',
+    'backend/migrations/003-asset-import.sql',
+    'backend/migrations/004-asset-dates.sql', FILES[-1])
+
+
 def profile_settings(profile):
     """Only fixed source-owned profiles may choose a suite or fixture identity."""
+    if profile == 'import-v2':
+        return IMPORT_V2_FILES, 'asset-import-v2-', 'asset_import_v2_fixture_', 'ASSET_IMPORT_V2', 'isolated-import-v2-v1', 'asset_import_v2_fixture_identity'
     if profile == 'category':
         return FILES, 'asset-category-', 'asset_category_fixture_', 'ASSET_CATEGORY', 'isolated-category-v1', 'asset_category_fixture_identity'
     if profile == 'overview':
@@ -135,6 +149,8 @@ def execute(root, args, runtime, profile='category', verification=None):
             break
         client.assert_owned(runtime, name, identity)
         migrations = files[:2] + (('backend/migrations/004-asset-dates.sql',) if profile in ('dates', 'export-v2', 'warranty', 'warranty-overview') else ())
+        if profile == 'import-v2':
+            migrations += ('backend/migrations/003-asset-import.sql', 'backend/migrations/004-asset-dates.sql')
         for migration in migrations:
             runtime.run(['docker', 'exec', '-i', name, 'psql', '-v', 'ON_ERROR_STOP=1',
                          '-U', 'fixture', '-d', database], data=(root / migration).read_bytes())
@@ -159,7 +175,7 @@ def execute(root, args, runtime, profile='category', verification=None):
                     cwd=root / 'backend', env=test_env)
         if result_file.stat().st_size > 1024 * 1024:
             raise client.Refusal('Oversized test result')
-        expected = 7 if profile == 'warranty-overview' else 4
+        expected = 8 if profile == 'import-v2' else 7 if profile == 'warranty-overview' else 4
         validate_result(json.loads(result_file.read_text(encoding='utf-8')), expected)
         if verification is not None:
             verification(runtime, name, database, identity, folder)

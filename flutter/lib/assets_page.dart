@@ -1,3 +1,5 @@
+import 'api/asset_import_v2.dart';
+import 'inventory_import_v2_page.dart';
 import 'api/asset_warranty_overview.dart';
 import 'warranty_overview_page.dart';
 import 'api/asset_warranty.dart';
@@ -29,12 +31,14 @@ class AssetsPage extends StatefulWidget {
     this.exportFiles,
     this.inspectionFiles,
     this.enableInventoryImport = false,
+    this.enableInventoryImportV2 = false,
     this.enableAssetDates = false,
     this.importApiBase = '',
   });
   final String importApiBase;
   final AssetStore store;
   final bool enableInventoryImport;
+  final bool enableInventoryImportV2;
   final bool enableAssetDates;
   final InventoryExportFiles? exportFiles;
   final InventoryInspectionFiles? inspectionFiles;
@@ -287,6 +291,31 @@ class _AssetsPageState extends State<AssetsPage> {
                     ),
               child: const Text('Inspect local JSON (no import)'),
             ),
+            if (widget.enableInventoryImportV2 &&
+                widget.enableInventoryImport &&
+                widget.enableAssetDates &&
+                widget.store is AssetSession &&
+                (widget.store as AssetSession).account != null &&
+                widget.store is AssetImportV2Source)
+              OutlinedButton(
+                onPressed: _busy
+                    ? null
+                    : () => Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => InventoryImportV2Page(
+                            apiBase: widget.importApiBase,
+                            session: widget.store as AssetSession,
+                            source: widget.store as AssetImportV2Source,
+                            files:
+                                widget.inspectionFiles ??
+                                WindowsInventoryInspectionFiles(),
+                          ),
+                        ),
+                      ),
+                child: const Text(
+                  'Import inventory JSON v2 (add-only, with dates)',
+                ),
+              ),
             if (widget.enableInventoryImport &&
                 widget.store is AssetSession &&
                 widget.store is AssetImportSource)

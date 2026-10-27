@@ -114,8 +114,25 @@ Optional export v2 includes purchase and warranty dates in a complete owner-scop
 snapshot, while v1 export/import/recovery remains unchanged. It uses the existing
 dates capability flags and migration 004, with no new dependency or migration.
 SQL concurrency and real Dart HTTPS checks passed on isolated synthetic fixtures;
-Windows native v2 acceptance remains pending. No v2 import or restore is provided.
+Windows native v2 acceptance remains pending. The separate import-v2 source slice
+below is opt-in and does not alter v1.
 See [v2 contract and acceptance limits](../docs/inventory-export-v2.md).
+
+### Optional date-aware import v2
+
+The separate review page requires `ASSET_DESK_ENABLE_IMPORT_V2=true`, existing
+`ASSET_DESK_ENABLE_IMPORT=true` and `ASSET_DESK_ENABLE_ASSET_DATES=true`,
+an authenticated session and a store implementing the v2 import capability.
+All feature flags default off. Backend v2 also requires its explicit import/date
+flags and existing date schema; see the [v2 proposal](../docs/inventory-import-v2-proposal.md).
+
+Review all fields and dates, save a private recovery file, then acknowledge and
+confirm explicitly. Recovery files contain plaintext serials and notes. Reopening
+one validates the configured account/backend but never submits automatically;
+unknown outcomes permit only explicit replay of the same request/key. Neither
+checksum nor an empty analyzer result proves authenticity or security.
+See [UI scope and offline evidence](../docs/inventory-import-v2-ui-plan.md).
+Windows file-dialog acceptance and regular deployment remain pending.
 
 ## Optional warranty filtering
 

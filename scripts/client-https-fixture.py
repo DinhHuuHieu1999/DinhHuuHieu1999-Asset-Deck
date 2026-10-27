@@ -48,8 +48,32 @@ def dates_mode(args):
     return value
 
 
+IMPORT_V2_FILES = IMPORT_FILES + DATES_FILES + (
+    'backend/dist/domains/assets/asset-import-v2.config.js',
+    'backend/dist/domains/assets/asset-import-v2.module.js',
+    'backend/dist/domains/assets/asset-import-v2.controller.js',
+    'backend/dist/domains/assets/asset-import-v2.repository.js',
+    'backend/dist/domains/assets/asset-import-v2.js',
+    'backend/dist/domains/assets/asset-import-v2-parser.js',
+    'flutter/tool/import_v2_https_acceptance.dart',
+    'flutter/lib/api/asset_import_v2.dart',
+    'flutter/lib/api/asset_import_v2_recovery.dart',
+    'flutter/lib/api/asset_export_v2.dart',
+)
+
+
+def import_v2_mode(args):
+    """Separate fixed profile; never widen legacy import/dates fixtures."""
+    value = getattr(args, 'import_v2_mode', False)
+    if type(value) is not bool or (value and (import_mode(args) or dates_mode(args))):
+        raise Refusal('Invalid import v2 fixture profile')
+    return value
+
+
 def fixture_files(args):
     """Return a fixed source/artifact set for the selected fixture profile."""
+    if import_v2_mode(args):
+        return FILES + IMPORT_V2_FILES
     dates = dates_mode(args)
     return FILES + (DATES_FILES if dates else IMPORT_FILES if import_mode(args) else ())
 
@@ -176,14 +200,37 @@ def assert_owned(runtime, name, identity):
         raise Refusal('Container ownership mismatch; resource retained')
 
 
+PROGRESS_STAGES = ('database-create', 'database-readiness', 'migrations',
+                   'backend-readiness', 'proxy-readiness', 'dart-client',
+                   'native-session', 'completed')
+
+
+def record_progress(folder, identity, stage):
+    """Flush fixed, credential-free milestones; never serialize commands/errors."""
+    if (stage not in PROGRESS_STAGES or not isinstance(identity, str) or
+            len(identity) != 32 or any(c not in '0123456789abcdef' for c in identity)):
+        raise Refusal('Invalid progress milestone')
+    mode = 'x' if stage == 'database-create' else 'a'
+    with (folder / 'progress.jsonl').open(mode, encoding='utf-8') as stream:
+        stream.write(json.dumps({'fixtureId': identity, 'stage': stage}) + '\n')
+        stream.flush()
+        os.fsync(stream.fileno())
+
+
 def execute(root, args, runtime, acceptance=None):
     """Run once, retain evidence/volume, and stop only resources created here."""
-    enabled = import_mode(args)
-    dates = dates_mode(args)
+    v2 = import_v2_mode(args)
+    enabled = import_mode(args) or v2
+    dates = dates_mode(args) or v2
     if (enabled or dates) and acceptance is None:
         raise Refusal('Import fixture requires its dedicated acceptance driver')
     if enabled and any(not (root / name).is_file() for name in IMPORT_FILES):
         raise Refusal('Import fixture source is missing')
+    if v2 and any(not (root / name).is_file() for name in IMPORT_V2_FILES):
+        raise Refusal('Import v2 fixture source is missing')
+    disabled_v2 = getattr(args, 'disabled_v2_route', False)
+    if type(disabled_v2) is not bool or (disabled_v2 and not v2):
+        raise Refusal('Invalid disabled v2 route profile')
     image = runtime.run(['docker', 'image', 'inspect', '--format', '{{.Id}}', args.image]).decode().strip()
     if image != args.image:
         raise Refusal('Existing image identity mismatch')
@@ -196,6 +243,7 @@ def execute(root, args, runtime, acceptance=None):
     owned = False
     report = {'status': 'failed', 'fixtureId': identity, 'nativeAcceptance': 'pending', 'stage': 'database-create'}
     try:
+        record_progress(folder, identity, 'database-create')
         runtime.run(['docker', 'volume', 'create', '--label', LABEL + '=' + identity, volume])
         password = secrets.token_hex(24)
         child_env = dict(runtime.env, POSTGRES_PASSWORD=password, PGPASSWORD=password)
@@ -206,6 +254,7 @@ def execute(root, args, runtime, acceptance=None):
         assert_owned(runtime, name, identity)
         runtime.run(['docker', 'start', name])
         report['stage'] = 'database-readiness'
+        record_progress(folder, identity, 'database-readiness')
         # Readiness polling, not a retry of the acceptance scenario.
         ready = False
         until = min(runtime.deadline, time.monotonic() + 30)
@@ -223,7 +272,10 @@ def execute(root, args, runtime, acceptance=None):
         if not ready:
             raise Refusal('Database readiness timed out')
         report['stage'] = 'migrations'
+        record_progress(folder, identity, 'migrations')
         migrations = FILES[1:3] + (IMPORT_FILES[:1] if enabled else DATES_FILES[:1] if dates else ())
+        if v2:
+            migrations = FILES[1:3] + IMPORT_FILES[:1] + DATES_FILES[:1]
         for migration in migrations:
             runtime.run(['docker', 'exec', '-i', name, 'psql', '-v', 'ON_ERROR_STOP=1', '-U', 'fixture', '-d', 'fixture'], data=(root / migration).read_bytes())
         env = dict(runtime.env, NODE_ENV='production', BACKEND_HTTP_PORT=str(args.backend_port),
@@ -233,15 +285,19 @@ def execute(root, args, runtime, acceptance=None):
                    REQUEST_FRESHNESS_ENABLED='true', THROTTLE_LIMIT='1000', ASSET_DESK_FIXTURE_ID=identity)
         env['ASSET_IMPORT_ENABLED'] = 'true' if enabled else 'false'
         env['ASSET_DATES_ENABLED'] = 'true' if dates else 'false'
+        env['ASSET_IMPORT_V2_ENABLED'] = 'true' if v2 and not disabled_v2 else 'false'
         report['stage'] = 'backend-readiness'
+        record_progress(folder, identity, 'backend-readiness')
         backend = runtime.start(['node', '--require', str(root / 'scripts/client-https-backend.cjs'), str(root / FILES[0])], folder, env)
         runtime.wait_backend(folder, identity, args.backend_port, backend)
         report['stage'] = 'proxy-readiness'
+        record_progress(folder, identity, 'proxy-readiness')
         proxy = runtime.start(['node', str(root / 'scripts/client-https-proxy-cli.mjs'), '--synthetic-only',
-                               str(args.backend_port), str(args.tls_port), identity, args.cert, args.key] + (['--import-enabled'] if enabled else ['--dates-enabled'] if dates else []), folder)
+                               str(args.backend_port), str(args.tls_port), identity, args.cert, args.key] + (['--import-v2-enabled'] if v2 else ['--import-enabled'] if enabled else ['--dates-enabled'] if dates else []), folder)
         runtime.wait_port(args.tls_port, proxy)
         if acceptance is None:
             report['stage'] = 'dart-client'
+            record_progress(folder, identity, 'dart-client')
             output = runtime.run([args.dart, '--disable-dart-dev', str(root / 'flutter/tool/client_https_acceptance.dart'),
                                   '--synthetic-only', 'https://localhost:%s/api/v1' % args.tls_port, identity], cwd=root / 'flutter')
             result = json.loads(output)
@@ -250,8 +306,10 @@ def execute(root, args, runtime, acceptance=None):
             report.update(result)
         else:
             report['stage'] = 'native-session'
+            record_progress(folder, identity, 'native-session')
             report.update(acceptance(root, args, runtime, folder, identity, backend, proxy))
         report['stage'] = 'completed'
+        record_progress(folder, identity, 'completed')
         report['sourceHashes'] = {name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in fixture_files(args)}
     finally:
         cleanup_failed = False

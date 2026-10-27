@@ -29,6 +29,9 @@ void main() {
           'ASSET_DESK_ENABLE_ASSET_DATES',
         ),
         importApiBase: api.baseUrl.toString(),
+        enableInventoryImportV2: const bool.fromEnvironment(
+          'ASSET_DESK_ENABLE_IMPORT_V2',
+        ),
         enableInventoryImport: const bool.fromEnvironment(
           'ASSET_DESK_ENABLE_IMPORT',
         ),

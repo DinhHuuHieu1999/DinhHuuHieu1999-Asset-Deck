@@ -6,8 +6,10 @@ export function createRecoveryFault({
   syntheticOnly,
   importEnabled,
   requestId,
+  schemaVersion = 1,
 }) {
   if (
+    ![1, 2].includes(schemaVersion) ||
     syntheticOnly !== true ||
     importEnabled !== true ||
     typeof requestId !== "string" ||
@@ -22,7 +24,10 @@ export function createRecoveryFault({
       if (
         claimed ||
         method !== "POST" ||
-        path !== "/api/v1/assets/import" ||
+        path !==
+          (schemaVersion === 2
+            ? "/api/v1/assets/import/v2"
+            : "/api/v1/assets/import") ||
         !Buffer.isBuffer(bytes) ||
         bytes.length > 1024 * 1024
       )

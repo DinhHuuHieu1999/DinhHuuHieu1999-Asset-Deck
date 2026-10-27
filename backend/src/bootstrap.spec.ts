@@ -1,3 +1,4 @@
+import { AssetImportV2Module } from './domains/assets/asset-import-v2.module';
 import { AssetDatesModule } from './domains/assets/asset-dates.module';
 jest.mock('./app/modules/app.module', () => ({
   AppModule: class AppModule {},
@@ -22,6 +23,7 @@ jest.mock('@nestjs/core', () => ({
 describe('opt-in import bootstrap', () => {
   const original = process.env.ASSET_IMPORT_ENABLED;
   const originalDates = process.env.ASSET_DATES_ENABLED;
+  const originalV2 = process.env.ASSET_IMPORT_V2_ENABLED;
   const app = {
     use: jest.fn(),
     set: jest.fn(),
@@ -34,16 +36,38 @@ describe('opt-in import bootstrap', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     delete process.env.ASSET_IMPORT_ENABLED;
+    delete process.env.ASSET_IMPORT_V2_ENABLED;
     delete process.env.ASSET_DATES_ENABLED;
     jest.mocked(NestFactory.create).mockResolvedValue(app as never);
     app.listen.mockResolvedValue(undefined);
     app.close.mockResolvedValue(undefined);
   });
   afterEach(() => {
+    if (originalV2 === undefined) delete process.env.ASSET_IMPORT_V2_ENABLED;
+    else process.env.ASSET_IMPORT_V2_ENABLED = originalV2;
     if (originalDates === undefined) delete process.env.ASSET_DATES_ENABLED;
     else process.env.ASSET_DATES_ENABLED = originalDates;
     if (original === undefined) delete process.env.ASSET_IMPORT_ENABLED;
     else process.env.ASSET_IMPORT_ENABLED = original;
+  });
+  it('registers v2 only with all three flags and its separate parser', async () => {
+    process.env.ASSET_IMPORT_ENABLED = 'true';
+    process.env.ASSET_DATES_ENABLED = 'true';
+    process.env.ASSET_IMPORT_V2_ENABLED = 'true';
+    await bootstrap();
+    expect(NestFactory.create).toHaveBeenCalledWith(
+      {
+        module: AppModule,
+        imports: [AssetImportModule, AssetDatesModule, AssetImportV2Module],
+      },
+      { bodyParser: true, abortOnError: false },
+    );
+    expect(app.use).toHaveBeenCalledTimes(4);
+  });
+  it('refuses inconsistent v2 configuration before constructing an app', async () => {
+    process.env.ASSET_IMPORT_V2_ENABLED = 'true';
+    await expect(bootstrap()).rejects.toThrow('requires import and dates');
+    expect(NestFactory.create).not.toHaveBeenCalled();
   });
   it('registers date capability only under its explicit flag without the import parser', async () => {
     process.env.ASSET_DATES_ENABLED = 'true';

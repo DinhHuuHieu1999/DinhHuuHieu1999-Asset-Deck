@@ -174,6 +174,32 @@ class NativeTests(unittest.TestCase):
         runtime.run.assert_called_once()
         runtime.start.assert_called_once()
 
+    def test_v2_profile_requires_all_exact_build_flags_and_refuses_mixed_modes(self):
+        self.args.import_v2_mode = True
+        with self.assertRaises(native.client.Refusal):
+            native.verify_candidate(self.root, self.args)
+        self.manifest['buildDefines'] = {'ASSET_DESK_ENABLE_IMPORT': 'true',
+                                        'ASSET_DESK_ENABLE_IMPORT_V2': 'true',
+                                        'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+        self.write_manifest()
+        self.assertEqual(native.verify_candidate(self.root, self.args), Path(self.args.candidate))
+        self.args.import_mode = True
+        with self.assertRaises(native.client.Refusal):
+            native.verify_candidate(self.root, self.args)
+
+    def test_v2_synthetic_file_retains_dates_and_checksum(self):
+        folder = self.root / 'v2-file'
+        folder.mkdir()
+        path = native.prepare_import_file(folder, v2=True)
+        envelope = json.loads(path.read_text(encoding='utf-8'))
+        self.assertEqual(envelope['schemaVersion'], 2)
+        self.assertEqual(envelope['sha256'], hashlib.sha256(envelope['payload'].encode()).hexdigest())
+        record = json.loads(envelope['payload'])['records'][0]
+        self.assertEqual(record['purchasedOn'], '2024-02-29')
+        self.assertEqual(record['warrantyExpiresOn'], '2027-02-28')
+        with self.assertRaises(FileExistsError):
+            native.prepare_import_file(folder, v2=True)
+
     def test_import_profile_requires_exact_build_metadata(self):
         self.args.import_mode = True
         for value in (None, {}, {'ASSET_DESK_ENABLE_IMPORT': True},
@@ -213,6 +239,22 @@ class NativeTests(unittest.TestCase):
         self.assertEqual(handoff['expectedBefore'], 1)
         self.assertEqual(handoff['expectedAfter'], 2)
         self.assertTrue(Path(handoff['importFile']).is_file())
+        self.assertEqual(result['nativeAcceptance'], 'pending')
+        runtime.start.assert_called_once()
+
+    def test_v2_handoff_uses_date_aware_file_without_claiming_acceptance(self):
+        self.args.import_v2_mode = True
+        self.manifest['buildDefines'] = {'ASSET_DESK_ENABLE_IMPORT': 'true',
+                                        'ASSET_DESK_ENABLE_IMPORT_V2': 'true',
+                                        'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+        self.write_manifest()
+        runtime = self.runtime()
+        result = self.run_session(runtime)
+        handoff = json.loads((self.root/'evidence/operator-handoff.json').read_text())
+        path = Path(handoff['importFile'])
+        self.assertEqual(path.name, 'inventory-import-v2-synthetic.json')
+        self.assertEqual(json.loads(path.read_text())['schemaVersion'], 2)
+        self.assertEqual((handoff['expectedBefore'], handoff['expectedAfter']), (1, 2))
         self.assertEqual(result['nativeAcceptance'], 'pending')
         runtime.start.assert_called_once()
 
