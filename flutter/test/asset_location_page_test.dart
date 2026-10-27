@@ -244,6 +244,39 @@ void main() {
     expect(source.locationWrites, 1);
     expect(source.locationCalls, hasLength(2));
   });
+  testWidgets(
+    'blank exact error is inline and never requests unknown results',
+    (tester) async {
+      final source = LocationStore();
+      await openLocation(tester, source);
+      await selectLocation(tester, 'Exact location');
+      final calls = source.locationCalls.length;
+      await tester.ensureVisible(find.text('Apply filters'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Apply filters'));
+      await tester.pumpAndSettle();
+      final field = find.widgetWithText(TextField, 'Exact location');
+      expect(
+        tester.widget<TextField>(field).decoration!.errorText,
+        'Enter a location (1-120 characters), or select Unknown location.',
+      );
+      expect(source.locationCalls.length, calls);
+      await tester.enterText(field, 'Office');
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(field).decoration!.errorText, isNull);
+      await tester.enterText(field, '');
+      await tester.tap(find.text('Apply filters'));
+      await tester.pumpAndSettle();
+      await selectLocation(tester, 'Unknown location');
+      await tester.ensureVisible(find.text('Apply filters'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Apply filters'));
+      await tester.pumpAndSettle();
+      expect(source.locationCalls.last['mode'], 'unknown');
+      expect(source.locationCalls.last['location'], isNull);
+    },
+  );
+
   for (final width in [390.0, 768.0, 1440.0]) {
     testWidgets('enabled location controls at $width and text 200%', (
       tester,
@@ -283,8 +316,13 @@ void main() {
       await selectLocation(tester, 'Exact location');
       final field = find.widgetWithText(TextField, 'Exact location');
       await tester.ensureVisible(field);
-      await tester.enterText(field, 'Office');
+      await tester.enterText(field, '');
+      await tester.ensureVisible(find.text('Apply filters'));
       await tester.pumpAndSettle();
+      await tester.tap(find.text('Apply filters'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(field);
+      expect(tester.widget<TextField>(field).decoration!.errorText, isNotNull);
       expect(tester.takeException(), isNull);
       final directory = Platform.environment['ASSET_DESK_UI_CAPTURE_DIR'];
       if (directory != null)

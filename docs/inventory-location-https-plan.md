@@ -65,3 +65,26 @@ Dart client passed the fixed two-owner, 53-asset scenario, including literal
 location/warranty paging and both export versions. Source hashes were unchanged;
 cleanup reported stopped. Synthetic resources and evidence were retained.
 Native UI, restart/restore and regular-backend rollout remain unverified.
+
+## Native harness checkpoint
+
+The native runner accepts `--location-mode` as an exclusive profile. It requires
+candidate metadata with exactly `ASSET_DESK_ENABLE_ASSET_LOCATION=true` and
+`ASSET_DESK_ENABLE_ASSET_DATES=true`; import flags are refused. Existing deployment
+hash, TLS, ownership and bounded-session guards remain unchanged.
+
+The synthetic seed creates one asset without a location. The private handoff asks
+the operator to save `Synthetic room %_1`, refresh, test exact/unknown filters,
+clear the label and verify unrelated fields are unchanged. No import file is
+created. Offline tests mock all process/network operations and keep manual native
+acceptance pending. A Windows build and fixture launch require separate approval;
+this checkpoint does not authorize either operation or any SAC/trust change.
+
+## Exact-filter validation feedback
+
+Empty or invalid exact labels show a field-level error with a red outline and
+wrapped guidance to enter a label or select Unknown location. Editing the label
+or changing location mode clears that validation message. Invalid Apply never
+requests new results; the previously applied list remains unchanged. Native
+feedback confirmed save/refresh, exact/unknown filters and clearing; preservation
+of unrelated fields still awaits explicit operator confirmation.

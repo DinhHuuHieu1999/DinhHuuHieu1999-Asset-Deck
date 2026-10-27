@@ -16,6 +16,7 @@ _spec.loader.exec_module(client)
 
 def verify_candidate(root, args):
     """Require a complete hashed deployment, pinned to the intended TLS endpoint."""
+    location = client.location_mode(args)
     v2 = client.import_v2_mode(args)
     enabled = client.import_mode(args) or v2
     if not args.execute_native or not args.execute_synthetic:
@@ -47,8 +48,11 @@ def verify_candidate(root, args):
     defines = {'ASSET_DESK_ENABLE_IMPORT': 'true'}
     if v2:
         defines.update(ASSET_DESK_ENABLE_IMPORT_V2='true', ASSET_DESK_ENABLE_ASSET_DATES='true')
-    if enabled and value.get('buildDefines') != defines:
-        raise client.Refusal('Candidate import build contract missing')
+    if location:
+        defines = {'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+    if (enabled or location) and value.get('buildDefines') != defines:
+        raise client.Refusal('Candidate feature build contract missing')
     files = value['files']
     if not {'asset_desk.exe', 'flutter_windows.dll', 'data/icudtl.dat'} <= set(files):
         raise client.Refusal('Required deployment files missing')
@@ -117,6 +121,10 @@ def native_session(root, args, runtime, folder, identity, backend, proxy):
         handoff.update(importFile=str(import_file), expectedBefore=1, expectedAfter=2,
                        importedAssetName='Synthetic native imported asset',
                        instructions='Sign in, open Import, choose the synthetic file, review and explicitly confirm once; refresh. Never use real data.')
+    if client.location_mode(args):
+        handoff.update(locationMode=True, expectedAssets=1,
+                       locationLabel='Synthetic room %_1',
+                       instructions='Sign in; edit the synthetic asset location to Synthetic room %_1; save and refresh. Test exact and unknown filters, clear the location and refresh. Verify base fields remain unchanged. Never use real data.')
     # Credentials are private local fixture evidence, never stdout or tracked source.
     with (folder / 'operator-handoff.json').open('x', encoding='utf-8') as stream:
         stream.write(json.dumps(handoff, indent=2) + '\n')
@@ -143,6 +151,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--execute-native', action='store_true')
     parser.add_argument('--execute-synthetic', action='store_true')
+    parser.add_argument('--location-mode', action='store_true')
     parser.add_argument('--import-mode', action='store_true')
     parser.add_argument('--import-v2-mode', action='store_true')
     parser.add_argument('--candidate', default='')

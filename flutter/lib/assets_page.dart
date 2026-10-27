@@ -56,6 +56,7 @@ class _AssetsPageState extends State<AssetsPage> {
   final _location = TextEditingController();
   String _locationMode = 'all', _loadedLocationMode = 'all';
   String? _loadedLocation;
+  String? _locationError;
   Map<String, String?> _locations = {};
   bool get _hasLocation =>
       widget.enableAssetLocation && widget.store is AssetLocationSource;
@@ -100,10 +101,13 @@ class _AssetsPageState extends State<AssetsPage> {
             : null;
       } on FormatException {
         setState(
-          () => _error = 'Enter a valid exact location (1?120 characters).',
+          () => _locationError = 'Enter a location (1-120 characters), or select Unknown location.',
         );
         return;
       }
+    }
+    if (apply && _locationError != null) {
+      setState(() => _locationError = null);
     }
     if (_category.text.length > 64 || category.contains('\u0000')) {
       if (apply) {
@@ -530,7 +534,10 @@ class _AssetsPageState extends State<AssetsPage> {
                 ],
                 onChanged: _busy
                     ? null
-                    : (value) => setState(() => _locationMode = value ?? 'all'),
+                    : (value) => setState(() {
+                        _locationMode = value ?? 'all';
+                        _locationError = null;
+                      }),
               ),
               const SizedBox(height: 12),
               if (_locationMode == 'exact')
@@ -538,7 +545,14 @@ class _AssetsPageState extends State<AssetsPage> {
                   controller: _location,
                   enabled: !_busy,
                   maxLength: 120,
-                  decoration: const InputDecoration(
+                  onChanged: (_) {
+                    if (_locationError != null) {
+                      setState(() => _locationError = null);
+                    }
+                  },
+                  decoration: InputDecoration(
+                    errorText: _locationError,
+                    errorMaxLines: 4,
                     labelText: 'Exact location',
                     helperText: 'Case-sensitive; % and _ are literal.',
                     helperMaxLines: 3,

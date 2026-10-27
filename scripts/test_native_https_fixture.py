@@ -61,6 +61,46 @@ class NativeTests(unittest.TestCase):
         folder.mkdir()
         return native.native_session(self.root, self.args, runtime, folder, 'a' * 32, *self.services)
 
+    def test_location_requires_exact_build_defines(self):
+        self.args.location_mode = True
+        for defines in (None, {}, {'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true'},
+                        {'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+                         'ASSET_DESK_ENABLE_ASSET_DATES': 'true',
+                         'ASSET_DESK_ENABLE_IMPORT': 'true'}):
+            self.manifest['buildDefines'] = defines
+            self.write_manifest()
+            with self.subTest(defines=defines), self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+        self.manifest['buildDefines'] = {
+            'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+            'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+        self.write_manifest()
+        native.verify_candidate(self.root, self.args)
+
+    def test_location_rejects_mixed_and_untyped_profiles(self):
+        for field in ('import_mode', 'import_v2_mode', 'dates_mode'):
+            self.args.location_mode = True
+            setattr(self.args, field, True)
+            with self.subTest(field=field), self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+            setattr(self.args, field, False)
+        self.args.location_mode = 'true'
+        with self.assertRaises(native.client.Refusal):
+            native.verify_candidate(self.root, self.args)
+
+    def test_location_handoff_is_manual_and_has_no_import_file(self):
+        self.args.location_mode = True
+        self.manifest['buildDefines'] = {
+            'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+            'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+        self.write_manifest()
+        result = self.run_session(self.runtime())
+        value = json.loads((self.root / 'evidence/operator-handoff.json').read_text(encoding='utf-8'))
+        self.assertTrue(value['locationMode'])
+        self.assertEqual(value['expectedAssets'], 1)
+        self.assertNotIn('importFile', value)
+        self.assertEqual(result['nativeAcceptance'], 'pending')
+
     def test_no_opt_in_refuses_before_file_io(self):
         self.args.execute_native = False
         with patch.object(Path, 'is_file', side_effect=AssertionError('No IO')):
