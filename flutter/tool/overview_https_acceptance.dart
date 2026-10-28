@@ -4,6 +4,7 @@ import 'dart:math';
 
 import '../lib/api/asset.dart';
 import '../lib/api/asset_api.dart';
+import '../lib/api/asset_overview.dart';
 import 'client_https_acceptance.dart'
     show check, validateDriverArgs, validateMarker;
 
@@ -102,6 +103,44 @@ Future<void> main(List<String> args) async {
           overview.byCategory['Network'] == 1 &&
           overview.byCategory['%_\u6a5f\u5668'] == 1,
     );
+    // Traverse each explicit selection through the same API used by inventory.
+    // This checks transport/owner scope, not native button interaction.
+    stage = 'drilldown';
+    for (final selection in [
+      ...overview.byStatus.keys.map(InventoryOverviewSelection.status),
+      ...overview.byCategory.keys.map(InventoryOverviewSelection.category),
+    ]) {
+      final ids = <String>{};
+      var offset = 0;
+      while (true) {
+        final page = await a.list(
+          query: '',
+          status: selection.status,
+          category: selection.category,
+          offset: offset,
+        );
+        for (final row in page.items) {
+          check(ids.add(row.id));
+          check(
+            selection.status.isEmpty || row.input.status == selection.status,
+          );
+          check(
+            selection.category.isEmpty ||
+                row.input.category == selection.category,
+          );
+        }
+        final next = page.nextOffset;
+        if (next == null) break;
+        check(next > offset && next <= 100);
+        offset = next;
+      }
+      check(
+        ids.length ==
+            (selection.status.isNotEmpty
+                ? overview.byStatus[selection.status]
+                : overview.byCategory[selection.category]),
+      );
+    }
     stage = 'other-owner';
     final theirs = await b.overview();
     check(

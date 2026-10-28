@@ -821,6 +821,79 @@ void main() {
         expect(calls.length, before);
       },
     );
+    for (final mode in ['warranty', 'locations']) {
+      test(
+        '$mode Unicode category boundary preserves transport scope',
+        () async {
+          await login();
+          final category = String.fromCharCode(0x1f527) * 64;
+          handler = (request) async {
+            expect(request.uri.queryParameters['category'], category);
+            expect(
+              request.uri.path,
+              mode == 'warranty'
+                  ? '/api/v1/assets/warranty'
+                  : '/api/v1/assets/locations/inventory',
+            );
+            json(
+              request,
+              mode == 'warranty'
+                  ? warrantyFixture()
+                  : {'items': <Object?>[], 'nextOffset': null},
+            );
+          };
+          Future<void> load(String value) async {
+            if (mode == 'warranty') {
+              await api.listWarranty(
+                query: '',
+                status: '',
+                category: value,
+                warranty: 'expiring_soon',
+                asOf: '2026-10-26',
+                offset: 0,
+              );
+            } else {
+              await api.listLocations(
+                query: '',
+                status: '',
+                category: value,
+                offset: 0,
+              );
+            }
+          }
+
+          final before = calls.length;
+          await load(category);
+          expect(calls.length, before + 1);
+          await expectLater(
+            load(category + 'x'),
+            throwsA(
+              isA<AssetFailure>().having(
+                (error) => error.definitelyNotSent,
+                'not sent',
+                true,
+              ),
+            ),
+          );
+          expect(calls.length, before + 1);
+        },
+      );
+    }
+    test('category filter accepts 64 Unicode code points and rejects 65 before transport', () async {
+      await login();
+      final category = String.fromCharCode(0x1f527) * 64;
+      handler = (request) async {
+        expect(request.uri.queryParameters['category'], category);
+        json(request, {'items': <Object?>[], 'nextOffset': null});
+      };
+      await api.list(query: '', status: '', category: category, offset: 0);
+      final before = calls.length;
+      await expectLater(
+        api.list(query: '', status: '', category: category + 'x', offset: 0),
+        throwsA(isA<AssetFailure>()),
+      );
+      expect(calls.length, before);
+    });
     test(
       'register sends only public fields and accepts valid identity',
       () async {

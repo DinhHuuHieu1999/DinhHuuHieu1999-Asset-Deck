@@ -5,6 +5,31 @@ abstract interface class AssetOverviewSource {
   Future<AssetOverview> overview();
 }
 
+/// One explicit dimension selected from the full-inventory overview.
+class InventoryOverviewSelection {
+  const InventoryOverviewSelection._(this.status, this.category);
+  final String status, category;
+
+  /// Select a known status, clearing every other inventory filter.
+  factory InventoryOverviewSelection.status(String value) {
+    if (!assetStatuses.contains(value)) {
+      throw const FormatException('Invalid overview status selection');
+    }
+    return InventoryOverviewSelection._(value, '');
+  }
+
+  /// Select an exact label supported by the existing category filter.
+  factory InventoryOverviewSelection.category(String value) {
+    if (value.isEmpty ||
+        value.trim() != value ||
+        value.runes.length > 64 ||
+        value.contains('\u0000')) {
+      throw const FormatException('Invalid overview category selection');
+    }
+    return InventoryOverviewSelection._('', value);
+  }
+}
+
 /// Validated immutable complete inventory counts, never inferred from a list page.
 class AssetOverview {
   AssetOverview._(

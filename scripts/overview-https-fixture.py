@@ -32,7 +32,7 @@ def acceptance(root, args, runtime, folder, identity, backend, proxy):
                           '--synthetic-only', 'https://localhost:%s/api/v1' % args.tls_port, identity], cwd=root/'flutter')
     value = json.loads(output)
     stages = ('marker', 'registration', 'empty-overview', 'seed', 'list',
-              'complete-overview', 'other-owner', 'read-only-record-comparison',
+              'complete-overview', 'drilldown', 'other-owner', 'read-only-record-comparison',
               'update', 'updated-overview', 'sign-out')
     if isinstance(value, dict) and value.get('status') == 'failed' and value.get('stage') in stages:
         (folder/'overview-diagnostic.json').write_text(json.dumps({'status': 'failed', 'stage': value['stage']})+'\n', encoding='utf-8')

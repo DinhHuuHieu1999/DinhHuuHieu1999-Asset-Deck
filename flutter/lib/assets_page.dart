@@ -136,7 +136,7 @@ class _AssetsPageState extends State<AssetsPage> {
     if (apply && _locationError != null) {
       setState(() => _locationError = null);
     }
-    if (_category.text.length > 64 || category.contains('\u0000')) {
+    if (_category.text.runes.length > 64 || category.contains('\u0000')) {
       if (apply) {
         setState(
           () => _error = 'Category must be at most 64 characters without NUL.',
@@ -307,6 +307,34 @@ class _AssetsPageState extends State<AssetsPage> {
     if (saved == true && mounted) await _load();
   }
 
+  Future<void> _openInventoryOverview() async {
+    final store = widget.store;
+    final revision = store is AssetSession ? store.sessionRevision : null;
+    final selection = await Navigator.of(context)
+        .push<InventoryOverviewSelection>(
+          MaterialPageRoute(
+            builder: (_) =>
+                InventoryOverviewPage(source: store as AssetOverviewSource),
+          ),
+        );
+    if (!mounted ||
+        selection == null ||
+        _busy ||
+        !identical(store, widget.store) ||
+        (store is AssetSession && store.sessionRevision != revision))
+      return;
+    setState(() {
+      _query.clear();
+      _category.text = selection.category;
+      _status = selection.status;
+      _warranty = '';
+      _locationMode = 'all';
+      _location.clear();
+      _locationError = null;
+    });
+    await _load(apply: true);
+  }
+
   Future<void> _openLocationOverview() async {
     final selection = await Navigator.of(context)
         .push<LocationOverviewSelection>(
@@ -371,16 +399,10 @@ class _AssetsPageState extends State<AssetsPage> {
                 child: const Text('Warranty overview'),
               ),
             ],
-            if (widget.store case final AssetOverviewSource source) ...[
+            if (widget.store is AssetOverviewSource) ...[
               const SizedBox(height: 8),
               OutlinedButton(
-                onPressed: _busy
-                    ? null
-                    : () => Navigator.of(context).push<void>(
-                        MaterialPageRoute(
-                          builder: (_) => InventoryOverviewPage(source: source),
-                        ),
-                      ),
+                onPressed: _busy ? null : _openInventoryOverview,
                 child: const Text('Inventory overview'),
               ),
             ],

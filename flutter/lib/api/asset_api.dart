@@ -184,7 +184,7 @@ class AssetApi
     required int offset,
   }) async {
     final epoch = _requireAccount();
-    if (category.length > 64 ||
+    if (category.runes.length > 64 ||
         category.contains('\u0000') ||
         query.length > 120 ||
         query.contains('\u0000') ||
@@ -252,7 +252,7 @@ class AssetApi
         offset > 100000 ||
         query.length > 120 ||
         query.contains('\u0000') ||
-        category.length > 64 ||
+        category.runes.length > 64 ||
         category.contains('\u0000') ||
         (status.isNotEmpty && !assetStatuses.contains(status))) {
       throw const AssetFailure(
@@ -389,7 +389,7 @@ class AssetApi
           (locationMode == 'exact' && location == null) ||
           query.length > 120 ||
           query.contains('\u0000') ||
-          category.length > 64 ||
+          category.runes.length > 64 ||
           category.contains('\u0000') ||
           (status.isNotEmpty && !assetStatuses.contains(status)) ||
           offset < 0 ||

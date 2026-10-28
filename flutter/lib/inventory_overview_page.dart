@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'api/asset_overview.dart';
@@ -18,10 +20,46 @@ class _InventoryOverviewPageState extends State<InventoryOverviewPage> {
   String? _error;
   bool _busy = false;
   int _request = 0;
+  int? _loadedRevision;
+  StreamSubscription<int>? _subscription;
+
+  void _bind() {
+    final source = widget.source;
+    if (source is AssetSession) {
+      _subscription = (source as AssetSession).sessionChanges.listen((_) {
+        if (!mounted) return;
+        _request++;
+        setState(() {
+          _overview = null;
+          _busy = false;
+          _error = 'Session changed. Return to inventory and sign in again.';
+        });
+      });
+    }
+  }
+
+  void _select(InventoryOverviewSelection selection) {
+    final source = widget.source;
+    if (_busy ||
+        _error != null ||
+        _overview == null ||
+        (source is AssetSession &&
+            (source as AssetSession).sessionRevision != _loadedRevision))
+      return;
+    Navigator.of(context).pop(selection);
+  }
+
+  @override
+  void dispose() {
+    _request++;
+    _subscription?.cancel();
+    super.dispose();
+  }
 
   @override
   void initState() {
     super.initState();
+    _bind();
     _load();
   }
 
@@ -29,9 +67,11 @@ class _InventoryOverviewPageState extends State<InventoryOverviewPage> {
   void didUpdateWidget(covariant InventoryOverviewPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.source, widget.source)) {
+      _subscription?.cancel();
       _request++;
       _overview = null;
       _busy = false;
+      _bind();
       _load();
     }
   }
@@ -53,7 +93,11 @@ class _InventoryOverviewPageState extends State<InventoryOverviewPage> {
     });
     try {
       final result = await source.overview();
-      if (current()) setState(() => _overview = result);
+      if (current())
+        setState(() {
+          _overview = result;
+          _loadedRevision = revision;
+        });
     } on AssetFailure catch (error) {
       if (current()) setState(() => _error = error.message);
     } catch (_) {
@@ -78,6 +122,9 @@ class _InventoryOverviewPageState extends State<InventoryOverviewPage> {
               'All inventory for your account. Search, status and category list filters do not apply.',
             ),
             const SizedBox(height: 12),
+            const Text(
+              'View assets replaces search and all other filters. Counts and lists are separate snapshots.',
+            ),
             OutlinedButton(
               onPressed: _busy ? null : _load,
               child: const Text('Refresh overview'),
@@ -111,7 +158,20 @@ class _InventoryOverviewPageState extends State<InventoryOverviewPage> {
               for (final entry in overview.byStatus.entries)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Text('${entry.key}: ${entry.value}'),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${entry.key}: ${entry.value}'),
+                      OutlinedButton(
+                        onPressed: _busy || _error != null
+                            ? null
+                            : () => _select(
+                                InventoryOverviewSelection.status(entry.key),
+                              ),
+                        child: Text('View assets: ${entry.key}'),
+                      ),
+                    ],
+                  ),
                 ),
               const SizedBox(height: 16),
               Text(
@@ -121,7 +181,28 @@ class _InventoryOverviewPageState extends State<InventoryOverviewPage> {
               for (final entry in overview.byCategory.entries)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Text('${entry.key}: ${entry.value}'),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${entry.key}: ${entry.value}'),
+                      if (entry.key.trim() == entry.key &&
+                          entry.key.runes.length <= 64)
+                        OutlinedButton(
+                          onPressed: _busy || _error != null
+                              ? null
+                              : () => _select(
+                                  InventoryOverviewSelection.category(
+                                    entry.key,
+                                  ),
+                                ),
+                          child: Text('View assets: ${entry.key}'),
+                        )
+                      else
+                        const Text(
+                          'This label is not supported by the current category filter.',
+                        ),
+                    ],
+                  ),
                 ),
             ],
           ],

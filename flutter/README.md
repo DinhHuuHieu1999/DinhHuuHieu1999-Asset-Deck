@@ -208,3 +208,15 @@ date/location reads must match its identity and version; failures never appear a
 unknown values. Refresh inventory and reopen to update the snapshot. Back preserves
 the inventory filters. The listed functional checks passed on a synthetic Windows fixture; screen-reader
 acceptance and deployment are not implied.
+
+## Inventory overview drill-down
+
+View assets in Inventory overview selects one status or exact category, clears
+other inventory filters and loads page one. Back without selection preserves the
+previous list and filters. Counts and the loaded list are separate snapshots;
+failed loads retain the previous rows and their applied-filter identity.
+See the [scope and verification](../docs/inventory-overview-drilldown-plan.md);
+the actual Dart client passed isolated HTTPS selection/pagination checks, while
+the operator confirmed status/category selection, empty results and Back preserving
+search/list on a separate Windows fixture. Dedicated keyboard/screen-reader
+acceptance and deployment remain pending.
