@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'api/asset_warranty_overview.dart';
@@ -19,9 +21,46 @@ class _WarrantyOverviewPageState extends State<WarrantyOverviewPage> {
   bool _busy = false;
   int _request = 0;
 
+  int? _loadedRevision;
+  StreamSubscription<int>? _subscription;
+
+  void _bind() {
+    final source = widget.source;
+    if (source is AssetSession) {
+      _subscription = (source as AssetSession).sessionChanges.listen((_) {
+        if (!mounted) return;
+        _request++;
+        setState(() {
+          _overview = null;
+          _busy = false;
+          _error = 'Session changed. Return to inventory and sign in again.';
+        });
+      });
+    }
+  }
+
+  void _select(WarrantyOverviewSelection selection) {
+    final source = widget.source;
+    if (_busy ||
+        _error != null ||
+        _overview == null ||
+        (source is AssetSession &&
+            (source as AssetSession).sessionRevision != _loadedRevision))
+      return;
+    Navigator.of(context).pop(selection);
+  }
+
+  @override
+  void dispose() {
+    _request++;
+    _subscription?.cancel();
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
+    _bind();
     _load();
   }
 
@@ -29,9 +68,11 @@ class _WarrantyOverviewPageState extends State<WarrantyOverviewPage> {
   void didUpdateWidget(covariant WarrantyOverviewPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.source, widget.source)) {
+      _subscription?.cancel();
       _request++;
       _overview = null;
       _busy = false;
+      _bind();
       _load();
     }
   }
@@ -53,7 +94,11 @@ class _WarrantyOverviewPageState extends State<WarrantyOverviewPage> {
     });
     try {
       final result = await source.warrantyOverview();
-      if (current()) setState(() => _overview = result);
+      if (current())
+        setState(() {
+          _overview = result;
+          _loadedRevision = revision;
+        });
     } on AssetFailure catch (error) {
       if (current()) setState(() => _error = error.message);
     } catch (_) {
@@ -78,6 +123,9 @@ class _WarrantyOverviewPageState extends State<WarrantyOverviewPage> {
               'All inventory for your account. Search, status, category and warranty list filters do not apply.',
             ),
             const SizedBox(height: 12),
+            const Text(
+              'View assets clears other filters and keeps this reference date. Counts and lists are separate snapshots.',
+            ),
             OutlinedButton(
               onPressed: _busy ? null : _load,
               child: const Text('Refresh warranty overview'),
@@ -116,6 +164,17 @@ class _WarrantyOverviewPageState extends State<WarrantyOverviewPage> {
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               Text('Warranty ends before ${overview.asOf}.'),
+              OutlinedButton(
+                onPressed: _busy || _error != null
+                    ? null
+                    : () => _select(
+                        WarrantyOverviewSelection(
+                          warranty: 'expired',
+                          asOf: overview.asOf,
+                        ),
+                      ),
+                child: const Text('View expired assets'),
+              ),
               const SizedBox(height: 12),
               Text(
                 'Expiring within 30 days: ${overview.expiringSoon}',
@@ -123,6 +182,17 @@ class _WarrantyOverviewPageState extends State<WarrantyOverviewPage> {
               ),
               const Text(
                 'Includes expiry today and the next 30 calendar days.',
+              ),
+              OutlinedButton(
+                onPressed: _busy || _error != null
+                    ? null
+                    : () => _select(
+                        WarrantyOverviewSelection(
+                          warranty: 'expiring_soon',
+                          asOf: overview.asOf,
+                        ),
+                      ),
+                child: const Text('View assets expiring within 30 days'),
               ),
               const SizedBox(height: 12),
               Text(

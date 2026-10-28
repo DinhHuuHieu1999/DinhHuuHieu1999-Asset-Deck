@@ -1,3 +1,5 @@
+import '../lib/api/asset_warranty_overview.dart';
+
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -111,6 +113,46 @@ Future<void> main(List<String> args) async {
           counts.later == 1 &&
           counts.unknown == 1,
     );
+    // Exercise the typed selection and pinned date against real HTTPS transport.
+    // Native navigation remains a separate acceptance step.
+    stage = 'pagination';
+    for (final filter in ['expired', 'expiring_soon']) {
+      final selection = WarrantyOverviewSelection(
+        warranty: filter,
+        asOf: counts.asOf,
+      );
+      final ids = <String>{};
+      var offset = 0;
+      while (true) {
+        final page = await a.listWarranty(
+          query: '',
+          status: '',
+          offset: offset,
+          warranty: selection.warranty,
+          asOf: selection.asOf,
+        );
+        check(page.asOf == counts.asOf && page.through == counts.through);
+        for (final item in page.items) {
+          check(ids.add(item.asset.id));
+        }
+        final next = page.nextOffset;
+        if (next == null) break;
+        check(next > offset && next <= 100);
+        offset = next;
+      }
+      check(
+        ids.length ==
+            (filter == 'expired' ? counts.expired : counts.expiringSoon),
+      );
+      final otherPage = await b.listWarranty(
+        query: '',
+        status: '',
+        offset: 0,
+        warranty: selection.warranty,
+        asOf: selection.asOf,
+      );
+      check(otherPage.items.isEmpty && otherPage.nextOffset == null);
+    }
     final todayUtc = DateTime.now().toUtc().toIso8601String().substring(0, 10);
     final fresh = await a.warrantyOverview();
     final afterUtc = DateTime.now().toUtc().toIso8601String().substring(0, 10);

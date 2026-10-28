@@ -220,3 +220,11 @@ the actual Dart client passed isolated HTTPS selection/pagination checks, while
 the operator confirmed status/category selection, empty results and Back preserving
 search/list on a separate Windows fixture. Dedicated keyboard/screen-reader
 acceptance and deployment remain pending.
+
+## Warranty overview actions
+
+View expired assets and View assets expiring within 30 days clear other filters
+and load inventory at the overview UTC reference date. Paging and Refresh keep
+that reference; explicit Apply requests a fresh date. Later and Unknown remain
+informational. Back preserves the prior list and filter drafts.
+See [scope and verification](../docs/warranty-overview-drilldown-plan.md).

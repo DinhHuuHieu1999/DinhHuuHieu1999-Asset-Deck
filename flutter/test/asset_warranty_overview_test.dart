@@ -13,6 +13,34 @@ Map<String, Object?> warrantyOverviewFixture() => {
 };
 
 void main() {
+  test('selection accepts only supported buckets and exact calendar dates', () {
+    for (final filter in ['expired', 'expiring_soon']) {
+      final selection = WarrantyOverviewSelection(
+        warranty: filter,
+        asOf: '2024-02-29',
+      );
+      expect(selection.warranty, filter);
+      expect(selection.asOf, '2024-02-29');
+    }
+    for (final filter in ['', 'later', 'unknown', 'Expired']) {
+      expect(
+        () => WarrantyOverviewSelection(warranty: filter, asOf: '2024-02-29'),
+        throwsFormatException,
+      );
+    }
+    for (final date in [
+      '',
+      '2023-02-29',
+      '2026-13-01',
+      '2026-10-27T00:00:00Z',
+      ' 2026-10-27',
+    ]) {
+      expect(
+        () => WarrantyOverviewSelection(warranty: 'expired', asOf: date),
+        throwsFormatException,
+      );
+    }
+  });
   test('accepts complete counts and exact explicit reference', () {
     final result = AssetWarrantyOverview.fromJson(
       warrantyOverviewFixture(),

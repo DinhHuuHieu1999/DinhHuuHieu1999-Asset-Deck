@@ -6,6 +6,18 @@ abstract interface class AssetWarrantyOverviewSource {
   Future<AssetWarrantyOverview> warrantyOverview({String asOf = ''});
 }
 
+/// Validated supported list bucket pinned to the overview calendar reference.
+class WarrantyOverviewSelection {
+  WarrantyOverviewSelection({required this.warranty, required this.asOf}) {
+    if (!assetWarrantyFilters.contains(warranty) ||
+        !isAssetCalendarDate(asOf)) {
+      throw const FormatException('Invalid warranty overview selection');
+    }
+  }
+
+  final String warranty, asOf;
+}
+
 /// Complete owner counts at one calendar reference, never summed from list pages.
 class AssetWarrantyOverview {
   const AssetWarrantyOverview._(

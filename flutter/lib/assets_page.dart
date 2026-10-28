@@ -73,6 +73,7 @@ class _AssetsPageState extends State<AssetsPage> {
   String _loadedCategory = '';
   String _warranty = '', _loadedWarranty = '';
   AssetWarrantyPage? _warrantyPage;
+  String? _pinnedWarrantyAsOf;
   String _status = '', _loadedQuery = '', _loadedStatus = '';
   String? _error;
   AssetPage? _page;
@@ -113,12 +114,20 @@ class _AssetsPageState extends State<AssetsPage> {
     int offset = 0,
     bool apply = false,
     bool preserveWarrantyDate = false,
+    String? warrantyReference,
   }) async {
     if (_busy) return;
     final query = apply ? _query.text.trim() : _loadedQuery;
     final status = apply ? _status : _loadedStatus;
     final category = apply ? _category.text.trim() : _loadedCategory;
     final warranty = apply ? _warranty : _loadedWarranty;
+    final reference =
+        warrantyReference ??
+        (!apply && _pinnedWarrantyAsOf != null
+            ? _pinnedWarrantyAsOf!
+            : (offset > 0 || preserveWarrantyDate
+                  ? (_warrantyPage?.asOf ?? '')
+                  : ''));
     final locationMode = apply ? _locationMode : _loadedLocationMode;
     String? location = _loadedLocation;
     if (apply && _hasLocation) {
@@ -168,9 +177,7 @@ class _AssetsPageState extends State<AssetsPage> {
               locationMode: locationMode,
               location: location,
               warranty: warranty,
-              asOf: warranty.isNotEmpty && (offset > 0 || preserveWarrantyDate)
-                  ? (_warrantyPage?.asOf ?? '')
-                  : '',
+              asOf: warranty.isNotEmpty ? reference : '',
             );
         page = AssetPage(
           result.items.map((entry) => entry.asset).toList(),
@@ -190,9 +197,7 @@ class _AssetsPageState extends State<AssetsPage> {
           category: category,
           warranty: warranty,
           offset: offset,
-          asOf: offset > 0 || preserveWarrantyDate
-              ? (_warrantyPage?.asOf ?? '')
-              : '',
+          asOf: reference,
         );
         page = AssetPage(
           warrantyPage.items.map((item) => item.asset).toList(),
@@ -214,6 +219,9 @@ class _AssetsPageState extends State<AssetsPage> {
         _loadedLocation = location;
         _warrantyPage = warrantyPage;
         _loadedWarranty = warranty;
+        _pinnedWarrantyAsOf = warranty.isEmpty
+            ? null
+            : (apply ? warrantyReference : _pinnedWarrantyAsOf);
         _offset = offset;
         _loadedQuery = query;
         _loadedStatus = status;
@@ -307,6 +315,35 @@ class _AssetsPageState extends State<AssetsPage> {
     if (saved == true && mounted) await _load();
   }
 
+  Future<void> _openWarrantyOverview() async {
+    final store = widget.store;
+    final revision = store is AssetSession ? store.sessionRevision : null;
+    final selection = await Navigator.of(context)
+        .push<WarrantyOverviewSelection>(
+          MaterialPageRoute(
+            builder: (_) => WarrantyOverviewPage(
+              source: store as AssetWarrantyOverviewSource,
+            ),
+          ),
+        );
+    if (!mounted ||
+        selection == null ||
+        _busy ||
+        !identical(store, widget.store) ||
+        (store is AssetSession && store.sessionRevision != revision))
+      return;
+    setState(() {
+      _query.clear();
+      _category.clear();
+      _status = '';
+      _warranty = selection.warranty;
+      _locationMode = 'all';
+      _location.clear();
+      _locationError = null;
+    });
+    await _load(apply: true, warrantyReference: selection.asOf);
+  }
+
   Future<void> _openInventoryOverview() async {
     final store = widget.store;
     final revision = store is AssetSession ? store.sessionRevision : null;
@@ -387,15 +424,7 @@ class _AssetsPageState extends State<AssetsPage> {
                 widget.store is AssetWarrantyOverviewSource) ...[
               const SizedBox(height: 8),
               OutlinedButton(
-                onPressed: _busy
-                    ? null
-                    : () => Navigator.of(context).push<void>(
-                        MaterialPageRoute(
-                          builder: (_) => WarrantyOverviewPage(
-                            source: widget.store as AssetWarrantyOverviewSource,
-                          ),
-                        ),
-                      ),
+                onPressed: _busy ? null : _openWarrantyOverview,
                 child: const Text('Warranty overview'),
               ),
             ],

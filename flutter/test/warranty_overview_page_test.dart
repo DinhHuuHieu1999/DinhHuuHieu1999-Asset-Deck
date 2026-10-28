@@ -1,3 +1,4 @@
+import 'package:asset_desk/api/asset_location.dart';
 import 'package:asset_desk/asset_desk_app.dart';
 
 import 'asset_desk_app_test.dart' show FakeSession;
@@ -17,6 +18,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'asset_warranty_overview_test.dart' show warrantyOverviewFixture;
 import 'assets_page_test.dart' show FakeStore;
+import 'asset_warranty_page_test.dart' show WarrantyStore, openWarranty, press;
 
 class WarrantyOverviewStore extends FakeStore
     implements AssetWarrantyOverviewSource {
@@ -41,7 +43,181 @@ class WarrantySession extends FakeSession
       : pending!.future;
 }
 
+class DrilldownWarrantyStore extends WarrantyStore
+    implements AssetWarrantyOverviewSource {
+  @override
+  Future<AssetWarrantyOverview> warrantyOverview({String asOf = ''}) async =>
+      AssetWarrantyOverview.fromJson(warrantyOverviewFixture());
+}
+
+class LocationDrilldownStore extends DrilldownWarrantyStore
+    implements AssetLocationSource {
+  String? lastMode;
+  @override
+  Future<AssetLocation> readLocation(String id) async =>
+      throw UnimplementedError();
+  @override
+  Future<AssetLocation> updateLocation(
+    AssetLocation original,
+    String? location,
+  ) async => throw UnimplementedError();
+  @override
+  Future<AssetLocationPage> listLocations({
+    required String query,
+    required String status,
+    String category = '',
+    required int offset,
+    String locationMode = 'all',
+    String? location,
+    String warranty = '',
+    String asOf = '',
+  }) async {
+    lastMode = locationMode;
+    if (warranty.isEmpty) return AssetLocationPage([], null);
+    final page = await listWarranty(
+      query: query,
+      status: status,
+      category: category,
+      offset: offset,
+      warranty: warranty,
+      asOf: asOf,
+    );
+    return AssetLocationPage(
+      page.items.map((item) => AssetLocationEntry(item.asset, null)).toList(),
+      page.nextOffset,
+      warrantyPage: page,
+    );
+  }
+}
+
 void main() {
+  testWidgets(
+    'location-aware inventory uses the selected warranty reference too',
+    (tester) async {
+      final store = LocationDrilldownStore();
+      tester.view.physicalSize = const Size(1000, 1800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AssetsPage(
+            store: store,
+            enableAssetDates: true,
+            enableAssetLocation: true,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await press(tester, 'Warranty overview');
+      await press(tester, 'View expired assets');
+      expect(store.lastMode, 'all');
+      expect(store.warrantyCalls.last['asOf'], '2026-10-27');
+      store.today = '2026-10-28';
+      await press(tester, 'Refresh inventory');
+      expect(store.warrantyCalls.last['asOf'], '2026-10-27');
+    },
+  );
+
+  for (final label in [
+    'View expired assets',
+    'View assets expiring within 30 days',
+  ]) {
+    testWidgets(
+      '$label pins overview date across midnight, paging and refresh',
+      (tester) async {
+        final store = DrilldownWarrantyStore()..more = true;
+        await openWarranty(tester, store);
+        await tester.enterText(find.byType(TextField).first, 'draft search');
+        await press(tester, 'Warranty overview');
+        await press(tester, label);
+        final filter = label == 'View expired assets'
+            ? 'expired'
+            : 'expiring_soon';
+        expect(store.warrantyCalls.last, {
+          'query': '',
+          'status': '',
+          'category': '',
+          'warranty': filter,
+          'asOf': '2026-10-27',
+          'offset': 0,
+        });
+        store.today = '2026-10-28';
+        await press(tester, 'Next page');
+        expect(store.warrantyCalls.last['asOf'], '2026-10-27');
+        expect(store.warrantyCalls.last['offset'], 50);
+        await press(tester, 'Refresh inventory');
+        expect(store.warrantyCalls.last['asOf'], '2026-10-27');
+        expect(store.warrantyCalls.last['offset'], 0);
+        await press(tester, 'Apply filters');
+        expect(store.warrantyCalls.last['asOf'], '');
+        expect(store.writes, 0);
+      },
+    );
+  }
+
+  testWidgets('session invalidation clears counts and rejects late response', (
+    tester,
+  ) async {
+    final session = WarrantySession()
+      ..pending = Completer<AssetWarrantyOverview>();
+    await tester.pumpWidget(
+      MaterialApp(home: WarrantyOverviewPage(source: session)),
+    );
+    await tester.pump();
+    session.signOut();
+    await tester.pump();
+    session.pending!.complete(
+      AssetWarrantyOverview.fromJson(warrantyOverviewFixture()),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Session changed'), findsOneWidget);
+    expect(find.textContaining('Total assets:'), findsNothing);
+    expect(find.text('View expired assets'), findsNothing);
+    session.close();
+  });
+  testWidgets('failed overview refresh disables selection of stale counts', (
+    tester,
+  ) async {
+    final store = WarrantyOverviewStore();
+    await tester.pumpWidget(
+      MaterialApp(home: WarrantyOverviewPage(source: store)),
+    );
+    await tester.pumpAndSettle();
+    store.load = () async => throw const AssetFailure('Synthetic refusal');
+    await tester.tap(find.text('Refresh warranty overview'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('View expired assets'), 150);
+    expect(
+      tester
+          .widget<OutlinedButton>(
+            find.widgetWithText(OutlinedButton, 'View expired assets'),
+          )
+          .onPressed,
+      isNull,
+    );
+    expect(find.textContaining('last successful load'), findsOneWidget);
+  });
+  testWidgets('failed drilldown preserves prior rows and applied identity', (
+    tester,
+  ) async {
+    final store = DrilldownWarrantyStore();
+    await openWarranty(tester, store);
+    await tester.enterText(find.byType(TextField).first, 'old');
+    await press(tester, 'Apply filters');
+    store.warrantyFailure = const AssetFailure('Synthetic refusal');
+    await press(tester, 'Warranty overview');
+    await press(tester, 'View expired assets');
+    await tester.scrollUntilVisible(
+      find.text('Laptop'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Laptop'), findsOneWidget);
+    expect(find.textContaining('Applied search: old;'), findsOneWidget);
+    expect(find.textContaining('may be stale'), findsOneWidget);
+    expect(store.writes, 0);
+  });
   testWidgets('valid empty inventory displays zero buckets, not an error', (
     tester,
   ) async {
@@ -282,6 +458,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
+      await tester.scrollUntilVisible(find.text('Total assets: 57'), 100);
       expect(find.text('Total assets: 57'), findsOneWidget);
       final dir = Platform.environment['ASSET_DESK_UI_CAPTURE_DIR'];
       if (dir != null) {
