@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math';
 
 import '../lib/api/asset.dart';
+import '../lib/api/asset_details.dart';
 import '../lib/api/asset_dates.dart';
 import '../lib/api/asset_location.dart';
 import 'export_https_acceptance.dart' show pythonDigest, validatePython;
@@ -139,6 +140,56 @@ Future<void> main(List<String> args) async {
       savedDates.input.purchasedOn == '2024-02-29' &&
           savedDates.input.warrantyExpiresOn == '2027-02-28',
     );
+    stage = 'details';
+    final selected = (await a.list(
+      query: '',
+      status: '',
+      offset: 0,
+    )).items.single;
+    final details = await AssetDetailsSnapshot.load(
+      selected,
+      datesSource: a,
+      locationSource: a,
+    );
+    check(
+      details.dates!.input.purchasedOn == '2024-02-29' &&
+          details.dates!.input.warrantyExpiresOn == '2027-02-28' &&
+          details.location!.location == 'Room %_',
+    );
+    final unchanged = (await a.list(
+      query: '',
+      status: '',
+      offset: 0,
+    )).items.single;
+    check(
+      unchanged.version == selected.version &&
+          unchanged.input.name == selected.input.name,
+    );
+    await refused(
+      () => AssetDetailsSnapshot.load(
+        selected,
+        datesSource: b,
+        locationSource: b,
+      ),
+      404,
+    );
+    var staleRejected = false;
+    try {
+      await AssetDetailsSnapshot.load(row, datesSource: a, locationSource: a);
+    } on AssetFailure {
+      staleRejected = true;
+    }
+    check(staleRejected);
+    final unknown = await AssetDetailsSnapshot.load(
+      other,
+      datesSource: b,
+      locationSource: b,
+    );
+    check(
+      unknown.dates!.input.purchasedOn == null &&
+          unknown.dates!.input.warrantyExpiresOn == null &&
+          unknown.location!.location == null,
+    );
     stage = 'pagination';
     for (var i = 0; i < 51; i++) {
       final asset = await a.create(
@@ -264,6 +315,7 @@ Future<void> main(List<String> args) async {
         'syntheticOnly': true,
         'locationAcceptance': true,
         'locationOverviewAcceptance': true,
+        'assetDetailsAcceptance': true,
         'owners': 2,
         'assetCount': 53,
         'digest': 'python-sha256-stdin',

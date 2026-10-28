@@ -1,3 +1,4 @@
+import 'asset_details_page.dart';
 import 'api/asset_location_overview.dart';
 import 'location_overview_page.dart';
 import 'api/asset_import_v3.dart';
@@ -89,6 +90,23 @@ class _AssetsPageState extends State<AssetsPage> {
     _category.dispose();
     _location.dispose();
     super.dispose();
+  }
+
+  Future<void> _viewDetails(AssetRecord record) async {
+    if (_busy) return;
+    final store = widget.store;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => AssetDetailsPage(
+          record: record,
+          datesSource: widget.enableAssetDates && store is AssetDatesSource
+              ? store as AssetDatesSource
+              : null,
+          locationSource: _hasLocation ? store as AssetLocationSource : null,
+          session: store is AssetSession ? store : null,
+        ),
+      ),
+    );
   }
 
   Future<void> _load({
@@ -744,6 +762,10 @@ class _AssetsPageState extends State<AssetsPage> {
                           ),
                         ],
                         Text('Updated: ${record.updatedAt.toIso8601String()}'),
+                        OutlinedButton(
+                          onPressed: _busy ? null : () => _viewDetails(record),
+                          child: const Text('View details'),
+                        ),
                         OutlinedButton(
                           onPressed: _busy ? null : () => _edit(record),
                           child: const Text('Edit asset'),

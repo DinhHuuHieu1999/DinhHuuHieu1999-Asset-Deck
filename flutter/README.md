@@ -200,3 +200,11 @@ filters explicitly. No migration or dependency is added. Isolated PostgreSQL
 and real Dart HTTPS checks passed; the operator confirmed the listed Windows
 functional checks. Accessibility and deployment remain separate; see
 [the plan](../docs/inventory-location-overview-plan.md).
+
+## Read-only asset details
+
+View details opens the selected inventory snapshot, not a live record. Enabled
+date/location reads must match its identity and version; failures never appear as
+unknown values. Refresh inventory and reopen to update the snapshot. Back preserves
+the inventory filters. The listed functional checks passed on a synthetic Windows fixture; screen-reader
+acceptance and deployment are not implied.
