@@ -13,6 +13,37 @@ describe('location persistence offline SQL contracts', () => {
     query.mockReset();
     query.mockResolvedValue({ rows: [] });
   });
+  it('overview groups the entire owner inventory in one bounded statement', async () => {
+    query.mockResolvedValue({
+      rows: [
+        { location: null, count: '2' },
+        { location: 'Room %_1', count: '60' },
+      ],
+    });
+    expect(await repository.overview(owner.toUpperCase())).toEqual({
+      complete: true,
+      total: 62,
+      unknown: 2,
+      locations: [{ location: 'Room %_1', count: 60 }],
+    });
+    expect(query).toHaveBeenCalledTimes(1);
+    const [sql, args] = query.mock.calls[0];
+    expect(args).toEqual([owner]);
+    expect(sql).toContain('WHERE owner_id=$1 GROUP BY location');
+    expect(sql).toContain('LIMIT 1002');
+    expect(sql).not.toMatch(/OFFSET|status=|category=/);
+  });
+  it('overview refuses invalid owner before reading', async () => {
+    await expect(repository.overview('invalid')).rejects.toThrow(
+      'invalid_asset_owner',
+    );
+    expect(query).not.toHaveBeenCalled();
+  });
+  it('overview propagates SQL failures without retry or false empty counts', async () => {
+    query.mockRejectedValue(new Error('unavailable'));
+    await expect(repository.overview(owner)).rejects.toThrow('unavailable');
+    expect(query).toHaveBeenCalledTimes(1);
+  });
   it('readiness only reads required columns', async () => {
     await repository.ready();
     expect(query.mock.calls[0][0]).toBe(

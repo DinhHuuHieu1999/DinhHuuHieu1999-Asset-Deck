@@ -91,16 +91,22 @@ LOCATION_FILES = (FILES[0], FILES[1],
     'backend/src/domains/assets/asset-location.postgres.spec.ts',
     FILES[3], 'backend/src/domains/assets/asset-location.repository.ts',
     'backend/src/domains/assets/asset-location.ts',
+    'backend/src/domains/assets/asset-location-overview.ts',
     'backend/src/domains/assets/asset-dates.repository.ts',
     'backend/src/domains/assets/asset-warranty.ts',
     'backend/migrations/004-asset-dates.sql',
     'backend/migrations/005-asset-location.sql', FILES[-1])
 
 
+LOCATION_OVERVIEW_FILES = tuple(name.replace('asset-location.postgres.spec.ts', 'asset-location-overview.postgres.spec.ts') for name in LOCATION_FILES)
+
+
 def profile_settings(profile):
     """Only fixed source-owned profiles may choose a suite or fixture identity."""
     if profile == 'export-v3':
         return EXPORT_V3_FILES, 'asset-export-v3-', 'asset_export_v3_fixture_', 'ASSET_EXPORT_V3', 'isolated-export-v3-v1', 'asset_export_v3_fixture_identity'
+    if profile == 'location-overview':
+        return LOCATION_OVERVIEW_FILES, 'asset-location-overview-', 'asset_location_overview_fixture_', 'ASSET_LOCATION_OVERVIEW', 'isolated-location-overview-v1', 'asset_location_overview_fixture_identity'
     if profile == 'location':
         return LOCATION_FILES, 'asset-location-', 'asset_location_fixture_', 'ASSET_LOCATION', 'isolated-location-v1', 'asset_location_fixture_identity'
     if profile == 'import-v3':
@@ -188,7 +194,7 @@ def execute(root, args, runtime, profile='category', verification=None):
             break
         client.assert_owned(runtime, name, identity)
         migrations = files[:2] + (('backend/migrations/004-asset-dates.sql',) if profile in ('dates', 'export-v2', 'warranty', 'warranty-overview') else ())
-        if profile in ('location', 'export-v3'):
+        if profile in ('location', 'location-overview', 'export-v3'):
             migrations += ('backend/migrations/004-asset-dates.sql', 'backend/migrations/005-asset-location.sql')
         if profile == 'import-v2':
             migrations += ('backend/migrations/003-asset-import.sql', 'backend/migrations/004-asset-dates.sql')

@@ -1,3 +1,5 @@
+import 'api/asset_location_overview.dart';
+import 'location_overview_page.dart';
 import 'api/asset_import_v3.dart';
 import 'inventory_import_v3_page.dart';
 import 'api/asset_location.dart';
@@ -287,6 +289,28 @@ class _AssetsPageState extends State<AssetsPage> {
     if (saved == true && mounted) await _load();
   }
 
+  Future<void> _openLocationOverview() async {
+    final selection = await Navigator.of(context)
+        .push<LocationOverviewSelection>(
+          MaterialPageRoute(
+            builder: (_) => LocationOverviewPage(
+              source: widget.store as AssetLocationOverviewSource,
+            ),
+          ),
+        );
+    if (!mounted || selection == null || _busy) return;
+    setState(() {
+      _query.clear();
+      _category.clear();
+      _status = '';
+      _warranty = '';
+      _locationMode = selection.location == null ? 'unknown' : 'exact';
+      _location.text = selection.location ?? '';
+      _locationError = null;
+    });
+    await _load(apply: true);
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Asset Desk')),
@@ -305,6 +329,14 @@ class _AssetsPageState extends State<AssetsPage> {
               onPressed: _busy ? null : () => _edit(),
               child: const Text('Add asset'),
             ),
+            if (_hasLocation &&
+                widget.store is AssetLocationOverviewSource) ...[
+              const SizedBox(height: 8),
+              OutlinedButton(
+                onPressed: _busy ? null : _openLocationOverview,
+                child: const Text('Location overview'),
+              ),
+            ],
             if (widget.enableAssetDates &&
                 widget.store is AssetWarrantyOverviewSource) ...[
               const SizedBox(height: 8),

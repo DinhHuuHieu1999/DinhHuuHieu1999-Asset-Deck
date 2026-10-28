@@ -152,6 +152,8 @@ export function allowed(
     );
   if (raw.split("?")[0] === "/api/v1/assets/export/v3")
     return exportV3Enabled === true && method === "GET";
+  if (raw.split("?")[0] === "/api/v1/assets/locations/overview")
+    return locationEnabled === true && method === "GET";
   if (raw.split("?")[0] === "/api/v1/assets/locations/inventory")
     return locationEnabled === true && method === "GET";
   if (

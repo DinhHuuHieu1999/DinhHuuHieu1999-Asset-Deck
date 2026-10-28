@@ -32,14 +32,20 @@ class LocationDriverTests(unittest.TestCase):
 
     @staticmethod
     def result():
-        return dict(status='completed', syntheticOnly=True, locationAcceptance=True, owners=2, assetCount=53, digest='python-sha256-stdin', nativeDialog='not-exercised')
+        return dict(status='completed', syntheticOnly=True, locationAcceptance=True, locationOverviewAcceptance=True, owners=2, assetCount=53, digest='python-sha256-stdin', nativeDialog='not-exercised')
 
     def test_exact_typed_output_required(self):
         m.validate_result(self.result())
         for value in ({}, [], None, dict(self.result(), owners=True),
                       dict(self.result(), assetCount=1), dict(self.result(), syntheticOnly=1),
-                      dict(self.result(), locationAcceptance=1), dict(self.result(), extra=True)):
+                      dict(self.result(), locationOverviewAcceptance=1), dict(self.result(), locationOverviewAcceptance=False), dict(self.result(), locationAcceptance=1), dict(self.result(), extra=True)):
             with self.assertRaises(m.client.Refusal): m.validate_result(value)
+
+    def test_old_success_without_overview_is_rejected(self):
+        old = self.result()
+        del old['locationOverviewAcceptance']
+        with self.assertRaises(m.client.Refusal):
+            m.validate_result(old)
 
     def test_driver_runs_once_with_fixed_source_and_endpoint(self):
         calls = []

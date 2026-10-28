@@ -27,7 +27,7 @@ def preflight(root, args):
 
 def validate_result(value):
     """Partial, malformed or incorrectly typed output is not acceptance."""
-    expected = dict(status='completed', syntheticOnly=True, locationAcceptance=True, owners=2, assetCount=53,
+    expected = dict(status='completed', syntheticOnly=True, locationAcceptance=True, locationOverviewAcceptance=True, owners=2, assetCount=53,
                     digest='python-sha256-stdin', nativeDialog='not-exercised')
     if (not isinstance(value, dict) or value != expected or
             any(type(value.get(key)) is not type(item) for key, item in expected.items())):
@@ -45,7 +45,7 @@ def acceptance(root, args, runtime, folder, identity, backend, proxy):
     output = runtime.run([args.dart, '--disable-dart-dev', str(root/FILES[0]),
                           '--synthetic-only', 'https://localhost:%s/api/v1' % args.tls_port, identity, sys.executable], cwd=root/'flutter')
     value = json.loads(output)
-    stages = ('marker', 'anonymous', 'registration', 'create', 'location-update',
+    stages = ('overview-empty', 'overview-full', 'overview-clear', 'marker', 'anonymous', 'registration', 'create', 'location-update',
               'owner-isolation', 'stale-version', 'legacy-preservation', 'pagination', 'export', 'clear', 'sign-out')
     if isinstance(value, dict) and value.get('status') == 'failed' and value.get('stage') in stages:
         (folder/'location-diagnostic.json').write_text(json.dumps({'status': 'failed', 'stage': value['stage']})+'\n', encoding='utf-8')

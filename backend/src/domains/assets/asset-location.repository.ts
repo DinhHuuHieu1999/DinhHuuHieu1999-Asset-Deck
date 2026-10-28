@@ -1,3 +1,7 @@
+import {
+  buildAssetLocationOverview,
+  type AssetLocationOverviewRow,
+} from './asset-location-overview';
 import type { AssetWarrantyWindow } from './asset-warranty';
 import { UnprocessableEntityException } from '@nestjs/common';
 import type { PostgresDatabase } from '../../infrastructure/database/postgres.database';
@@ -33,6 +37,17 @@ export class AssetLocationRepository {
     await this.database.pool.query(
       'SELECT id,owner_id,version,location FROM assets.assets LIMIT 0',
     );
+  }
+
+  /** Aggregate all owner assets in one snapshot; lookahead refuses partial groups. */
+  async overview(owner: string) {
+    const result = await this.database.pool.query<AssetLocationOverviewRow>(
+      `SELECT location,count(*)::text AS count FROM assets.assets
+       WHERE owner_id=$1 GROUP BY location
+       ORDER BY location COLLATE "C" ASC NULLS FIRST LIMIT 1002`,
+      [this.owner(owner)],
+    );
+    return buildAssetLocationOverview(result.rows);
   }
 
   /** Unknown and non-owned IDs have the same absent result. */

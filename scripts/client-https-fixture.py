@@ -72,6 +72,9 @@ def import_v2_mode(args):
 
 
 LOCATION_FILES = DATES_FILES + (
+    'backend/src/domains/assets/asset-location-overview.ts',
+    'backend/dist/domains/assets/asset-location-overview.js',
+    'flutter/lib/api/asset_location_overview.dart',
     'backend/migrations/005-asset-location.sql',
     'backend/src/domains/assets/asset-location.ts',
     'backend/src/domains/assets/asset-location.config.ts',

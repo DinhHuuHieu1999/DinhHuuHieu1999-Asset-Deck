@@ -74,7 +74,7 @@ Future<void> main(List<String> args) async {
 
     stage = 'anonymous';
     final anonymous = await probe.getUrl(
-      endpoint.replace(path: '/api/v1/assets/locations/inventory'),
+      endpoint.replace(path: '/api/v1/assets/locations/overview'),
     );
     anonymous.followRedirects = false;
     final anonymousResponse = await anonymous.close().timeout(
@@ -94,6 +94,9 @@ Future<void> main(List<String> args) async {
     );
     check(unprotectedResponse.statusCode == 403);
     await unprotectedResponse.drain<void>();
+    stage = 'overview-empty';
+    final empty = await a.locationOverview();
+    check(empty.total == 0 && empty.unknown == 0 && empty.locations.isEmpty);
     stage = 'create';
     final row = await a.create(input);
     final other = await b.create(input);
@@ -212,6 +215,17 @@ Future<void> main(List<String> args) async {
         location: 'Room %_',
       )).items.isEmpty,
     );
+    stage = 'overview-full';
+    final overview = await a.locationOverview();
+    check(overview.total == 52 && overview.unknown == 0);
+    check(
+      overview.locations.single.location == 'Room %_' &&
+          overview.locations.single.count == 52,
+    );
+    final foreign = await b.locationOverview();
+    check(
+      foreign.total == 1 && foreign.unknown == 1 && foreign.locations.isEmpty,
+    );
     stage = 'export';
     final v1 = await a.exportInventory(
       digest: (bytes) => pythonDigest(args[3], bytes),
@@ -233,14 +247,23 @@ Future<void> main(List<String> args) async {
           row.id,
     );
     check((await a.readDates(row.id)).input.purchasedOn == '2024-02-29');
+    stage = 'overview-clear';
+    final afterClear = await a.locationOverview();
+    check(
+      afterClear.total == 52 &&
+          afterClear.unknown == 1 &&
+          afterClear.locations.single.count == 51,
+    );
     stage = 'sign-out';
     a.signOut();
+    await refused(() => a.locationOverview(), 401);
     await refused(() => a.readLocation(row.id), 401);
     stdout.writeln(
       jsonEncode({
         'status': 'completed',
         'syntheticOnly': true,
         'locationAcceptance': true,
+        'locationOverviewAcceptance': true,
         'owners': 2,
         'assetCount': 53,
         'digest': 'python-sha256-stdin',

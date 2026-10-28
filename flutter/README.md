@@ -188,3 +188,15 @@ account and endpoint. Cancel does not imply save/submission success.
 
 Synthetic widget/channel tests and renders are not Windows file-dialog acceptance.
 See the [UI plan and remaining gates](../docs/inventory-import-v3-ui-plan.md).
+
+## Optional location overview
+
+The existing opt-in location capability adds complete owner counts through
+`GET /api/v1/assets/locations/overview` (no query parameters, no-store).
+Known labels are exact and case-sensitive; null is the unknown bucket. More than
+1,000 known labels or unsafe counts fail instead of returning partial counts.
+The Flutter entry selects exact/unknown inventory filters and clears other list
+filters explicitly. No migration or dependency is added. Isolated PostgreSQL
+and real Dart HTTPS checks passed; the operator confirmed the listed Windows
+functional checks. Accessibility and deployment remain separate; see
+[the plan](../docs/inventory-location-overview-plan.md).

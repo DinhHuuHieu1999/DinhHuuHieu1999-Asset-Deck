@@ -24,6 +24,7 @@ const owner = '507f1f77bcf86cd799439011';
 const id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 describe('location controller boundary', () => {
   const repository = {
+    overview: jest.fn(),
     read: jest.fn(),
     update: jest.fn(),
     list: jest.fn(),
@@ -40,6 +41,28 @@ describe('location controller boundary', () => {
   afterEach(() => {
     if (originalDates === undefined) delete process.env.ASSET_DATES_ENABLED;
     else process.env.ASSET_DATES_ENABLED = originalDates;
+  });
+  it('overview rejects unauthenticated callers and all query overrides', async () => {
+    await expect(controller.overview({}, {})).rejects.toThrow('Unauthorized');
+    await expect(
+      controller.overview({ user: { userId: owner } }, { owner: 'other' }),
+    ).rejects.toThrow('query');
+    expect(repository.overview).not.toHaveBeenCalled();
+  });
+  it('overview derives only the authenticated owner', async () => {
+    repository.overview.mockResolvedValue({
+      complete: true,
+      total: 0,
+      unknown: 0,
+      locations: [],
+    });
+    expect(await controller.overview({ user: { userId: owner } }, {})).toEqual({
+      complete: true,
+      total: 0,
+      unknown: 0,
+      locations: [],
+    });
+    expect(repository.overview).toHaveBeenCalledWith(owner);
   });
   it('requires an authenticated valid owner before persistence', async () => {
     await expect(controller.read({}, id, {})).rejects.toThrow('Unauthorized');
@@ -170,7 +193,12 @@ describe('location controller boundary', () => {
 describe('Location HTTP validation with synthetic auth and no SQL', () => {
   let app: NestExpressApplication;
   const originalEnv = process.env;
-  const repository = { read: jest.fn(), update: jest.fn(), list: jest.fn() };
+  const repository = {
+    overview: jest.fn(),
+    read: jest.fn(),
+    update: jest.fn(),
+    list: jest.fn(),
+  };
   beforeAll(async () => {
     process.env = {
       ...originalEnv,
@@ -222,6 +250,27 @@ describe('Location HTTP validation with synthetic auth and no SQL', () => {
     process.env = originalEnv;
   });
   beforeEach(() => jest.resetAllMocks());
+
+  it('overview enforces auth, no-store and no query overrides over HTTP', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/assets/locations/overview')
+      .expect(401);
+    expect(repository.overview).not.toHaveBeenCalled();
+    await request(app.getHttpServer())
+      .get('/api/v1/assets/locations/overview?owner=other')
+      .auth('synthetic', { type: 'bearer' })
+      .expect(400);
+    expect(repository.overview).not.toHaveBeenCalled();
+    const snapshot = { complete: true, total: 0, unknown: 0, locations: [] };
+    repository.overview.mockResolvedValue(snapshot);
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/assets/locations/overview')
+      .auth('synthetic', { type: 'bearer' })
+      .expect(200);
+    expect(response.headers['cache-control']).toBe('no-store');
+    expect(response.body).toEqual(snapshot);
+    expect(repository.overview).toHaveBeenCalledWith(owner);
+  });
 
   it('rejects unauthenticated reads and missing CSRF writes before persistence', async () => {
     await request(app.getHttpServer())

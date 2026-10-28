@@ -57,6 +57,21 @@ function noQuery(query: Record<string, unknown>): void {
 export class AssetLocationController {
   constructor(private readonly repository: AssetLocationRepository) {}
 
+  /** Return complete owner counts, independent of current inventory filters. */
+  @Get('locations/overview')
+  @Header('Cache-Control', 'no-store')
+  async overview(
+    @Req() req: OwnerRequest,
+    @Query() query: Record<string, unknown>,
+  ) {
+    const account = owner(req);
+    if (Object.keys(query).length)
+      throw new BadRequestException(
+        'Location overview does not accept query parameters',
+      );
+    return this.repository.overview(account);
+  }
+
   /** List an owner-scoped location-filtered inventory before pagination. */
   @Get('locations/inventory')
   @Header('Cache-Control', 'no-store')

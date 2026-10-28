@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'asset.dart';
 import 'asset_location.dart';
+import 'asset_location_overview.dart';
 import 'asset_dates.dart';
 import 'asset_warranty.dart';
 import 'asset_warranty_overview.dart';
@@ -32,6 +33,7 @@ class AssetApi
         AssetOverviewSource,
         AssetDatesSource,
         AssetLocationSource,
+        AssetLocationOverviewSource,
         AssetWarrantySource,
         AssetWarrantyOverviewSource {
   AssetApi(
@@ -347,6 +349,19 @@ class AssetApi
       throw const AssetFailure(
         'Invalid asset location response; reload before another write',
       );
+    }
+  }
+
+  /// Fetch a complete owner snapshot; reject malformed or late-session results.
+  @override
+  Future<AssetLocationOverview> locationOverview() async {
+    final epoch = _requireAccount();
+    final result = await _request('GET', 'assets/locations/overview', epoch);
+    _current(epoch);
+    try {
+      return AssetLocationOverview.fromJson(result);
+    } on FormatException {
+      throw const AssetFailure('Invalid location overview response');
     }
   }
 

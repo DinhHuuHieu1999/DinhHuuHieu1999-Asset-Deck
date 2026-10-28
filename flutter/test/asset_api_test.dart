@@ -129,6 +129,64 @@ void main() {
     Future<void> login() => api.login(' synthetic ', ' synthetic-pass ');
 
     test(
+      'location overview requires auth and sends a single unfiltered GET',
+      () async {
+        await expectLater(api.locationOverview(), throwsA(isA<AssetFailure>()));
+        expect(calls, isEmpty);
+        await login();
+        final before = calls.length;
+        handler = (request) async {
+          expect(request.method, 'GET');
+          expect(request.uri.path, '/api/v1/assets/locations/overview');
+          expect(request.uri.query, isEmpty);
+          expect(
+            request.headers.value('authorization'),
+            'Bearer synthetic-token',
+          );
+          json(request, {
+            'complete': true,
+            'total': 2,
+            'unknown': 1,
+            'locations': [
+              {'location': 'Room %_1', 'count': 1},
+            ],
+          });
+        };
+        expect((await api.locationOverview()).total, 2);
+        expect(calls.length, before + 1);
+      },
+    );
+    test('location overview malformed response fails without retry', () async {
+      await login();
+      final before = calls.length;
+      handler = (request) async => json(request, {'complete': true});
+      await expectLater(api.locationOverview(), throwsA(isA<AssetFailure>()));
+      expect(calls.length, before + 1);
+    });
+    test('sign-out discards a late location overview without retry', () async {
+      await login();
+      final entered = Completer<void>(), release = Completer<void>();
+      handler = (request) async {
+        entered.complete();
+        await release.future;
+        json(request, {
+          'complete': true,
+          'total': 0,
+          'unknown': 0,
+          'locations': <Object?>[],
+        });
+      };
+      final before = calls.length;
+      final pending = api.locationOverview();
+      final assertion = expectLater(pending, throwsA(isA<AssetFailure>()));
+      await entered.future;
+      api.signOut();
+      release.complete();
+      await assertion;
+      expect(calls.length, before + 1);
+    });
+
+    test(
       'location access requires auth and rejects unsafe input before send',
       () async {
         await expectLater(
