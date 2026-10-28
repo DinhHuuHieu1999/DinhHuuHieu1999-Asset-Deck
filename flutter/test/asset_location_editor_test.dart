@@ -32,6 +32,7 @@ class LocationFake implements AssetLocationSource {
 
   @override
   Future<AssetLocationPage> listLocations({
+    String sort = 'updated_desc',
     required String query,
     required String status,
     String category = '',

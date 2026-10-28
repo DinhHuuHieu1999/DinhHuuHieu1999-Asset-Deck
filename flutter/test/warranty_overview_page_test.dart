@@ -63,6 +63,7 @@ class LocationDrilldownStore extends DrilldownWarrantyStore
   ) async => throw UnimplementedError();
   @override
   Future<AssetLocationPage> listLocations({
+    String sort = 'updated_desc',
     required String query,
     required String status,
     String category = '',
@@ -75,6 +76,7 @@ class LocationDrilldownStore extends DrilldownWarrantyStore
     lastMode = locationMode;
     if (warranty.isEmpty) return AssetLocationPage([], null);
     final page = await listWarranty(
+      sort: sort,
       query: query,
       status: status,
       category: category,
@@ -135,6 +137,7 @@ void main() {
             ? 'expired'
             : 'expiring_soon';
         expect(store.warrantyCalls.last, {
+          'sort': 'updated_desc',
           'query': '',
           'status': '',
           'category': '',

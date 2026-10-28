@@ -6,6 +6,7 @@ const assetWarrantyFilters = ['expired', 'expiring_soon'];
 /// Optional capability, independent of the legacy inventory store.
 abstract interface class AssetWarrantySource {
   Future<AssetWarrantyPage> listWarranty({
+    String sort = 'updated_desc',
     required String query,
     required String status,
     String category = '',

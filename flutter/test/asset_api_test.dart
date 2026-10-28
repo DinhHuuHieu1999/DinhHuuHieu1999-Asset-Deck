@@ -128,6 +128,47 @@ void main() {
     });
     Future<void> login() => api.login(' synthetic ', ' synthetic-pass ');
 
+    for (final mode in ['regular', 'warranty', 'location']) {
+      test(
+        'sort is allowlisted and sent on $mode inventory transport',
+        () async {
+          await login();
+          Future<Object?> run(String sort) => mode == 'regular'
+              ? api.list(query: '', status: '', offset: 0, sort: sort)
+              : mode == 'warranty'
+              ? api.listWarranty(
+                  query: '',
+                  status: '',
+                  offset: 0,
+                  warranty: 'expired',
+                  asOf: '2026-10-29',
+                  sort: sort,
+                )
+              : api.listLocations(query: '', status: '', offset: 0, sort: sort);
+          final before = calls.length;
+          for (final invalid in ['', 'NAME_ASC', 'name_asc; DROP']) {
+            await expectLater(run(invalid), throwsA(isA<AssetFailure>()));
+          }
+          expect(calls.length, before);
+          handler = (request) async {
+            expect(request.method, 'GET');
+            expect(request.uri.queryParameters['sort'], 'name_asc');
+            json(request, {
+              'items': <Object?>[],
+              'nextOffset': null,
+              if (mode == 'warranty') ...{
+                'warranty': 'expired',
+                'asOf': '2026-10-29',
+                'through': '2026-11-28',
+              },
+            });
+          };
+          await run('name_asc');
+          expect(calls.length, before + 1);
+        },
+      );
+    }
+
     test(
       'location overview requires auth and sends a single unfiltered GET',
       () async {

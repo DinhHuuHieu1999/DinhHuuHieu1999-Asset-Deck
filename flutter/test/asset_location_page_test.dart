@@ -23,6 +23,7 @@ class LocationStore extends FakeStore
   bool fail = false, more = false;
   @override
   Future<AssetLocationPage> listLocations({
+    String sort = 'updated_desc',
     required String query,
     required String status,
     String category = '',
@@ -80,6 +81,7 @@ class LocationStore extends FakeStore
 
   @override
   Future<AssetWarrantyPage> listWarranty({
+    String sort = 'updated_desc',
     required String query,
     required String status,
     String category = '',

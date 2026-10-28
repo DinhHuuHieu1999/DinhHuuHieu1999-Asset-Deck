@@ -60,6 +60,7 @@ class FakeSession implements AssetSession {
 
   @override
   Future<AssetPage> list({
+    String sort = 'updated_desc',
     required String query,
     required String status,
     String category = '',

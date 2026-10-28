@@ -22,6 +22,7 @@ class WarrantyStore extends FakeStore implements AssetWarrantySource {
   Completer<AssetWarrantyPage>? pending;
   @override
   Future<AssetWarrantyPage> listWarranty({
+    String sort = 'updated_desc',
     required String query,
     required String status,
     String category = '',
@@ -30,6 +31,7 @@ class WarrantyStore extends FakeStore implements AssetWarrantySource {
     required int offset,
   }) async {
     warrantyCalls.add({
+      'sort': sort,
       'query': query,
       'status': status,
       'category': category,
@@ -135,6 +137,7 @@ void main() {
       await selectWarranty(tester, 'Expiring within 30 days');
       await press(tester, 'Apply filters');
       expect(store.warrantyCalls.single, {
+        'sort': 'updated_desc',
         'query': '%_',
         'category': 'Network',
         'status': '',

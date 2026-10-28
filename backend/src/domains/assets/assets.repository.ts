@@ -1,3 +1,4 @@
+import { assetOrderBy } from './asset-sort';
 import {
   ASSET_OVERVIEW_MAX_CATEGORIES,
   buildAssetOverview,
@@ -43,7 +44,7 @@ export class AssetsRepository {
          OR strpos(lower(category),lower($3))>0 OR strpos(lower(serial),lower($3))>0)
        AND ($4='' OR status=$4)
        AND ($5='' OR category=$5)
-       ORDER BY updated_at DESC,id DESC LIMIT 51 OFFSET $2`,
+       ORDER BY ${assetOrderBy(query.sort)} LIMIT 51 OFFSET $2`,
       [
         owner.toLowerCase(),
         query.offset,

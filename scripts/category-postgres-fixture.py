@@ -101,8 +101,18 @@ LOCATION_FILES = (FILES[0], FILES[1],
 LOCATION_OVERVIEW_FILES = tuple(name.replace('asset-location.postgres.spec.ts', 'asset-location-overview.postgres.spec.ts') for name in LOCATION_FILES)
 
 
+SORT_FILES = LOCATION_FILES[:2] + (
+    'backend/src/domains/assets/asset-sort.postgres.spec.ts',
+) + LOCATION_FILES[3:-1] + (
+    'backend/src/domains/assets/asset-sort.ts',
+    'backend/src/domains/assets/assets.dto.ts', FILES[-1],
+)
+
+
 def profile_settings(profile):
     """Only fixed source-owned profiles may choose a suite or fixture identity."""
+    if profile == 'sort':
+        return SORT_FILES, 'asset-sort-', 'asset_sort_fixture_', 'ASSET_SORT', 'isolated-sort-v1', 'asset_sort_fixture_identity'
     if profile == 'export-v3':
         return EXPORT_V3_FILES, 'asset-export-v3-', 'asset_export_v3_fixture_', 'ASSET_EXPORT_V3', 'isolated-export-v3-v1', 'asset_export_v3_fixture_identity'
     if profile == 'location-overview':
@@ -194,7 +204,7 @@ def execute(root, args, runtime, profile='category', verification=None):
             break
         client.assert_owned(runtime, name, identity)
         migrations = files[:2] + (('backend/migrations/004-asset-dates.sql',) if profile in ('dates', 'export-v2', 'warranty', 'warranty-overview') else ())
-        if profile in ('location', 'location-overview', 'export-v3'):
+        if profile in ('location', 'location-overview', 'export-v3', 'sort'):
             migrations += ('backend/migrations/004-asset-dates.sql', 'backend/migrations/005-asset-location.sql')
         if profile == 'import-v2':
             migrations += ('backend/migrations/003-asset-import.sql', 'backend/migrations/004-asset-dates.sql')

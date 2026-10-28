@@ -1,3 +1,4 @@
+import 'api/asset_sort.dart';
 import 'asset_details_page.dart';
 import 'api/asset_location_overview.dart';
 import 'location_overview_page.dart';
@@ -75,6 +76,7 @@ class _AssetsPageState extends State<AssetsPage> {
   AssetWarrantyPage? _warrantyPage;
   String? _pinnedWarrantyAsOf;
   String _status = '', _loadedQuery = '', _loadedStatus = '';
+  String _sort = 'updated_desc', _loadedSort = 'updated_desc';
   String? _error;
   AssetPage? _page;
   int _offset = 0;
@@ -119,6 +121,7 @@ class _AssetsPageState extends State<AssetsPage> {
     if (_busy) return;
     final query = apply ? _query.text.trim() : _loadedQuery;
     final status = apply ? _status : _loadedStatus;
+    final sort = apply ? _sort : _loadedSort;
     final category = apply ? _category.text.trim() : _loadedCategory;
     final warranty = apply ? _warranty : _loadedWarranty;
     final reference =
@@ -170,6 +173,7 @@ class _AssetsPageState extends State<AssetsPage> {
       if (_hasLocation) {
         final result = await (widget.store as AssetLocationSource)
             .listLocations(
+              sort: sort,
               query: query,
               status: status,
               category: category,
@@ -192,6 +196,7 @@ class _AssetsPageState extends State<AssetsPage> {
           throw const AssetFailure('Warranty filtering is unavailable.');
         }
         warrantyPage = await (widget.store as AssetWarrantySource).listWarranty(
+          sort: sort,
           query: query,
           status: status,
           category: category,
@@ -205,6 +210,7 @@ class _AssetsPageState extends State<AssetsPage> {
         );
       } else {
         page = await widget.store.list(
+          sort: sort,
           query: query,
           status: status,
           category: category,
@@ -225,6 +231,7 @@ class _AssetsPageState extends State<AssetsPage> {
         _offset = offset;
         _loadedQuery = query;
         _loadedStatus = status;
+        _loadedSort = sort;
         _loadedCategory = category;
       });
     } catch (error) {
@@ -333,6 +340,7 @@ class _AssetsPageState extends State<AssetsPage> {
         (store is AssetSession && store.sessionRevision != revision))
       return;
     setState(() {
+      _sort = _loadedSort;
       _query.clear();
       _category.clear();
       _status = '';
@@ -361,6 +369,7 @@ class _AssetsPageState extends State<AssetsPage> {
         (store is AssetSession && store.sessionRevision != revision))
       return;
     setState(() {
+      _sort = _loadedSort;
       _query.clear();
       _category.text = selection.category;
       _status = selection.status;
@@ -383,6 +392,7 @@ class _AssetsPageState extends State<AssetsPage> {
         );
     if (!mounted || selection == null || _busy) return;
     setState(() {
+      _sort = _loadedSort;
       _query.clear();
       _category.clear();
       _status = '';
@@ -648,6 +658,38 @@ class _AssetsPageState extends State<AssetsPage> {
                   : (s) => setState(() => _status = s ?? ''),
             ),
             const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              key: ValueKey('inventory-sort-$_sort'),
+              selectedItemBuilder: (context) => const [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Recent updates'),
+                ),
+                Align(alignment: Alignment.centerLeft, child: Text('Name A-Z')),
+              ],
+              initialValue: _sort,
+              isExpanded: true,
+              itemHeight: null,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: 'Sort inventory',
+              ),
+              items: const [
+                DropdownMenuItem(
+                  value: 'updated_desc',
+                  child: Text('Updated most recently'),
+                ),
+                DropdownMenuItem(value: 'name_asc', child: Text('Name A-Z')),
+              ],
+              onChanged: _busy
+                  ? null
+                  : (value) {
+                      if (value != null && assetSorts.contains(value)) {
+                        setState(() => _sort = value);
+                      }
+                    },
+            ),
+            const SizedBox(height: 12),
             if (widget.enableAssetDates &&
                 widget.store is AssetWarrantySource) ...[
               DropdownButtonFormField<String>(
@@ -763,6 +805,9 @@ class _AssetsPageState extends State<AssetsPage> {
               ),
               Text(
                 'Applied search: ${_loadedQuery.isEmpty ? '(none)' : _loadedQuery}; status: ${_loadedStatus.isEmpty ? 'all' : _loadedStatus}; category: ${_loadedCategory.isEmpty ? 'all' : _loadedCategory}',
+              ),
+              Text(
+                'Applied sort: ${_loadedSort == 'name_asc' ? 'Name A-Z' : 'Updated most recently'}',
               ),
               if (_hasLocation)
                 Text(

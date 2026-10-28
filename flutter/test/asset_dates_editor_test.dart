@@ -181,8 +181,8 @@ void main() {
       );
       await tester.pumpAndSettle();
       await tester.scrollUntilVisible(
-        find.text('Purchase / warranty dates'),
-        300,
+        find.text('Purchase / warranty dates').hitTestable(),
+        150,
         scrollable: find.byType(Scrollable).first,
       );
       await tester.tap(find.text('Purchase / warranty dates'));

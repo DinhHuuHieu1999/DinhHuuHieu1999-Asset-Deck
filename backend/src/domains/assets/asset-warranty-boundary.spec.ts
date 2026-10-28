@@ -28,6 +28,7 @@ const window = assetWarrantyWindow('expired', '2026-10-26');
 describe('warranty list boundary', () => {
   it('validates bounded inherited search/status/category and paging defaults', async () => {
     expect(await validate({ warranty: 'expired' })).toEqual({
+      sort: 'updated_desc',
       q: '',
       status: '',
       category: '',

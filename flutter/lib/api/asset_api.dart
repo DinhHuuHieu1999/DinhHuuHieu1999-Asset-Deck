@@ -1,3 +1,5 @@
+import 'asset_sort.dart';
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -178,12 +180,19 @@ class AssetApi
 
   @override
   Future<AssetPage> list({
+    String sort = 'updated_desc',
     required String query,
     required String status,
     String category = '',
     required int offset,
   }) async {
     final epoch = _requireAccount();
+    if (!assetSorts.contains(sort)) {
+      throw const AssetFailure(
+        'Invalid inventory sort',
+        definitelyNotSent: true,
+      );
+    }
     if (category.runes.length > 64 ||
         category.contains('\u0000') ||
         query.length > 120 ||
@@ -200,6 +209,7 @@ class AssetApi
         'status': status,
         if (category.trim().isNotEmpty) 'category': category.trim(),
         'offset': '$offset',
+        if (sort != 'updated_desc') 'sort': sort,
       },
     ).toString();
     final result = await _request('GET', path, epoch);
@@ -237,6 +247,7 @@ class AssetApi
   /// Read a separate warranty page; subsequent pages preserve the UTC reference.
   @override
   Future<AssetWarrantyPage> listWarranty({
+    String sort = 'updated_desc',
     required String query,
     required String status,
     String category = '',
@@ -245,6 +256,12 @@ class AssetApi
     required int offset,
   }) async {
     final epoch = _requireAccount();
+    if (!assetSorts.contains(sort)) {
+      throw const AssetFailure(
+        'Invalid inventory sort',
+        definitelyNotSent: true,
+      );
+    }
     if (!assetWarrantyFilters.contains(warranty) ||
         (asOf.isNotEmpty && !isAssetCalendarDate(asOf)) ||
         (offset > 0 && asOf.isEmpty) ||
@@ -269,6 +286,7 @@ class AssetApi
         'warranty': warranty,
         if (asOf.isNotEmpty) 'asOf': asOf,
         'offset': '$offset',
+        if (sort != 'updated_desc') 'sort': sort,
       },
     ).toString();
     final result = await _request('GET', path, epoch);
@@ -368,6 +386,7 @@ class AssetApi
   /// Fetch explicit location filters before paging, separate from the legacy list.
   @override
   Future<AssetLocationPage> listLocations({
+    String sort = 'updated_desc',
     required String query,
     required String status,
     String category = '',
@@ -378,6 +397,12 @@ class AssetApi
     String asOf = '',
   }) async {
     final epoch = _requireAccount();
+    if (!assetSorts.contains(sort)) {
+      throw const AssetFailure(
+        'Invalid inventory sort',
+        definitelyNotSent: true,
+      );
+    }
     String? label;
     try {
       if ((warranty.isNotEmpty && !assetWarrantyFilters.contains(warranty)) ||
@@ -409,6 +434,7 @@ class AssetApi
         'status': status,
         'category': category.trim(),
         'offset': '$offset',
+        if (sort != 'updated_desc') 'sort': sort,
         'locationMode': locationMode,
         if (warranty.isNotEmpty) 'warranty': warranty,
         if (asOf.isNotEmpty) 'asOf': asOf,

@@ -187,3 +187,12 @@ filters explicitly. No migration or dependency is added. Isolated PostgreSQL
 and real Dart HTTPS checks passed; the operator confirmed the listed Windows
 functional checks. Accessibility and deployment remain separate; see
 [the plan](../docs/inventory-location-overview-plan.md).
+
+## Inventory sort source candidate
+
+List queries accept `sort=updated_desc` (default) or `sort=name_asc`, including
+warranty and location-aware lists. Name ordering uses case-sensitive PostgreSQL
+`COLLATE "C"` and ascending ID ties, not locale-aware natural ordering. Export
+ordering and overview counts are unchanged. See the
+[inventory sort plan](../docs/inventory-sort-plan.md); client/UI and runtime
+acceptance are pending.

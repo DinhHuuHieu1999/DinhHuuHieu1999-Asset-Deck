@@ -9,6 +9,7 @@ abstract interface class AssetLocationSource {
     String? location,
   );
   Future<AssetLocationPage> listLocations({
+    String sort = 'updated_desc',
     required String query,
     required String status,
     String category = '',

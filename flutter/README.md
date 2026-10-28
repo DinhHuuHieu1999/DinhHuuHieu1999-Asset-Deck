@@ -228,3 +228,13 @@ and load inventory at the overview UTC reference date. Paging and Refresh keep
 that reference; explicit Apply requests a fresh date. Later and Unknown remain
 informational. Back preserves the prior list and filter drafts.
 See [scope and verification](../docs/warranty-overview-drilldown-plan.md).
+
+## Inventory sorting source candidate
+
+Sort inventory offers Recent updates (legacy default) and Name A-Z. Apply starts
+page one; Refresh and paging retain the last successful sort, and failed loads
+retain its identity with old rows. Overview selections preserve applied sort;
+Back does not apply a draft. Ordering is server-side, with a stable ID tie-breaker.
+Name sorting uses case-sensitive PostgreSQL C collation, not natural locale order.
+See the [sort acceptance plan](../docs/inventory-sort-plan.md). No new database
+fixture, native acceptance, commit or deployment is claimed for this phase.

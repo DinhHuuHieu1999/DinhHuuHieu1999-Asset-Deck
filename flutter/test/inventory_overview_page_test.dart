@@ -168,8 +168,18 @@ void main() {
       await tester.pumpWidget(MaterialApp(home: AssetsPage(store: store)));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).first, 'old');
+      await tester.scrollUntilVisible(
+        find.text('Apply filters').hitTestable(),
+        150,
+        scrollable: find.byType(Scrollable).first,
+      );
       await tester.tap(find.text('Apply filters'));
       await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('Inventory overview').hitTestable(),
+        -150,
+        scrollable: find.byType(Scrollable).first,
+      );
       await tester.tap(find.text('Inventory overview'));
       await tester.pumpAndSettle();
       store.failure = const AssetFailure('Synthetic list failure');

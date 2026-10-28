@@ -1,3 +1,4 @@
+import { ASSET_SORTS, type AssetSort } from './asset-sort';
 import { Type } from 'class-transformer';
 import {
   IsIn,
@@ -52,6 +53,8 @@ export class AssetUpdateDto extends AssetInputDto {
 
 /** Fixed page size and literal substring search, without owner-selected queries. */
 export class AssetQueryDto {
+  @IsIn(ASSET_SORTS)
+  sort?: AssetSort = 'updated_desc';
   @IsString()
   @MaxLength(120)
   @Matches(/^[^\0]*$/u)
