@@ -166,3 +166,12 @@ Existing dates flags and migration 004 are required; defaults remain off. No
 new dependency, migration, automated notification or regular deployment is added.
 Isolated PostgreSQL and real Dart HTTPS checks passed. Windows native acceptance
 remains pending. See [warranty contract and evidence](../docs/inventory-warranty-filter.md).
+
+## Optional location-preserving import v3 source
+
+`ASSET_IMPORT_V3_ENABLED` defaults off and requires import, dates and location
+capabilities plus migrations 001-005 applied separately. The new authenticated
+add-only route preserves dates/location in the receipt transaction; no startup
+migration or automatic retry is performed. Repository/API and Dart transport
+checks are synthetic only; real PostgreSQL/HTTPS and UI acceptance remain pending.
+See the [v3 scope](../docs/inventory-import-v3-proposal.md).

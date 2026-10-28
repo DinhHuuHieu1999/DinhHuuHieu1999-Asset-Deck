@@ -61,6 +61,69 @@ class NativeTests(unittest.TestCase):
         folder.mkdir()
         return native.native_session(self.root, self.args, runtime, folder, 'a' * 32, *self.services)
 
+    def enable_import_v3(self):
+        self.args.import_v3_mode = True
+        self.manifest['buildDefines'] = {
+            'ASSET_DESK_ENABLE_IMPORT': 'true',
+            'ASSET_DESK_ENABLE_IMPORT_V3': 'true',
+            'ASSET_DESK_ENABLE_ASSET_DATES': 'true',
+            'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true'}
+        self.write_manifest()
+
+    def test_import_v3_exact_defines_no_legacy_or_export_flags(self):
+        self.enable_import_v3()
+        native.verify_candidate(self.root, self.args)
+        for key in tuple(self.manifest['buildDefines']):
+            value = self.manifest['buildDefines'].pop(key)
+            self.write_manifest()
+            with self.subTest(key=key), self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+            self.manifest['buildDefines'][key] = value
+        for key in ('ASSET_DESK_ENABLE_IMPORT_V2', 'ASSET_DESK_ENABLE_EXPORT_V3'):
+            self.manifest['buildDefines'][key] = 'true'
+            self.write_manifest()
+            with self.subTest(extra=key), self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+            del self.manifest['buildDefines'][key]
+
+    def test_import_v3_exclusive_typed_profile(self):
+        self.enable_import_v3()
+        for field in ('import_mode', 'import_v2_mode', 'location_mode', 'dates_mode', 'export_v3_mode'):
+            setattr(self.args, field, True)
+            with self.subTest(field=field), self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+            setattr(self.args, field, False)
+        self.args.import_v3_mode = 'true'
+        with self.assertRaises(native.client.Refusal):
+            native.verify_candidate(self.root, self.args)
+
+    def test_import_v3_file_and_handoff_preserve_dates_location(self):
+        self.enable_import_v3()
+        runtime = self.runtime()
+        result = self.run_session(runtime)
+        handoff = json.loads((self.root / 'evidence/operator-handoff.json').read_text())
+        path = Path(handoff['importFile'])
+        self.assertEqual(path.name, 'inventory-import-v3-synthetic.json')
+        raw = path.read_bytes()
+        envelope = json.loads(raw)
+        self.assertEqual(envelope['schemaVersion'], 3)
+        self.assertEqual(envelope['sha256'], hashlib.sha256(envelope['payload'].encode('utf-8')).hexdigest())
+        row = json.loads(envelope['payload'])['records'][0]
+        self.assertEqual((row['purchasedOn'], row['warrantyExpiresOn'], row['location']),
+                         ('2024-02-29', '2027-02-28', 'Synthetic room %_1'))
+        self.assertEqual((handoff['expectedBefore'], handoff['expectedAfter']), (1, 2))
+        self.assertEqual(result['nativeAcceptance'], 'pending')
+        runtime.start.assert_called_once()
+        with self.assertRaises(FileExistsError):
+            native.prepare_import_file(path.parent, v3=True)
+        self.assertEqual(path.read_bytes(), raw)
+
+    def test_import_file_refuses_mixed_or_untyped_versions_before_writing(self):
+        for values in ({'v2': True, 'v3': True}, {'v3': 1}, {'v3': 'true'}):
+            with self.subTest(values=values), self.assertRaises(native.client.Refusal):
+                native.prepare_import_file(self.root, **values)
+        self.assertFalse(list(self.root.glob('inventory-import*.json')))
+
     def enable_export_v3(self):
         self.args.export_v3_mode = True
         self.manifest['buildDefines'] = {

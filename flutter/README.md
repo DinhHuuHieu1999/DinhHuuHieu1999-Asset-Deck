@@ -172,3 +172,19 @@ V1/v2 remain unchanged and there is no v3 import/restore capability.
 
 Database, HTTPS and Windows acceptance for v3 remain pending. See the
 [v3 contract and offline checkpoint](../docs/inventory-export-v3-plan.md).
+
+## Optional inventory import v3 (source checkpoint)
+
+`ASSET_DESK_ENABLE_IMPORT_V3` defaults false. Navigation requires signed-in v3
+client capability and the import, dates and manual-location client flags; it does
+not require import v2 or export v3. Backend `ASSET_IMPORT_V3_ENABLED` is separate.
+Existing v1/v2 behavior remains unchanged. No migration runs at startup.
+
+Choose a verified v3 export, review dates/location and target account, save a
+private recovery file, then explicitly acknowledge and confirm. Inspect never
+imports. Unknown delivery retains the same immutable request/key; replay is
+explicit, never automatic. A recovery file is plaintext and must match the exact
+account and endpoint. Cancel does not imply save/submission success.
+
+Synthetic widget/channel tests and renders are not Windows file-dialog acceptance.
+See the [UI plan and remaining gates](../docs/inventory-import-v3-ui-plan.md).

@@ -24,6 +24,7 @@ export function validateConfig({
   importV2Enabled = false,
   locationEnabled = false,
   exportV3Enabled = false,
+  importV3Enabled = false,
   recoveryRequestId,
 }) {
   if (
@@ -32,12 +33,23 @@ export function validateConfig({
     typeof importV2Enabled !== "boolean" ||
     typeof locationEnabled !== "boolean" ||
     typeof exportV3Enabled !== "boolean" ||
+    typeof importV3Enabled !== "boolean" ||
+    (importV3Enabled &&
+      (!importEnabled ||
+        !datesEnabled ||
+        !locationEnabled ||
+        !exportV3Enabled ||
+        importV2Enabled)) ||
     (exportV3Enabled &&
+      !importV3Enabled &&
       (!locationEnabled ||
         !datesEnabled ||
         importEnabled ||
         importV2Enabled)) ||
-    (locationEnabled && (!datesEnabled || importEnabled || importV2Enabled)) ||
+    (locationEnabled &&
+      (!datesEnabled ||
+        (!importV3Enabled && importEnabled) ||
+        importV2Enabled)) ||
     (importV2Enabled && (!importEnabled || !datesEnabled)) ||
     !Number.isInteger(upstreamPort) ||
     upstreamPort < 1024 ||
@@ -54,7 +66,7 @@ export function validateConfig({
       syntheticOnly: true,
       importEnabled,
       requestId: recoveryRequestId,
-      schemaVersion: importV2Enabled ? 2 : 1,
+      schemaVersion: importV3Enabled ? 3 : importV2Enabled ? 2 : 1,
     });
   }
 }
@@ -72,6 +84,7 @@ export function parseProxyArgs(args) {
         "--import-v2-enabled",
         "--location-enabled",
         "--export-v3-enabled",
+        "--import-v3-enabled",
       ].includes(args[6]))
   )
     throw new Error("Explicit fixture opt-in required");
@@ -79,20 +92,28 @@ export function parseProxyArgs(args) {
   const config = {
     upstreamPort: Number(upstream),
     fixtureId,
-    importEnabled: ["--import-enabled", "--import-v2-enabled"].includes(
-      args[6],
-    ),
+    importEnabled: [
+      "--import-enabled",
+      "--import-v2-enabled",
+      "--import-v3-enabled",
+    ].includes(args[6]),
     datesEnabled: [
+      "--import-v3-enabled",
       "--dates-enabled",
       "--import-v2-enabled",
       "--location-enabled",
       "--export-v3-enabled",
     ].includes(args[6]),
     importV2Enabled: args[6] === "--import-v2-enabled",
-    locationEnabled: ["--location-enabled", "--export-v3-enabled"].includes(
+    locationEnabled: [
+      "--location-enabled",
+      "--export-v3-enabled",
+      "--import-v3-enabled",
+    ].includes(args[6]),
+    exportV3Enabled: ["--export-v3-enabled", "--import-v3-enabled"].includes(
       args[6],
     ),
-    exportV3Enabled: args[6] === "--export-v3-enabled",
+    importV3Enabled: args[6] === "--import-v3-enabled",
   };
   validateConfig(config);
   const port = Number(listen);
@@ -117,9 +138,18 @@ export function allowed(
   importV2Enabled = false,
   locationEnabled = false,
   exportV3Enabled = false,
+  importV3Enabled = false,
 ) {
   if (typeof raw !== "string" || !raw.startsWith("/") || raw.startsWith("//"))
     return false;
+  if (raw === "/api/v1/assets/import/v3")
+    return (
+      method === "POST" &&
+      importV3Enabled === true &&
+      importEnabled === true &&
+      datesEnabled === true &&
+      locationEnabled === true
+    );
   if (raw.split("?")[0] === "/api/v1/assets/export/v3")
     return exportV3Enabled === true && method === "GET";
   if (raw.split("?")[0] === "/api/v1/assets/locations/inventory")
@@ -196,7 +226,11 @@ export function createHandler(config, request = http.request) {
           syntheticOnly: true,
           importEnabled: config.importEnabled,
           requestId: config.recoveryRequestId,
-          schemaVersion: config.importV2Enabled ? 2 : 1,
+          schemaVersion: config.importV3Enabled
+            ? 3
+            : config.importV2Enabled
+              ? 2
+              : 1,
         });
   return async (req, res) => {
     const fail = (code) => {
@@ -244,6 +278,7 @@ export function createHandler(config, request = http.request) {
         config.importV2Enabled,
         config.locationEnabled,
         config.exportV3Enabled,
+        config.importV3Enabled,
       )
     ) {
       fail(404);

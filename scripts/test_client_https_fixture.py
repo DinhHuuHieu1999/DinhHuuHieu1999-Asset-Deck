@@ -429,5 +429,68 @@ class FixtureTests(unittest.TestCase):
     def test_v2_four_migrations_and_explicit_flags(self): self.check_v2_flags()
     def test_disabled_v2_keeps_proxy_route_but_disables_backend_module(self): self.check_v2_flags(True)
 
+    def test_v3_profile_exclusive_and_default_off(self):
+        self.assertFalse(fixture.import_v3_mode(arguments()))
+        for value in ('true', 1, None):
+            with self.assertRaises(fixture.Refusal):
+                fixture.fixture_files(argparse.Namespace(import_v3_mode=value))
+        for flag in ('import_mode', 'dates_mode', 'import_v2_mode', 'location_mode', 'export_v3_mode'):
+            with self.assertRaises(fixture.Refusal):
+                fixture.fixture_files(argparse.Namespace(import_v3_mode=True, **{flag: True}))
+        self.assertNotIn('backend/dist/domains/assets/asset-import-v3.module.js', fixture.fixture_files(arguments()))
+
+    def test_v3_missing_each_artifact_refuses_before_any_command(self):
+        self.args.import_v3_mode = True
+        for name in fixture.IMPORT_V3_FILES:
+            path = self.root/name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('synthetic', encoding='utf-8')
+        for name in fixture.IMPORT_V3_FILES:
+            path = self.root/name
+            path.unlink()
+            runtime = FakeRuntime()
+            with self.assertRaises(fixture.Refusal):
+                fixture.execute(self.root, self.args, runtime, MagicMock())
+            self.assertEqual(runtime.calls, [])
+            path.write_text('synthetic', encoding='utf-8')
+
+    def check_v3_flags(self, disabled=False):
+        for name in fixture.FILES[1:3]:
+            (self.root/name).write_text(name, encoding='utf-8')
+        self.args.import_v3_mode = True
+        self.args.disabled_v3_route = disabled
+        for name in fixture.IMPORT_V3_FILES:
+            path = self.root/name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(name, encoding='utf-8')
+        runtime = FakeRuntime()
+        runtime.env['ASSET_IMPORT_V3_ENABLED'] = 'inherited-must-not-win'
+        original_run, original_start = runtime.run, runtime.start
+        migrations, environments = [], []
+        def run(command, **kwargs):
+            if 'psql' in command and '-i' in command:
+                migrations.append(kwargs['data'])
+            return original_run(command, **kwargs)
+        def start(command, cwd, env=None):
+            environments.append(env)
+            return original_start(command, cwd, env)
+        runtime.run, runtime.start = run, start
+        report = fixture.execute(self.root, self.args, runtime, MagicMock(return_value={}))
+        for flag in ('ASSET_IMPORT_ENABLED', 'ASSET_DATES_ENABLED', 'ASSET_LOCATION_ENABLED', 'ASSET_EXPORT_V3_ENABLED'):
+            self.assertEqual(environments[0][flag], 'true')
+        self.assertEqual(environments[0]['ASSET_IMPORT_V2_ENABLED'], 'false')
+        self.assertEqual(environments[0]['ASSET_IMPORT_V3_ENABLED'], 'false' if disabled else 'true')
+        proxy = next(command for command in runtime.calls if '--synthetic-only' in command)
+        self.assertEqual(proxy[-1], '--import-v3-enabled')
+        self.assertEqual(migrations, [name.encode() for name in (
+            'backend/migrations/001-auth-accounts.sql', 'backend/migrations/002-assets.sql',
+            'backend/migrations/003-asset-import.sql', 'backend/migrations/004-asset-dates.sql',
+            'backend/migrations/005-asset-location.sql')])
+        self.assertEqual(report['cleanup'], 'stopped')
+        self.assertEqual(sum(command[:2] == ['docker', 'stop'] for command in runtime.calls), 1)
+
+    def test_v3_five_migrations_and_fixed_child_flags(self): self.check_v3_flags()
+    def test_disabled_v3_keeps_proxy_but_not_backend_module(self): self.check_v3_flags(True)
+
 if __name__ == '__main__':
     unittest.main()

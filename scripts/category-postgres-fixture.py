@@ -74,6 +74,18 @@ IMPORT_V2_FILES = (FILES[0], FILES[1],
     'backend/migrations/004-asset-dates.sql', FILES[-1])
 
 
+IMPORT_V3_FILES = IMPORT_V2_FILES[:2] + (
+    'backend/src/domains/assets/asset-import-v3.postgres.spec.ts',
+    'backend/src/domains/assets/asset-import-v3.repository.ts',
+    'backend/src/domains/assets/asset-import-v3.ts',
+) + IMPORT_V2_FILES[5:-1] + (
+    'backend/src/domains/assets/asset-location.ts',
+    'backend/src/domains/assets/asset-import-v2.repository.ts',
+    'backend/src/domains/assets/asset-import-v2.ts',
+    'backend/migrations/005-asset-location.sql', FILES[-1],
+)
+
+
 
 LOCATION_FILES = (FILES[0], FILES[1],
     'backend/src/domains/assets/asset-location.postgres.spec.ts',
@@ -91,6 +103,8 @@ def profile_settings(profile):
         return EXPORT_V3_FILES, 'asset-export-v3-', 'asset_export_v3_fixture_', 'ASSET_EXPORT_V3', 'isolated-export-v3-v1', 'asset_export_v3_fixture_identity'
     if profile == 'location':
         return LOCATION_FILES, 'asset-location-', 'asset_location_fixture_', 'ASSET_LOCATION', 'isolated-location-v1', 'asset_location_fixture_identity'
+    if profile == 'import-v3':
+        return IMPORT_V3_FILES, 'asset-import-v3-', 'asset_import_v3_fixture_', 'ASSET_IMPORT_V3', 'isolated-import-v3-v1', 'asset_import_v3_fixture_identity'
     if profile == 'import-v2':
         return IMPORT_V2_FILES, 'asset-import-v2-', 'asset_import_v2_fixture_', 'ASSET_IMPORT_V2', 'isolated-import-v2-v1', 'asset_import_v2_fixture_identity'
     if profile == 'category':
@@ -178,6 +192,8 @@ def execute(root, args, runtime, profile='category', verification=None):
             migrations += ('backend/migrations/004-asset-dates.sql', 'backend/migrations/005-asset-location.sql')
         if profile == 'import-v2':
             migrations += ('backend/migrations/003-asset-import.sql', 'backend/migrations/004-asset-dates.sql')
+        if profile == 'import-v3':
+            migrations += ('backend/migrations/003-asset-import.sql', 'backend/migrations/004-asset-dates.sql', 'backend/migrations/005-asset-location.sql')
         for migration in migrations:
             runtime.run(['docker', 'exec', '-i', name, 'psql', '-v', 'ON_ERROR_STOP=1',
                          '-U', 'fixture', '-d', database], data=(root / migration).read_bytes())
@@ -202,7 +218,7 @@ def execute(root, args, runtime, profile='category', verification=None):
                     cwd=root / 'backend', env=test_env)
         if result_file.stat().st_size > 1024 * 1024:
             raise client.Refusal('Oversized test result')
-        expected = 8 if profile == 'import-v2' else 7 if profile == 'warranty-overview' else 4
+        expected = 8 if profile in ('import-v2', 'import-v3') else 7 if profile == 'warranty-overview' else 4
         validate_result(json.loads(result_file.read_text(encoding='utf-8')), expected)
         if verification is not None:
             verification(runtime, name, database, identity, folder)

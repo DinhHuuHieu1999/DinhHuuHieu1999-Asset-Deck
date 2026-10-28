@@ -55,6 +55,7 @@ test("successful fault fires once; unrelated responses cannot consume it", () =>
   assert.deepEqual(fault.status(), { claimed: true, suppressed: true });
 });
 
+import { parseProxyArgs } from "./client-https-proxy.mjs";
 import { parseRecoveryProxyArgs } from "./import-recovery-proxy-cli.mjs";
 test("dedicated recovery CLI rejects implicit or malformed fault selection before TLS", () => {
   const args = [
@@ -99,7 +100,7 @@ test("legacy selector never claims v2 and rejects unknown schema selectors", () 
     createRecoveryFault(config).claim("POST", "/api/v1/assets/import/v2", body),
     false,
   );
-  for (const schemaVersion of [0, 3, "2", null, true])
+  for (const schemaVersion of [0, 4, "2", "3", null, true])
     assert.throws(() => createRecoveryFault({ ...config, schemaVersion }));
 });
 
@@ -120,4 +121,50 @@ test("dedicated recovery CLI retains v2 capability for the selected key", async 
   assert.equal(parsed.config.importV2Enabled, true);
   assert.equal(parsed.config.datesEnabled, true);
   assert.equal(parsed.config.recoveryRequestId, requestId);
+});
+
+test("v3 selector is exact, schema-isolated and one-shot after complete success", () => {
+  const fault = createRecoveryFault({ ...config, schemaVersion: 3 });
+  for (const path of [
+    "/api/v1/assets/import",
+    "/api/v1/assets/import/v2",
+    "/api/v1/assets/import/v3/",
+    "/api/v1/assets/import/v3?x=1",
+  ])
+    assert.equal(fault.claim("POST", path, body), false);
+  assert.equal(fault.claim("POST", "/api/v1/assets/import/v3", body), true);
+  assert.equal(fault.complete(true, 200, false), false);
+  assert.equal(fault.complete(true, 409, true), false);
+  assert.equal(fault.complete(true, 200, true), true);
+  assert.equal(fault.complete(true, 200, true), false);
+  for (const schemaVersion of [1, 2])
+    assert.equal(
+      createRecoveryFault({ ...config, schemaVersion }).claim(
+        "POST",
+        "/api/v1/assets/import/v3",
+        body,
+      ),
+      false,
+    );
+});
+
+test("only dedicated recovery CLI binds a v3 key; ordinary CLI cannot accept extra fault args", () => {
+  const args = [
+    "--synthetic-only",
+    "19001",
+    "19002",
+    "a".repeat(32),
+    "cert",
+    "key",
+    "--import-v3-enabled",
+    "--lose-import-ack",
+    requestId,
+  ];
+  assert.throws(() => parseProxyArgs(args));
+  const ordinary = parseProxyArgs(args.slice(0, 7)).config;
+  assert.equal(ordinary.recoveryRequestId, undefined);
+  const selected = parseRecoveryProxyArgs(args).config;
+  assert.equal(selected.importV3Enabled, true);
+  assert.equal(selected.importV2Enabled, false);
+  assert.equal(selected.recoveryRequestId, requestId);
 });

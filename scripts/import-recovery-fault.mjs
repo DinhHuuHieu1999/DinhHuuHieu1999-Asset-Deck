@@ -9,7 +9,7 @@ export function createRecoveryFault({
   schemaVersion = 1,
 }) {
   if (
-    ![1, 2].includes(schemaVersion) ||
+    ![1, 2, 3].includes(schemaVersion) ||
     syntheticOnly !== true ||
     importEnabled !== true ||
     typeof requestId !== "string" ||
@@ -25,9 +25,11 @@ export function createRecoveryFault({
         claimed ||
         method !== "POST" ||
         path !==
-          (schemaVersion === 2
-            ? "/api/v1/assets/import/v2"
-            : "/api/v1/assets/import") ||
+          (schemaVersion === 3
+            ? "/api/v1/assets/import/v3"
+            : schemaVersion === 2
+              ? "/api/v1/assets/import/v2"
+              : "/api/v1/assets/import") ||
         !Buffer.isBuffer(bytes) ||
         bytes.length > 1024 * 1024
       )

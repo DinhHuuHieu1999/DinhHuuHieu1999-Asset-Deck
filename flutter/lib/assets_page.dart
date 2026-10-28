@@ -1,3 +1,5 @@
+import 'api/asset_import_v3.dart';
+import 'inventory_import_v3_page.dart';
 import 'api/asset_location.dart';
 import 'asset_location_editor.dart';
 import 'api/asset_import_v2.dart';
@@ -35,6 +37,7 @@ class AssetsPage extends StatefulWidget {
     this.inspectionFiles,
     this.enableInventoryImport = false,
     this.enableInventoryImportV2 = false,
+    this.enableInventoryImportV3 = false,
     this.enableAssetDates = false,
     this.enableAssetLocation = false,
     this.enableInventoryExportV3 = false,
@@ -44,6 +47,7 @@ class AssetsPage extends StatefulWidget {
   final AssetStore store;
   final bool enableInventoryImport;
   final bool enableInventoryImportV2;
+  final bool enableInventoryImportV3;
   final bool enableAssetDates;
   final bool enableAssetLocation;
   final bool enableInventoryExportV3;
@@ -424,6 +428,32 @@ class _AssetsPageState extends State<AssetsPage> {
                     ),
               child: const Text('Inspect local JSON (no import)'),
             ),
+            if (widget.enableInventoryImportV3 &&
+                widget.enableInventoryImport &&
+                widget.enableAssetDates &&
+                widget.enableAssetLocation &&
+                widget.store is AssetSession &&
+                (widget.store as AssetSession).account != null &&
+                widget.store is AssetImportV3Source)
+              OutlinedButton(
+                onPressed: _busy
+                    ? null
+                    : () => Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => InventoryImportV3Page(
+                            apiBase: widget.importApiBase,
+                            session: widget.store as AssetSession,
+                            source: widget.store as AssetImportV3Source,
+                            files:
+                                widget.inspectionFiles ??
+                                WindowsInventoryInspectionFiles(),
+                          ),
+                        ),
+                      ),
+                child: const Text(
+                  'Import inventory JSON v3 (add-only, dates and location)',
+                ),
+              ),
             if (widget.enableInventoryImportV2 &&
                 widget.enableInventoryImport &&
                 widget.enableAssetDates &&

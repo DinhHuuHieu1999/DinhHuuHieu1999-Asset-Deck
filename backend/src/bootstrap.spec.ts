@@ -1,3 +1,4 @@
+import { AssetImportV3Module } from './domains/assets/asset-import-v3.module';
 import { AssetExportV3Module } from './domains/assets/asset-export-v3.module';
 import { AssetLocationModule } from './domains/assets/asset-location.module';
 import { AssetImportV2Module } from './domains/assets/asset-import-v2.module';
@@ -23,6 +24,7 @@ jest.mock('@nestjs/core', () => ({
 }));
 
 describe('opt-in import bootstrap', () => {
+  const originalImportV3 = process.env.ASSET_IMPORT_V3_ENABLED;
   const originalExportV3 = process.env.ASSET_EXPORT_V3_ENABLED;
   const original = process.env.ASSET_IMPORT_ENABLED;
   const originalDates = process.env.ASSET_DATES_ENABLED;
@@ -39,6 +41,7 @@ describe('opt-in import bootstrap', () => {
   };
   beforeEach(() => {
     jest.clearAllMocks();
+    delete process.env.ASSET_IMPORT_V3_ENABLED;
     delete process.env.ASSET_EXPORT_V3_ENABLED;
     delete process.env.ASSET_LOCATION_ENABLED;
     delete process.env.ASSET_IMPORT_ENABLED;
@@ -49,6 +52,9 @@ describe('opt-in import bootstrap', () => {
     app.close.mockResolvedValue(undefined);
   });
   afterEach(() => {
+    if (originalImportV3 === undefined)
+      delete process.env.ASSET_IMPORT_V3_ENABLED;
+    else process.env.ASSET_IMPORT_V3_ENABLED = originalImportV3;
     if (originalExportV3 === undefined)
       delete process.env.ASSET_EXPORT_V3_ENABLED;
     else process.env.ASSET_EXPORT_V3_ENABLED = originalExportV3;
@@ -61,6 +67,46 @@ describe('opt-in import bootstrap', () => {
     else process.env.ASSET_DATES_ENABLED = originalDates;
     if (original === undefined) delete process.env.ASSET_IMPORT_ENABLED;
     else process.env.ASSET_IMPORT_ENABLED = original;
+  });
+  it('registers import v3 with its parser only when all prerequisites are enabled', async () => {
+    process.env.ASSET_IMPORT_V3_ENABLED = 'true';
+    process.env.ASSET_IMPORT_ENABLED = 'true';
+    process.env.ASSET_DATES_ENABLED = 'true';
+    process.env.ASSET_LOCATION_ENABLED = 'true';
+    await bootstrap();
+    expect(NestFactory.create).toHaveBeenCalledWith(
+      {
+        module: AppModule,
+        imports: [
+          AssetImportModule,
+          AssetDatesModule,
+          AssetImportV3Module,
+          AssetLocationModule,
+        ],
+      },
+      { bodyParser: true, abortOnError: false },
+    );
+    expect(app.use).toHaveBeenCalledTimes(4);
+  });
+  it.each(['import', 'dates', 'location'])(
+    'refuses import v3 without %s before app construction',
+    async (missing) => {
+      process.env.ASSET_IMPORT_V3_ENABLED = 'true';
+      process.env.ASSET_IMPORT_ENABLED =
+        missing === 'import' ? 'false' : 'true';
+      process.env.ASSET_DATES_ENABLED = missing === 'dates' ? 'false' : 'true';
+      process.env.ASSET_LOCATION_ENABLED =
+        missing === 'location' ? 'false' : 'true';
+      await expect(bootstrap()).rejects.toThrow(
+        'requires import, dates and location',
+      );
+      expect(NestFactory.create).not.toHaveBeenCalled();
+    },
+  );
+  it('refuses malformed import v3 before app construction', async () => {
+    process.env.ASSET_IMPORT_V3_ENABLED = 'TRUE';
+    await expect(bootstrap()).rejects.toThrow('must be true or false');
+    expect(NestFactory.create).not.toHaveBeenCalled();
   });
   it('registers v3 export only with both required capabilities and no import parser', async () => {
     process.env.ASSET_EXPORT_V3_ENABLED = 'true';

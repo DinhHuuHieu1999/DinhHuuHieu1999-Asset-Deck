@@ -110,8 +110,28 @@ def export_v3_mode(args):
     return value
 
 
+IMPORT_V3_FILES = IMPORT_FILES + EXPORT_V3_FILES + tuple(
+    'backend/dist/domains/assets/asset-import-v3' + suffix + '.js'
+    for suffix in ('', '.config', '.module', '.controller', '.repository', '-parser')
+) + ('backend/dist/domains/assets/asset-import-v2-parser.js',
+     'flutter/tool/import_v3_https_acceptance.dart',
+     'flutter/lib/api/asset_import_v3.dart')
+
+
+def import_v3_mode(args):
+    """Only a dedicated exclusive boolean profile enables import v3."""
+    value = getattr(args, 'import_v3_mode', False)
+    if type(value) is not bool or (value and any(getattr(args, key, False) is not False
+            for key in ('import_mode', 'dates_mode', 'import_v2_mode',
+                        'location_mode', 'export_v3_mode'))):
+        raise Refusal('Invalid import v3 fixture profile')
+    return value
+
+
 def fixture_files(args):
     """Return a fixed source/artifact set for the selected fixture profile."""
+    if import_v3_mode(args):
+        return FILES + IMPORT_V3_FILES
     if export_v3_mode(args):
         return FILES + EXPORT_V3_FILES
     if location_mode(args):
@@ -263,10 +283,11 @@ def record_progress(folder, identity, stage):
 
 def execute(root, args, runtime, acceptance=None):
     """Run once, retain evidence/volume, and stop only resources created here."""
-    export_v3 = export_v3_mode(args)
+    v3 = import_v3_mode(args)
+    export_v3 = export_v3_mode(args) or v3
     location = location_mode(args) or export_v3
     v2 = import_v2_mode(args)
-    enabled = import_mode(args) or v2
+    enabled = import_mode(args) or v2 or v3
     dates = dates_mode(args) or v2 or location
     if (enabled or dates) and acceptance is None:
         raise Refusal('Import fixture requires its dedicated acceptance driver')
@@ -274,6 +295,11 @@ def execute(root, args, runtime, acceptance=None):
         raise Refusal('Import fixture source is missing')
     if v2 and any(not (root / name).is_file() for name in IMPORT_V2_FILES):
         raise Refusal('Import v2 fixture source is missing')
+    if v3 and any(not (root / name).is_file() for name in IMPORT_V3_FILES):
+        raise Refusal('Import v3 fixture source is missing')
+    disabled_v3 = getattr(args, 'disabled_v3_route', False)
+    if type(disabled_v3) is not bool or (disabled_v3 and not v3):
+        raise Refusal('Invalid disabled v3 route profile')
     disabled_v2 = getattr(args, 'disabled_v2_route', False)
     if type(disabled_v2) is not bool or (disabled_v2 and not v2):
         raise Refusal('Invalid disabled v2 route profile')
@@ -324,6 +350,8 @@ def execute(root, args, runtime, acceptance=None):
             migrations = FILES[1:3] + IMPORT_FILES[:1] + DATES_FILES[:1]
         if location:
             migrations = FILES[1:3] + DATES_FILES[:1] + ('backend/migrations/005-asset-location.sql',)
+        if v3:
+            migrations = FILES[1:3] + IMPORT_FILES[:1] + DATES_FILES[:1] + ('backend/migrations/005-asset-location.sql',)
         for migration in migrations:
             runtime.run(['docker', 'exec', '-i', name, 'psql', '-v', 'ON_ERROR_STOP=1', '-U', 'fixture', '-d', 'fixture'], data=(root / migration).read_bytes())
         env = dict(runtime.env, NODE_ENV='production', BACKEND_HTTP_PORT=str(args.backend_port),
@@ -331,6 +359,7 @@ def execute(root, args, runtime, acceptance=None):
                    JWT_ACCESS_SECRET=secrets.token_hex(32), CSRF_SECRET=secrets.token_hex(32),
                    CSRF_ENABLED='true', CSRF_COOKIE_SECURE='true', AUTH_EXPOSE_RESET_TOKEN='false',
                    REQUEST_FRESHNESS_ENABLED='true', THROTTLE_LIMIT='1000', ASSET_DESK_FIXTURE_ID=identity)
+        env['ASSET_IMPORT_V3_ENABLED'] = 'true' if v3 and not disabled_v3 else 'false'
         env['ASSET_IMPORT_ENABLED'] = 'true' if enabled else 'false'
         env['ASSET_DATES_ENABLED'] = 'true' if dates else 'false'
         env['ASSET_EXPORT_V3_ENABLED'] = 'true' if export_v3 else 'false'
@@ -343,7 +372,7 @@ def execute(root, args, runtime, acceptance=None):
         report['stage'] = 'proxy-readiness'
         record_progress(folder, identity, 'proxy-readiness')
         proxy = runtime.start(['node', str(root / 'scripts/client-https-proxy-cli.mjs'), '--synthetic-only',
-                               str(args.backend_port), str(args.tls_port), identity, args.cert, args.key] + (['--export-v3-enabled'] if export_v3 else ['--location-enabled'] if location else ['--import-v2-enabled'] if v2 else ['--import-enabled'] if enabled else ['--dates-enabled'] if dates else []), folder)
+                               str(args.backend_port), str(args.tls_port), identity, args.cert, args.key] + (['--import-v3-enabled'] if v3 else ['--export-v3-enabled'] if export_v3 else ['--location-enabled'] if location else ['--import-v2-enabled'] if v2 else ['--import-enabled'] if enabled else ['--dates-enabled'] if dates else []), folder)
         runtime.wait_port(args.tls_port, proxy)
         if acceptance is None:
             report['stage'] = 'dart-client'

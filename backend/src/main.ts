@@ -1,3 +1,6 @@
+import { AssetImportV3Module } from './domains/assets/asset-import-v3.module';
+import { isAssetImportV3Enabled } from './domains/assets/asset-import-v3.config';
+import { createAssetImportV3Parser } from './domains/assets/asset-import-v3-parser';
 import 'reflect-metadata';
 import { AssetExportV3Module } from './domains/assets/asset-export-v3.module';
 import { isAssetExportV3Enabled } from './domains/assets/asset-export-v3.config';
@@ -28,6 +31,7 @@ export async function bootstrap(): Promise<void> {
   const locationEnabled = isAssetLocationEnabled();
   const importEnabled = isAssetImportEnabled();
   const datesEnabled = isAssetDatesEnabled();
+  const importV3Enabled = isAssetImportV3Enabled();
   const importV2Enabled = isAssetImportV2Enabled();
   const app = await NestFactory.create<NestExpressApplication>(
     {
@@ -37,6 +41,7 @@ export async function bootstrap(): Promise<void> {
         ...(importEnabled ? [AssetImportModule] : []),
         ...(datesEnabled ? [AssetDatesModule] : []),
         ...(importV2Enabled ? [AssetImportV2Module] : []),
+        ...(importV3Enabled ? [AssetImportV3Module] : []),
         ...(locationEnabled ? [AssetLocationModule] : []),
       ],
     },
@@ -49,6 +54,7 @@ export async function bootstrap(): Promise<void> {
     // Install before Nest initialization so only this route gets a larger parser.
     if (importEnabled) app.use(createAssetImportParser());
     if (importV2Enabled) app.use(createAssetImportV2Parser());
+    if (importV3Enabled) app.use(createAssetImportV3Parser());
     app.set('trust proxy', false);
     app.use(helmet());
     app.use(cookieParser());

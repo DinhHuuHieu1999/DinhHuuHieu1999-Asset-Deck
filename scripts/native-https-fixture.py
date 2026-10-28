@@ -16,10 +16,11 @@ _spec.loader.exec_module(client)
 
 def verify_candidate(root, args):
     """Require a complete hashed deployment, pinned to the intended TLS endpoint."""
+    v3 = client.import_v3_mode(args)
     export_v3 = client.export_v3_mode(args)
     location = client.location_mode(args)
     v2 = client.import_v2_mode(args)
-    enabled = client.import_mode(args) or v2
+    enabled = client.import_mode(args) or v2 or v3
     if not args.execute_native or not args.execute_synthetic:
         raise client.Refusal('Explicit native and synthetic opt-in required')
     if not 1 <= args.minutes <= 30:
@@ -56,6 +57,11 @@ def verify_candidate(root, args):
         defines = {'ASSET_DESK_ENABLE_EXPORT_V3': 'true',
                    'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
                    'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+    if v3:
+        defines = {'ASSET_DESK_ENABLE_IMPORT': 'true',
+                   'ASSET_DESK_ENABLE_IMPORT_V3': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_DATES': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true'}
     if (enabled or location or export_v3) and value.get('buildDefines') != defines:
         raise client.Refusal('Candidate feature build contract missing')
     files = value['files']
@@ -91,22 +97,24 @@ def preflight(root, args):
     client.preflight(root, args)
 
 
-def prepare_import_file(folder, v2=False):
+def prepare_import_file(folder, v2=False, v3=False):
     """Create one inert synthetic snapshot; never consume operator inventory."""
     now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
     record = {'id': str(uuid.uuid4()), 'name': 'Synthetic native imported asset',
               'category': 'fixture', 'serial': 'IMPORT-%_1', 'status': 'stored',
               'notes': 'Synthetic import only', 'version': 1,
               'createdAt': now, 'updatedAt': now}
-    if type(v2) is not bool:
+    if type(v2) is not bool or type(v3) is not bool or (v2 and v3):
         raise client.Refusal('Invalid synthetic import version')
-    if v2:
+    if v2 or v3:
         record.update(purchasedOn='2024-02-29', warrantyExpiresOn='2027-02-28')
+    if v3:
+        record['location'] = 'Synthetic room %_1'
     payload = json.dumps({'exportedAt': now, 'complete': True, 'recordCount': 1,
                           'records': [record]}, ensure_ascii=False, separators=(',', ':'))
-    envelope = {'format': 'asset-desk-inventory', 'schemaVersion': 2 if v2 else 1, 'payload': payload,
+    envelope = {'format': 'asset-desk-inventory', 'schemaVersion': 3 if v3 else 2 if v2 else 1, 'payload': payload,
                 'sha256': hashlib.sha256(payload.encode('utf-8')).hexdigest()}
-    destination = folder / ('inventory-import-v2-synthetic.json' if v2 else 'inventory-import-synthetic.json')
+    destination = folder / ('inventory-import-v3-synthetic.json' if v3 else 'inventory-import-v2-synthetic.json' if v2 else 'inventory-import-synthetic.json')
     with destination.open('x', encoding='utf-8') as stream:
         stream.write(json.dumps(envelope, ensure_ascii=False, separators=(',', ':'))+'\n')
     return destination
@@ -126,11 +134,15 @@ def native_session(root, args, runtime, folder, identity, backend, proxy):
     handoff = dict(seed, endpoint=endpoint, fixtureId=identity, syntheticOnly=True,
                    expiresAtEpoch=int(time.time() + args.minutes * 60),
                    instructions='Sign in, search, create/edit/refresh. Do not use a real account or equipment data.')
-    if client.import_mode(args) or client.import_v2_mode(args):
-        import_file = prepare_import_file(folder, v2=client.import_v2_mode(args))
+    if client.import_mode(args) or client.import_v2_mode(args) or client.import_v3_mode(args):
+        import_file = prepare_import_file(folder, v2=client.import_v2_mode(args), v3=client.import_v3_mode(args))
         handoff.update(importFile=str(import_file), expectedBefore=1, expectedAfter=2,
                        importedAssetName='Synthetic native imported asset',
                        instructions='Sign in, open Import, choose the synthetic file, review and explicitly confirm once; refresh. Never use real data.')
+    if client.import_v3_mode(args):
+        handoff.update(importSchemaVersion=3, purchasedOn='2024-02-29',
+                       warrantyExpiresOn='2027-02-28', locationLabel='Synthetic room %_1',
+                       instructions='Sign in; choose Import inventory JSON v3 and the synthetic file. Review dates/location, save private recovery to a new file, acknowledge and confirm once. Refresh: two assets. Restore the same recovery file and explicitly replay: still two. Never use real data.')
     if client.location_mode(args):
         handoff.update(locationMode=True, expectedAssets=1,
                        locationLabel='Synthetic room %_1',
@@ -170,6 +182,7 @@ def main():
     parser.add_argument('--location-mode', action='store_true')
     parser.add_argument('--import-mode', action='store_true')
     parser.add_argument('--import-v2-mode', action='store_true')
+    parser.add_argument('--import-v3-mode', action='store_true')
     parser.add_argument('--candidate', default='')
     parser.add_argument('--minutes', type=int, default=30)
     for name in ('image', 'cert', 'key'):

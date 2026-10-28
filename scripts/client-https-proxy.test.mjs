@@ -64,6 +64,7 @@ async function simulate({
   importEnabled = false,
   recoveryRequestId,
   upstreamComplete = true,
+  capabilities = {},
 } = {}) {
   const req = hanging ? new Readable({ read() {} }) : Readable.from(chunks);
   Object.assign(req, {
@@ -132,7 +133,7 @@ async function simulate({
   };
   const finished = new Promise((resolve) => res.once("close", resolve));
   await createHandler(
-    { ...config, timeoutMs, importEnabled, recoveryRequestId },
+    { ...config, timeoutMs, importEnabled, recoveryRequestId, ...capabilities },
     transport,
   )(req, res);
   await finished;
@@ -584,4 +585,112 @@ test("location routes are opt-in and cannot enable import", () => {
   assert.equal(parsed.config.locationEnabled, true);
   assert.equal(parsed.config.datesEnabled, true);
   assert.equal(parsed.config.importEnabled, false);
+});
+
+test("v3 CLI requires fixed capabilities and leaves older profiles unchanged", () => {
+  const args = [
+    "--synthetic-only",
+    "19001",
+    "19002",
+    "a".repeat(32),
+    "cert",
+    "key",
+  ];
+  const selected = parseProxyArgs([...args, "--import-v3-enabled"]).config;
+  for (const key of [
+    "importEnabled",
+    "datesEnabled",
+    "locationEnabled",
+    "exportV3Enabled",
+    "importV3Enabled",
+  ]) {
+    assert.equal(selected[key], true);
+    if (key !== "importV3Enabled")
+      assert.throws(() => validateConfig({ ...selected, [key]: false }));
+  }
+  assert.equal(selected.importV2Enabled, false);
+  assert.throws(() => validateConfig({ ...selected, importV2Enabled: true }));
+  assert.equal(selected.recoveryRequestId, undefined);
+  for (const flag of [
+    "--import-enabled",
+    "--import-v2-enabled",
+    "--location-enabled",
+    "--export-v3-enabled",
+  ])
+    assert.equal(parseProxyArgs([...args, flag]).config.importV3Enabled, false);
+});
+
+test("v3 import is exact POST-only and opt-in, never enabled by export alone", () => {
+  const route = "/api/v1/assets/import/v3";
+  const flags = [true, true, false, true, true, true];
+  assert.equal(allowed("POST", route, ...flags), true);
+  assert.equal(allowed("POST", route, false, true, false, true, true), false);
+  for (const alias of [
+    route + "/",
+    route + "?x=1",
+    route.toUpperCase(),
+    "/api/v1/assets/import/v30",
+  ])
+    assert.equal(allowed("POST", alias, ...flags), false);
+  assert.equal(allowed("GET", route, ...flags), false);
+  assert.equal(allowed("POST", "/api/v1/assets/import/v2", ...flags), false);
+});
+
+test("v3 stream forwarding retains exact bytes and refuses unselected route", async () => {
+  const capabilities = parseProxyArgs([
+    "--synthetic-only",
+    "19001",
+    "19002",
+    "a".repeat(32),
+    "cert",
+    "key",
+    "--import-v3-enabled",
+  ]).config;
+  const bytes = Buffer.from(
+    '{"requestId":"synthetic","records":[{"location":"Room %_1"}]}',
+  );
+  const result = await simulate({
+    url: "/api/v1/assets/import/v3",
+    chunks: [bytes],
+    capabilities,
+  });
+  assert.equal(result.calls, 1);
+  assert.equal(result.options.hostname, "127.0.0.1");
+  assert.equal(result.options.path, "/api/v1/assets/import/v3");
+  assert.equal(result.sent.toString(), bytes.toString());
+  const denied = await simulate({ url: "/api/v1/assets/import/v3" });
+  assert.equal(denied.calls, 0);
+  assert.equal(denied.res.code, 404);
+});
+
+test("explicit v3 recovery suppresses only a complete successful selected reply", async () => {
+  const capabilities = parseProxyArgs([
+    "--synthetic-only",
+    "19001",
+    "19002",
+    "a".repeat(32),
+    "cert",
+    "key",
+    "--import-v3-enabled",
+  ]).config;
+  const requestId = "12345678-1234-4234-8234-123456789abc";
+  const chunks = [Buffer.from(JSON.stringify({ requestId, records: [] }))];
+  const selected = {
+    url: "/api/v1/assets/import/v3",
+    chunks,
+    capabilities,
+    recoveryRequestId: requestId,
+  };
+  const success = await simulate({
+    ...selected,
+    responseChunks: [Buffer.from("private-receipt")],
+  });
+  assert.equal(success.calls, 1);
+  assert.equal(success.res.destroyed, true);
+  assert.equal(success.res.body, undefined);
+  const conflict = await simulate({ ...selected, status: 409 });
+  assert.equal(conflict.res.code, 409);
+  assert.equal(conflict.res.destroyed, false);
+  const incomplete = await simulate({ ...selected, upstreamComplete: false });
+  assert.equal(incomplete.res.code, 502);
 });
