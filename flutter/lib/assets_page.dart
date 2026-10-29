@@ -183,15 +183,20 @@ class _AssetsPageState extends State<AssetsPage> {
   Future<void> _load({
     int offset = 0,
     bool apply = false,
+    bool resetFilters = false,
     bool preserveWarrantyDate = false,
     String? warrantyReference,
   }) async {
     if (_busy) return;
-    final query = apply ? _query.text.trim() : _loadedQuery;
-    final status = apply ? _status : _loadedStatus;
-    final sort = apply ? _sort : _loadedSort;
-    final category = apply ? _category.text.trim() : _loadedCategory;
-    final warranty = apply ? _warranty : _loadedWarranty;
+    final query = resetFilters
+        ? ''
+        : (apply ? _query.text.trim() : _loadedQuery);
+    final status = resetFilters ? '' : (apply ? _status : _loadedStatus);
+    final sort = apply && !resetFilters ? _sort : _loadedSort;
+    final category = resetFilters
+        ? ''
+        : (apply ? _category.text.trim() : _loadedCategory);
+    final warranty = resetFilters ? '' : (apply ? _warranty : _loadedWarranty);
     final reference =
         warrantyReference ??
         (!apply && _pinnedWarrantyAsOf != null
@@ -199,9 +204,11 @@ class _AssetsPageState extends State<AssetsPage> {
             : (offset > 0 || preserveWarrantyDate
                   ? (_warrantyPage?.asOf ?? '')
                   : ''));
-    final locationMode = apply ? _locationMode : _loadedLocationMode;
-    String? location = _loadedLocation;
-    if (apply && _hasLocation) {
+    final locationMode = resetFilters
+        ? 'all'
+        : (apply ? _locationMode : _loadedLocationMode);
+    String? location = resetFilters ? null : _loadedLocation;
+    if (apply && !resetFilters && _hasLocation) {
       try {
         location = locationMode == 'exact'
             ? normalizeAssetLocation(_location.text)
@@ -216,7 +223,8 @@ class _AssetsPageState extends State<AssetsPage> {
     if (apply && _locationError != null) {
       setState(() => _locationError = null);
     }
-    if (_category.text.runes.length > 64 || category.contains('\u0000')) {
+    if (!resetFilters &&
+        (_category.text.runes.length > 64 || category.contains('\u0000'))) {
       if (apply) {
         setState(
           () => _error = 'Category must be at most 64 characters without NUL.',
@@ -301,6 +309,16 @@ class _AssetsPageState extends State<AssetsPage> {
         _loadedStatus = status;
         _loadedSort = sort;
         _loadedCategory = category;
+        if (resetFilters) {
+          _query.clear();
+          _category.clear();
+          _location.clear();
+          _status = '';
+          _warranty = '';
+          _locationMode = 'all';
+          _locationError = null;
+          _sort = sort;
+        }
       });
     } catch (error) {
       if (mounted)
@@ -883,6 +901,14 @@ class _AssetsPageState extends State<AssetsPage> {
             OutlinedButton(
               onPressed: _busy ? null : () => _load(),
               child: const Text('Refresh inventory'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton(
+              onPressed: _busy ? null : () => _load(resetFilters: true),
+              child: const Text('Reset filters'),
+            ),
+            const Text(
+              'Reset clears filters, keeps applied sort and loads page 1.',
             ),
             const Text(
               'Filters apply only when pressed. Refresh uses the last successfully applied filters.',

@@ -281,3 +281,14 @@ is reused without a new dependency. On a separate synthetic Windows fixture, the
 operator confirmed selection preview, Cancel retaining preview/checksum, and an
 invalid file clearing both. Screen-reader acceptance and Codacy analyzer coverage
 remain pending. No deployment is implied.
+
+## Reset inventory filters
+
+Reset filters clears search/status/category/warranty/location on successful load,
+returns to page one and keeps the applied sort, not an unapplied sort draft.
+Failure retains the previous applied results and draft controls; no asset is
+written. The operator confirmed reset keeping applied sort, Refresh persistence and
+recovery from invalid Exact location on a synthetic Windows fixture. Failure
+preservation and page-two reset remain widget-tested; native keyboard/screen-reader
+checks and deployment are not implied.
+See [behavior and checks](../docs/inventory-reset-filters.md).
