@@ -246,3 +246,19 @@ response scope mismatch. Its format is not a full-inventory backup and is not
 accepted by existing full export/import parsers. Isolated HTTPS and functional
 Windows Prepare/Save/Cancel/Back checks passed; screen-reader acceptance and
 Codacy analyzer coverage remain pending; see [selection export plan](../docs/inventory-selection-export-plan.md).
+
+## Read-only selection inspection candidate
+
+With the existing selection export, dates and location feature flags enabled,
+**Inspect selection JSON (no import)** opens a separate local file preview.
+The bounded reader accepts only the selection format, validates the exact payload
+checksum and shows its recorded filters and assets. It does not query the backend,
+verify that records match those filters, or import anything. A checksum is not proof
+of authenticity; the file is a snapshot, not a full inventory backup.
+
+Cancel preserves the previous preview. Selecting an invalid file clears previous
+records and checksum evidence; signing out removes the route. The Windows picker
+is reused without a new dependency. On a separate synthetic Windows fixture, the
+operator confirmed selection preview, Cancel retaining preview/checksum, and an
+invalid file clearing both. Screen-reader acceptance and Codacy analyzer coverage
+remain pending. No deployment is implied.

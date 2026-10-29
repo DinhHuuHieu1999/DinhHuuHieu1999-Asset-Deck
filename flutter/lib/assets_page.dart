@@ -571,6 +571,23 @@ class _AssetsPageState extends State<AssetsPage> {
                       ),
                 child: const Text('Inspect JSON v3 with location (no import)'),
               ),
+            if (widget.enableSelectionExport &&
+                widget.enableAssetDates &&
+                widget.enableAssetLocation)
+              OutlinedButton(
+                onPressed: _busy
+                    ? null
+                    : () => Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => InventoryInspectionPage.selection(
+                            files:
+                                widget.inspectionFiles ??
+                                WindowsInventoryInspectionFiles(),
+                          ),
+                        ),
+                      ),
+                child: const Text('Inspect selection JSON (no import)'),
+              ),
             OutlinedButton(
               onPressed: _busy
                   ? null
