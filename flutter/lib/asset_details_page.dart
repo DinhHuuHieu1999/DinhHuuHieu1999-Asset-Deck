@@ -17,6 +17,8 @@ class AssetDetailsPage extends StatefulWidget {
     this.locationSource,
     this.session,
     this.onEdit,
+    this.onEditDates,
+    this.onEditLocation,
   });
   final AssetRecord record;
   final AssetDatesSource? datesSource;
@@ -25,6 +27,12 @@ class AssetDetailsPage extends StatefulWidget {
 
   /// Opens editing for this exact snapshot; true means a confirmed save.
   final Future<bool> Function(AssetRecord record)? onEdit;
+
+  /// Edits only the dates already verified against this snapshot's version.
+  final Future<bool> Function(AssetDates dates)? onEditDates;
+
+  /// Edits only the location already verified against this snapshot's version.
+  final Future<bool> Function(AssetLocation location)? onEditLocation;
 
   @override
   State<AssetDetailsPage> createState() => _AssetDetailsPageState();
@@ -107,21 +115,20 @@ class _AssetDetailsPageState extends State<AssetDetailsPage> {
     }
   }
 
-  Future<void> _edit() async {
-    final edit = widget.onEdit;
-    if (edit == null ||
+  Future<void> _edit<T>(T? original, Future<bool> Function(T)? edit) async {
+    if (original == null ||
+        edit == null ||
         _busy ||
         _editing ||
         _invalidated ||
         _details == null ||
         _error != null)
       return;
-    final record = widget.record;
     final request = _request;
     final revision = widget.session?.sessionRevision;
     setState(() => _editing = true);
     try {
-      final saved = await edit(record);
+      final saved = await edit(original);
       if (!mounted ||
           _invalidated ||
           request != _request ||
@@ -176,7 +183,9 @@ class _AssetDetailsPageState extends State<AssetDetailsPage> {
               )
             else ...[
               Text(
-                widget.onEdit == null
+                widget.onEdit == null &&
+                        widget.onEditDates == null &&
+                        widget.onEditLocation == null
                     ? 'Read-only inventory snapshot, not a live record. To update it, return to inventory, refresh and reopen.'
                     : 'Inventory snapshot, not a live record. Edit uses this version; a successful save returns to inventory.',
               ),
@@ -185,7 +194,7 @@ class _AssetDetailsPageState extends State<AssetDetailsPage> {
                   onPressed:
                       _busy || _editing || _details == null || _error != null
                       ? null
-                      : _edit,
+                      : () => _edit(widget.record, widget.onEdit),
                   child: const Text('Edit asset'),
                 ),
               if (_busy) const LinearProgressIndicator(),
@@ -233,6 +242,17 @@ class _AssetDetailsPageState extends State<AssetDetailsPage> {
                     ? _details!.dates!.input.warrantyExpiresOn ?? 'Unknown'
                     : _unloaded,
               ),
+              if (widget.datesSource != null && widget.onEditDates != null)
+                OutlinedButton(
+                  onPressed:
+                      _busy ||
+                          _editing ||
+                          _error != null ||
+                          _details?.dates == null
+                      ? null
+                      : () => _edit(_details?.dates, widget.onEditDates),
+                  child: const Text('Edit purchase / warranty dates'),
+                ),
               _field(
                 'Location',
                 widget.locationSource == null
@@ -241,6 +261,18 @@ class _AssetDetailsPageState extends State<AssetDetailsPage> {
                     ? _details!.location!.location ?? 'Unknown'
                     : _unloaded,
               ),
+              if (widget.locationSource != null &&
+                  widget.onEditLocation != null)
+                OutlinedButton(
+                  onPressed:
+                      _busy ||
+                          _editing ||
+                          _error != null ||
+                          _details?.location == null
+                      ? null
+                      : () => _edit(_details?.location, widget.onEditLocation),
+                  child: const Text('Edit location'),
+                ),
               _field('Snapshot version', '${widget.record.version}'),
               _field(
                 'Created (UTC)',

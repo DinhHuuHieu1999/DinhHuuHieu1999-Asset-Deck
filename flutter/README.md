@@ -220,6 +220,14 @@ Notes, unchanged dates/location, draft Keep/Discard and Back preserving Search.
 Screen-reader checks and regular deployment remain outside that acceptance.
 See [scope and verification](../docs/edit-from-asset-details-plan.md).
 
+Enabled purchase/warranty dates and location can also be edited from details.
+Each action passes the verified snapshot version to the existing dedicated editor;
+Unknown values remain editable, while loading or failed reads disable editing.
+Save returns to inventory; Cancel keeps the same snapshot. The operator confirmed saved dates/location, location Keep/Discard and Back
+preserving Search on a separate synthetic Windows fixture. Other field isolation
+and date-editor draft handling remain widget-tested; screen-reader checks and
+regular deployment are not implied. See [scope](../docs/details-optional-edit-proposal.md).
+
 ## Inventory overview drill-down
 
 View assets in Inventory overview selects one status or exact category, clears

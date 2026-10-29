@@ -133,22 +133,38 @@ class _AssetsPageState extends State<AssetsPage> {
     if (_busy) return;
     final store = widget.store;
     final revision = store is AssetSession ? store.sessionRevision : null;
+    Future<bool> openEditor(Widget editor) async {
+      if (!mounted ||
+          (store is AssetSession && store.sessionRevision != revision)) {
+        return false;
+      }
+      return await Navigator.of(context)
+              .push<bool>(MaterialPageRoute(builder: (_) => editor)) ==
+          true;
+    }
+
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => AssetDetailsPage(
           record: record,
-          onEdit: (original) async {
-            if (!mounted ||
-                (store is AssetSession && store.sessionRevision != revision))
-              return false;
-            return await Navigator.of(context).push<bool>(
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        AssetEditor(store: store, original: original),
+          onEdit: (original) =>
+              openEditor(AssetEditor(store: store, original: original)),
+          onEditDates: widget.enableAssetDates && store is AssetDatesSource
+              ? (original) => openEditor(
+                  AssetDatesEditor(
+                    store: store as AssetDatesSource,
+                    original: original,
                   ),
-                ) ==
-                true;
-          },
+                )
+              : null,
+          onEditLocation: _hasLocation
+              ? (original) => openEditor(
+                  AssetLocationEditor(
+                    source: store as AssetLocationSource,
+                    original: original,
+                  ),
+                )
+              : null,
           datesSource: widget.enableAssetDates && store is AssetDatesSource
               ? store as AssetDatesSource
               : null,
