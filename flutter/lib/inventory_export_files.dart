@@ -1,3 +1,5 @@
+import 'api/asset_selection_export.dart';
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -26,12 +28,19 @@ abstract interface class InventoryExportV3Files {
   Future<bool> saveV3(AssetExportV3 snapshot);
 }
 
+/// Selection-only save boundary; never converts to a full inventory envelope.
+abstract interface class InventorySelectionExportFiles {
+  Future<String> digest(Uint8List bytes);
+  Future<bool> saveSelection(AssetSelectionExport snapshot);
+}
+
 /// Windows CNG and native Save As; no paths, credentials or implicit disk writes.
 class WindowsInventoryExportFiles
     implements
         InventoryExportFiles,
         InventoryExportV2Files,
-        InventoryExportV3Files {
+        InventoryExportV3Files,
+        InventorySelectionExportFiles {
   static const _channel = MethodChannel('asset_desk/inventory_export');
 
   @override
@@ -67,14 +76,21 @@ class WindowsInventoryExportFiles
   @override
   Future<bool> saveV3(AssetExportV3 snapshot) => _saveJson(snapshot.json);
 
-  Future<bool> _saveJson(String json) async {
+  @override
+  Future<bool> saveSelection(AssetSelectionExport snapshot) =>
+      _saveJson(snapshot.json, selection: true);
+
+  Future<bool> _saveJson(String json, {bool selection = false}) async {
     final bytes = Uint8List.fromList(utf8.encode(json));
     if (bytes.length < 2 || bytes.length > 1024 * 1024) {
       throw const AssetFailure('Inventory export size is invalid');
     }
     try {
       // No timeout: a user-controlled modal dialog is not a timed-out write.
-      final result = await _channel.invokeMethod<Object?>('saveJson', bytes);
+      final result = await _channel.invokeMethod<Object?>(
+        selection ? 'saveSelectionJson' : 'saveJson',
+        bytes,
+      );
       if (result == null) return false;
       if (result == true) return true;
       throw const AssetFailure(

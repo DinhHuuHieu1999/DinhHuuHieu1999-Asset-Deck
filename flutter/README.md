@@ -238,3 +238,11 @@ Back does not apply a draft. Ordering is server-side, with a stable ID tie-break
 Name sorting uses case-sensitive PostgreSQL C collation, not natural locale order.
 See the [sort acceptance plan](../docs/inventory-sort-plan.md). No new database
 fixture, native acceptance, commit or deployment is claimed for this phase.
+
+## Filtered selection export
+
+The separate selection parser/client preserves applied filters and rejects
+response scope mismatch. Its format is not a full-inventory backup and is not
+accepted by existing full export/import parsers. Isolated HTTPS and functional
+Windows Prepare/Save/Cancel/Back checks passed; screen-reader acceptance and
+Codacy analyzer coverage remain pending; see [selection export plan](../docs/inventory-selection-export-plan.md).

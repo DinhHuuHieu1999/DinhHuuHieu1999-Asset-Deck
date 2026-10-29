@@ -31,6 +31,13 @@ class InventoryExportNativeTests(unittest.TestCase):
         self.assertIn('IFileOpenDialog', source)
         self.assertIn('FOS_ALLOWMULTISELECT | FOS_PICKFOLDERS', source)
 
+    def test_selection_save_has_fixed_distinct_filename(self):
+        source = (ROOT / 'inventory_export_channel.cpp').read_text(encoding='utf-8')
+        for token in ('saveSelectionJson', 'asset-desk-inventory-selection.json',
+                      'Save private inventory selection JSON (no overwrite)'):
+            self.assertIn(token, source)
+        self.assertIn('recovery ? WriteNewRecoveryJson(path, *bytes) : WriteNewInventoryJson(path, *bytes)', source)
+
     def test_inspection_reader_is_bounded_and_read_only(self):
         source = (ROOT / 'inventory_export_file.cpp').read_text(encoding='utf-8').split('static bool ReadBoundedJson(', 1)[1].split('// Explicit wrappers', 1)[0]
         for token in ('GENERIC_READ', 'FILE_SHARE_READ', 'OPEN_EXISTING',

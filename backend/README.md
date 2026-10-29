@@ -196,3 +196,11 @@ warranty and location-aware lists. Name ordering uses case-sensitive PostgreSQL
 ordering and overview counts are unchanged. See the
 [inventory sort plan](../docs/inventory-sort-plan.md); client/UI and runtime
 acceptance are pending.
+
+## Optional filtered selection export
+
+`ASSET_SELECTION_EXPORT_ENABLED=false` is the default. Enabling requires dates
+and location capabilities plus existing migrations 001, 002, 004 and 005. The separate
+`GET /api/v1/assets/export/selection` route exports matching owner records, not
+a complete account backup. Existing exports remain unchanged. Seven isolated PostgreSQL scenarios and a
+separate real-client HTTPS fixture passed; no regular deployment is claimed; see [selection export plan](../docs/inventory-selection-export-plan.md).

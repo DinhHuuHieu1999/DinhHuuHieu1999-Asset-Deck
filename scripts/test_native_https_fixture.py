@@ -61,6 +61,46 @@ class NativeTests(unittest.TestCase):
         folder.mkdir()
         return native.native_session(self.root, self.args, runtime, folder, 'a' * 32, *self.services)
 
+    def test_selection_candidate_requires_exact_defines_and_fixed_seed(self):
+        self.args.selection_export_mode = True
+        with self.assertRaises(native.client.Refusal):
+            native.verify_candidate(self.root, self.args)
+        defines = {'ASSET_DESK_ENABLE_SELECTION_EXPORT': 'true',
+                   'ASSET_DESK_ENABLE_EXPORT_V3': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+        self.manifest['buildDefines'] = defines
+        self.write_manifest()
+        self.assertEqual(native.verify_candidate(self.root, self.args), Path(self.args.candidate))
+        self.assertEqual(native.seed_source(self.args), 'flutter/tool/native_export_v3_seed.dart')
+        for key in defines:
+            self.manifest['buildDefines'] = {k: v for k, v in defines.items() if k != key}
+            self.write_manifest()
+            with self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+        self.manifest['buildDefines'] = dict(defines, ASSET_DESK_ENABLE_IMPORT='true')
+        self.write_manifest()
+        with self.assertRaises(native.client.Refusal):
+            native.verify_candidate(self.root, self.args)
+
+    def test_selection_handoff_is_not_an_import_or_manual_pass(self):
+        self.args.selection_export_mode = True
+        self.manifest['buildDefines'] = {
+            'ASSET_DESK_ENABLE_SELECTION_EXPORT': 'true',
+            'ASSET_DESK_ENABLE_EXPORT_V3': 'true',
+            'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+            'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+        self.write_manifest()
+        seed = self.root/'flutter/tool/native_export_v3_seed.dart'
+        seed.write_text('synthetic only', encoding='utf-8')
+        result = self.run_session(self.runtime())
+        handoff = json.loads((self.root/'evidence/operator-handoff.json').read_text())
+        self.assertTrue(handoff['selectionExportMode'])
+        self.assertEqual(handoff['expectedAssets'], 1)
+        self.assertNotIn('importFile', handoff)
+        self.assertEqual(result['nativeAcceptance'], 'pending')
+        self.assertIn('not a full backup', handoff['instructions'])
+
     def enable_import_v3(self):
         self.args.import_v3_mode = True
         self.manifest['buildDefines'] = {

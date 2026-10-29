@@ -1,3 +1,7 @@
+import 'asset_selection_export_test.dart' show selectionFixture;
+
+import 'package:asset_desk/api/asset_selection_export.dart';
+
 import 'asset_export_v3_test.dart' show exportV3Fixture;
 
 import 'dart:async';
@@ -1059,6 +1063,39 @@ void main() {
         expect(calls.length, before + 1);
       },
     );
+    test('selection export sends literal applied scope and rejects mismatched response', () async {
+      await api.login('synthetic@example.test', ' synthetic-pass ');
+      final value = selectionFixture();
+      final payload =
+          jsonDecode(value['payload']! as String) as Map<String, Object?>;
+      final scope = AssetSelectionScope.fromJson(
+        payload['filters']! as Map<String, Object?>,
+      );
+      handler = (request) async {
+        expect(request.uri.path, '/api/v1/assets/export/selection');
+        expect(request.uri.queryParameters, scope.toQuery());
+        expect(request.uri.queryParameters['q'], '%_');
+        json(request, value);
+      };
+      expect(
+        (await api.exportSelection(
+          scope: scope,
+          digest: (_) async => 'a' * 64,
+        )).count,
+        1,
+      );
+      final changed = AssetSelectionScope.fromJson({
+        ...scope.filters,
+        'status': 'repair',
+      });
+      handler = (request) async {
+        json(request, value);
+      };
+      await expectLater(
+        api.exportSelection(scope: changed, digest: (_) async => 'a' * 64),
+        throwsA(isA<AssetFailure>()),
+      );
+    });
     test('anonymous v3 export never requests data or digest', () async {
       await expectLater(
         api.exportInventoryV3(

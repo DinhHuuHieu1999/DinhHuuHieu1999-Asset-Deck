@@ -29,6 +29,25 @@ Map<String, Object?> exportV3Fixture({int count = 1}) => {
 };
 
 void main() {
+  test('shared record validation stays strict and immutable', () {
+    final payload = jsonDecode(
+      exportV3Fixture()['payload']! as String,
+    ) as Map<String, Object?>;
+    final rows = (payload['records']! as List).cast<Object?>();
+    final parsed = parseAssetExportV3Records(rows);
+    expect(parsed.single.location, 'Room %_1');
+    expect(() => parsed.clear(), throwsUnsupportedError);
+    expect(
+      () => parseAssetExportV3Records([rows.first, rows.first]),
+      throwsFormatException,
+    );
+    expect(
+      () => parseAssetExportV3Records([
+        {'ownerId': 'private'},
+      ]),
+      throwsFormatException,
+    );
+  });
   Future<AssetExportV3> parse(Map<String, Object?> value) =>
       AssetExportV3.parse(value, digest: (_) async => 'a' * 64);
   Map<String, Object?> patchPayload(Map<String, Object?> patch) {

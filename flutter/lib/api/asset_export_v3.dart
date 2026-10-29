@@ -69,54 +69,56 @@ class AssetExportV3 {
     if (rows.length > 500 || decoded['recordCount'] != rows.length) {
       throw const FormatException('Incomplete inventory export');
     }
-    const fields = {
-      'id',
-      'name',
-      'category',
-      'serial',
-      'status',
-      'notes',
-      'version',
-      'createdAt',
-      'updatedAt',
-      'purchasedOn',
-      'warrantyExpiresOn',
-      'location',
-    };
-    final records = <AssetExportV3Record>[];
-    final ids = <String>{};
-    for (final row in rows) {
-      if (row is! Map<String, Object?> ||
-          row.length != fields.length ||
-          !fields.every(row.containsKey)) {
-        throw const FormatException('Invalid inventory v3 record');
-      }
-      final asset = AssetRecord.fromJson(row);
-      final dates = AssetDates.fromJson({
-        'id': row['id'],
-        'version': row['version'],
-        'purchasedOn': row['purchasedOn'],
-        'warrantyExpiresOn': row['warrantyExpiresOn'],
-      });
-      if (!ids.add(asset.id.toLowerCase())) {
-        throw const FormatException('Duplicate inventory identity');
-      }
-      final location = normalizeAssetLocation(row['location']);
-      if (location != row['location']) {
-        throw const FormatException('Noncanonical inventory location');
-      }
-      records.add(
-        AssetExportV3Record(
-          asset: asset,
-          dates: dates.input,
-          location: location,
-        ),
-      );
-    }
+    final records = parseAssetExportV3Records(rows);
     final actual = await digest(Uint8List.fromList(utf8.encode(payload)));
     if (actual != envelope['sha256']) {
       throw const FormatException('Inventory checksum mismatch');
     }
     return AssetExportV3._(serialized, exportedAt, records);
   }
+}
+
+/// Validate public location/date records without implying full-catalog completeness.
+List<AssetExportV3Record> parseAssetExportV3Records(List<Object?> rows) {
+  const fields = {
+    'id',
+    'name',
+    'category',
+    'serial',
+    'status',
+    'notes',
+    'version',
+    'createdAt',
+    'updatedAt',
+    'purchasedOn',
+    'warrantyExpiresOn',
+    'location',
+  };
+  final records = <AssetExportV3Record>[];
+  final ids = <String>{};
+  for (final row in rows) {
+    if (row is! Map<String, Object?> ||
+        row.length != fields.length ||
+        !fields.every(row.containsKey)) {
+      throw const FormatException('Invalid inventory v3 record');
+    }
+    final asset = AssetRecord.fromJson(row);
+    final dates = AssetDates.fromJson({
+      'id': row['id'],
+      'version': row['version'],
+      'purchasedOn': row['purchasedOn'],
+      'warrantyExpiresOn': row['warrantyExpiresOn'],
+    });
+    if (!ids.add(asset.id.toLowerCase())) {
+      throw const FormatException('Duplicate inventory identity');
+    }
+    final location = normalizeAssetLocation(row['location']);
+    if (location != row['location']) {
+      throw const FormatException('Noncanonical inventory location');
+    }
+    records.add(
+      AssetExportV3Record(asset: asset, dates: dates.input, location: location),
+    );
+  }
+  return List.unmodifiable(records);
 }

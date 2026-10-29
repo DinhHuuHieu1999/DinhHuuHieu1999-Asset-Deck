@@ -1,3 +1,5 @@
+import 'api/asset_selection_export.dart';
+import 'inventory_selection_export_page.dart';
 import 'api/asset_sort.dart';
 import 'asset_details_page.dart';
 import 'api/asset_location_overview.dart';
@@ -45,6 +47,7 @@ class AssetsPage extends StatefulWidget {
     this.enableAssetDates = false,
     this.enableAssetLocation = false,
     this.enableInventoryExportV3 = false,
+    this.enableSelectionExport = false,
     this.importApiBase = '',
   });
   final String importApiBase;
@@ -55,6 +58,7 @@ class AssetsPage extends StatefulWidget {
   final bool enableAssetDates;
   final bool enableAssetLocation;
   final bool enableInventoryExportV3;
+  final bool enableSelectionExport;
   final InventoryExportFiles? exportFiles;
   final InventoryInspectionFiles? inspectionFiles;
   @override
@@ -93,6 +97,36 @@ class _AssetsPageState extends State<AssetsPage> {
     _category.dispose();
     _location.dispose();
     super.dispose();
+  }
+
+  Future<void> _openSelectionExport() async {
+    if (_busy || _page == null || _error != null) return;
+    final scope = AssetSelectionScope.fromJson({
+      'q': _loadedQuery,
+      'status': _loadedStatus,
+      'category': _loadedCategory,
+      'locationMode': _loadedLocationMode,
+      'location': _loadedLocation,
+      'sort': _loadedSort,
+      'warranty': _loadedWarranty.isEmpty
+          ? null
+          : {
+              'filter': _loadedWarranty,
+              'asOf': _warrantyPage!.asOf,
+              'through': _warrantyPage!.through,
+            },
+    });
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => InventorySelectionExportPage(
+          source: widget.store as AssetSelectionExportSource,
+          files: widget.exportFiles is InventorySelectionExportFiles
+              ? widget.exportFiles! as InventorySelectionExportFiles
+              : WindowsInventoryExportFiles(),
+          scope: scope,
+        ),
+      ),
+    );
   }
 
   Future<void> _viewDetails(AssetRecord record) async {
@@ -443,6 +477,18 @@ class _AssetsPageState extends State<AssetsPage> {
               OutlinedButton(
                 onPressed: _busy ? null : _openInventoryOverview,
                 child: const Text('Inventory overview'),
+              ),
+            ],
+            if (widget.enableSelectionExport &&
+                widget.enableAssetDates &&
+                widget.enableAssetLocation &&
+                widget.store is AssetSelectionExportSource) ...[
+              const SizedBox(height: 8),
+              OutlinedButton(
+                onPressed: _busy || _page == null || _error != null
+                    ? null
+                    : _openSelectionExport,
+                child: const Text('Export matching assets JSON'),
               ),
             ],
             if (widget.store case final AssetExportSource source) ...[

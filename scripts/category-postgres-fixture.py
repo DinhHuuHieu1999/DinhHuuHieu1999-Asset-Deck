@@ -109,8 +109,21 @@ SORT_FILES = LOCATION_FILES[:2] + (
 )
 
 
+
+SELECTION_EXPORT_FILES = EXPORT_V3_FILES[:2] + (
+    'backend/src/domains/assets/asset-selection-export.postgres.spec.ts',
+) + EXPORT_V3_FILES[3:-1] + (
+    'backend/src/domains/assets/asset-selection-export.repository.ts',
+    'backend/src/domains/assets/asset-selection-export.ts',
+    'backend/src/domains/assets/asset-sort.ts',
+    'backend/src/domains/assets/asset-warranty.ts', FILES[-1],
+)
+
+
 def profile_settings(profile):
     """Only fixed source-owned profiles may choose a suite or fixture identity."""
+    if profile == 'selection-export':
+        return SELECTION_EXPORT_FILES, 'asset-selection-export-', 'asset_selection_export_fixture_', 'ASSET_SELECTION_EXPORT', 'isolated-selection-export-v1', 'asset_selection_export_fixture_identity'
     if profile == 'sort':
         return SORT_FILES, 'asset-sort-', 'asset_sort_fixture_', 'ASSET_SORT', 'isolated-sort-v1', 'asset_sort_fixture_identity'
     if profile == 'export-v3':
@@ -204,7 +217,7 @@ def execute(root, args, runtime, profile='category', verification=None):
             break
         client.assert_owned(runtime, name, identity)
         migrations = files[:2] + (('backend/migrations/004-asset-dates.sql',) if profile in ('dates', 'export-v2', 'warranty', 'warranty-overview') else ())
-        if profile in ('location', 'location-overview', 'export-v3', 'sort'):
+        if profile in ('location', 'location-overview', 'export-v3', 'sort', 'selection-export'):
             migrations += ('backend/migrations/004-asset-dates.sql', 'backend/migrations/005-asset-location.sql')
         if profile == 'import-v2':
             migrations += ('backend/migrations/003-asset-import.sql', 'backend/migrations/004-asset-dates.sql')
@@ -234,7 +247,7 @@ def execute(root, args, runtime, profile='category', verification=None):
                     cwd=root / 'backend', env=test_env)
         if result_file.stat().st_size > 1024 * 1024:
             raise client.Refusal('Oversized test result')
-        expected = 8 if profile in ('import-v2', 'import-v3') else 7 if profile == 'warranty-overview' else 4
+        expected = 8 if profile in ('import-v2', 'import-v3') else 7 if profile in ('warranty-overview', 'selection-export') else 4
         validate_result(json.loads(result_file.read_text(encoding='utf-8')), expected)
         if verification is not None:
             verification(runtime, name, database, identity, folder)

@@ -1,3 +1,7 @@
+import 'asset_selection_export_test.dart' show selectionFixture;
+
+import 'package:asset_desk/api/asset_selection_export.dart';
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -29,6 +33,35 @@ void main() {
   });
   tearDown(() => messenger.setMockMethodCallHandler(channel, null));
 
+  for (final outcome in [true, null, false]) {
+    test(
+      'selection save passes exact verified bytes, outcome $outcome',
+      () async {
+        final snapshot = await AssetSelectionExport.parse(
+          selectionFixture(),
+          digest: (_) async => 'a' * 64,
+        );
+        messenger.setMockMethodCallHandler(channel, (call) async {
+          calls.add(call);
+          return outcome;
+        });
+        if (outcome == false) {
+          await expectLater(
+            files.saveSelection(snapshot),
+            throwsA(isA<AssetFailure>()),
+          );
+        } else {
+          expect(await files.saveSelection(snapshot), outcome == true);
+        }
+        expect(calls.single.method, 'saveSelectionJson');
+        expect(utf8.decode(calls.single.arguments as Uint8List), snapshot.json);
+        expect(
+          jsonDecode(snapshot.json)['format'],
+          'asset-desk-inventory-selection',
+        );
+      },
+    );
+  }
   test(
     'digest forwards exact bounded bytes and requires lowercase SHA-256',
     () async {

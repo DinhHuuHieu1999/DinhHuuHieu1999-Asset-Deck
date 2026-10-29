@@ -16,6 +16,7 @@ _spec.loader.exec_module(client)
 
 def verify_candidate(root, args):
     """Require a complete hashed deployment, pinned to the intended TLS endpoint."""
+    selection = client.selection_export_mode(args)
     v3 = client.import_v3_mode(args)
     export_v3 = client.export_v3_mode(args)
     location = client.location_mode(args)
@@ -62,7 +63,12 @@ def verify_candidate(root, args):
                    'ASSET_DESK_ENABLE_IMPORT_V3': 'true',
                    'ASSET_DESK_ENABLE_ASSET_DATES': 'true',
                    'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true'}
-    if (enabled or location or export_v3) and value.get('buildDefines') != defines:
+    if selection:
+        defines = {'ASSET_DESK_ENABLE_SELECTION_EXPORT': 'true',
+                   'ASSET_DESK_ENABLE_EXPORT_V3': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+    if (enabled or location or export_v3 or selection) and value.get('buildDefines') != defines:
         raise client.Refusal('Candidate feature build contract missing')
     files = value['files']
     if not {'asset_desk.exe', 'flutter_windows.dll', 'data/icudtl.dat'} <= set(files):
@@ -84,7 +90,7 @@ def verify_candidate(root, args):
 
 def seed_source(args):
     """Select a fixed source path without accepting arbitrary seed programs."""
-    return 'flutter/tool/native_export_v3_seed.dart' if client.export_v3_mode(args) else 'flutter/tool/native_https_seed.dart'
+    return 'flutter/tool/native_export_v3_seed.dart' if (client.export_v3_mode(args) or client.selection_export_mode(args)) else 'flutter/tool/native_https_seed.dart'
 
 
 def preflight(root, args):
@@ -152,6 +158,11 @@ def native_session(root, args, runtime, folder, identity, backend, proxy):
                        purchasedOn='2024-02-29', warrantyExpiresOn='2027-02-28',
                        locationLabel='Synthetic room %_1',
                        instructions='Sign in; export JSON v3, Prepare and Save to a new private file. Inspect that file: checksum, one asset, both dates and location must match. Cancel file selection must retain preview. Invalid JSON must clear preview. No import or real data.')
+    if client.selection_export_mode(args):
+        handoff.update(selectionExportMode=True, expectedAssets=1,
+                       purchasedOn='2024-02-29', warrantyExpiresOn='2027-02-28',
+                       locationLabel='Synthetic room %_1',
+                       instructions='Sign in; apply Search Synthetic and status stored. Open filtered selection export, Prepare: one match with applied scope. Save to a new private file; Cancel must retain the prepared result. Back must retain inventory filters. This file is not a full backup and cannot be imported. Never use real data.')
     # Credentials are private local fixture evidence, never stdout or tracked source.
     with (folder / 'operator-handoff.json').open('x', encoding='utf-8') as stream:
         stream.write(json.dumps(handoff, indent=2) + '\n')
@@ -178,6 +189,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--execute-native', action='store_true')
     parser.add_argument('--execute-synthetic', action='store_true')
+    parser.add_argument('--selection-export-mode', action='store_true')
     parser.add_argument('--export-v3-mode', action='store_true')
     parser.add_argument('--location-mode', action='store_true')
     parser.add_argument('--import-mode', action='store_true')

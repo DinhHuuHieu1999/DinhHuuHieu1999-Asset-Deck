@@ -25,6 +25,7 @@ export function validateConfig({
   locationEnabled = false,
   exportV3Enabled = false,
   importV3Enabled = false,
+  selectionExportEnabled = false,
   recoveryRequestId,
 }) {
   if (
@@ -33,6 +34,14 @@ export function validateConfig({
     typeof importV2Enabled !== "boolean" ||
     typeof locationEnabled !== "boolean" ||
     typeof exportV3Enabled !== "boolean" ||
+    typeof selectionExportEnabled !== "boolean" ||
+    (selectionExportEnabled &&
+      (!exportV3Enabled ||
+        !locationEnabled ||
+        !datesEnabled ||
+        importEnabled ||
+        importV2Enabled ||
+        importV3Enabled)) ||
     typeof importV3Enabled !== "boolean" ||
     (importV3Enabled &&
       (!importEnabled ||
@@ -85,6 +94,7 @@ export function parseProxyArgs(args) {
         "--location-enabled",
         "--export-v3-enabled",
         "--import-v3-enabled",
+        "--selection-export-enabled",
       ].includes(args[6]))
   )
     throw new Error("Explicit fixture opt-in required");
@@ -98,6 +108,7 @@ export function parseProxyArgs(args) {
       "--import-v3-enabled",
     ].includes(args[6]),
     datesEnabled: [
+      "--selection-export-enabled",
       "--import-v3-enabled",
       "--dates-enabled",
       "--import-v2-enabled",
@@ -106,14 +117,18 @@ export function parseProxyArgs(args) {
     ].includes(args[6]),
     importV2Enabled: args[6] === "--import-v2-enabled",
     locationEnabled: [
+      "--selection-export-enabled",
       "--location-enabled",
       "--export-v3-enabled",
       "--import-v3-enabled",
     ].includes(args[6]),
-    exportV3Enabled: ["--export-v3-enabled", "--import-v3-enabled"].includes(
-      args[6],
-    ),
+    exportV3Enabled: [
+      "--selection-export-enabled",
+      "--export-v3-enabled",
+      "--import-v3-enabled",
+    ].includes(args[6]),
     importV3Enabled: args[6] === "--import-v3-enabled",
+    selectionExportEnabled: args[6] === "--selection-export-enabled",
   };
   validateConfig(config);
   const port = Number(listen);
@@ -139,9 +154,12 @@ export function allowed(
   locationEnabled = false,
   exportV3Enabled = false,
   importV3Enabled = false,
+  selectionExportEnabled = false,
 ) {
   if (typeof raw !== "string" || !raw.startsWith("/") || raw.startsWith("//"))
     return false;
+  if (raw.split("?")[0] === "/api/v1/assets/export/selection")
+    return selectionExportEnabled === true && method === "GET";
   if (raw === "/api/v1/assets/import/v3")
     return (
       method === "POST" &&
@@ -281,6 +299,7 @@ export function createHandler(config, request = http.request) {
         config.locationEnabled,
         config.exportV3Enabled,
         config.importV3Enabled,
+        config.selectionExportEnabled,
       )
     ) {
       fail(404);

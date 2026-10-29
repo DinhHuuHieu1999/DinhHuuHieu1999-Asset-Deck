@@ -1,3 +1,4 @@
+import 'asset_selection_export.dart';
 import 'asset_sort.dart';
 
 import 'dart:async';
@@ -29,6 +30,7 @@ class AssetApi
         AssetExportSource,
         AssetExportV2Source,
         AssetExportV3Source,
+        AssetSelectionExportSource,
         AssetImportSource,
         AssetImportV2Source,
         AssetImportV3Source,
@@ -586,6 +588,34 @@ class AssetApi
       return result;
     } on FormatException {
       throw const AssetFailure('Invalid inventory v3 export or checksum');
+    }
+  }
+
+  /// Verify selection identity and session after transport and asynchronous digest.
+  @override
+  Future<AssetSelectionExport> exportSelection({
+    required AssetSelectionScope scope,
+    required AssetExportDigest digest,
+  }) async {
+    final epoch = _requireAccount();
+    final expected = scope.toQuery();
+    final path = Uri(
+      path: 'assets/export/selection',
+      queryParameters: expected,
+    ).toString();
+    final value = await _request('GET', path, epoch);
+    _current(epoch);
+    try {
+      final result = await AssetSelectionExport.parse(value, digest: digest);
+      _current(epoch);
+      final actual = result.scope.toQuery();
+      if (actual.length != expected.length ||
+          expected.entries.any((entry) => actual[entry.key] != entry.value)) {
+        throw const FormatException('Selection response scope mismatch');
+      }
+      return result;
+    } on FormatException {
+      throw const AssetFailure('Invalid selection export, scope or checksum');
     }
   }
 

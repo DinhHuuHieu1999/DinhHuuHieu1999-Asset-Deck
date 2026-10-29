@@ -1,3 +1,5 @@
+import { AssetSelectionExportModule } from './domains/assets/asset-selection-export.module';
+import { isAssetSelectionExportEnabled } from './domains/assets/asset-selection-export.config';
 import { AssetImportV3Module } from './domains/assets/asset-import-v3.module';
 import { isAssetImportV3Enabled } from './domains/assets/asset-import-v3.config';
 import { createAssetImportV3Parser } from './domains/assets/asset-import-v3-parser';
@@ -27,6 +29,7 @@ import { createAssetImportParser } from './domains/assets/asset-import-parser';
 export async function bootstrap(): Promise<void> {
   loadEnvFiles();
   const port = validateStartup();
+  const selectionExportEnabled = isAssetSelectionExportEnabled();
   const exportV3Enabled = isAssetExportV3Enabled();
   const locationEnabled = isAssetLocationEnabled();
   const importEnabled = isAssetImportEnabled();
@@ -37,6 +40,7 @@ export async function bootstrap(): Promise<void> {
     {
       module: AppModule,
       imports: [
+        ...(selectionExportEnabled ? [AssetSelectionExportModule] : []),
         ...(exportV3Enabled ? [AssetExportV3Module] : []),
         ...(importEnabled ? [AssetImportModule] : []),
         ...(datesEnabled ? [AssetDatesModule] : []),
