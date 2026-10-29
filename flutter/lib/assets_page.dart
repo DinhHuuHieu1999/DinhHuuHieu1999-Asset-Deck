@@ -132,10 +132,23 @@ class _AssetsPageState extends State<AssetsPage> {
   Future<void> _viewDetails(AssetRecord record) async {
     if (_busy) return;
     final store = widget.store;
-    await Navigator.of(context).push<void>(
+    final revision = store is AssetSession ? store.sessionRevision : null;
+    final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => AssetDetailsPage(
           record: record,
+          onEdit: (original) async {
+            if (!mounted ||
+                (store is AssetSession && store.sessionRevision != revision))
+              return false;
+            return await Navigator.of(context).push<bool>(
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        AssetEditor(store: store, original: original),
+                  ),
+                ) ==
+                true;
+          },
           datesSource: widget.enableAssetDates && store is AssetDatesSource
               ? store as AssetDatesSource
               : null,
@@ -144,6 +157,11 @@ class _AssetsPageState extends State<AssetsPage> {
         ),
       ),
     );
+    if (saved == true &&
+        mounted &&
+        (store is! AssetSession || store.sessionRevision == revision)) {
+      await _load(offset: _offset, preserveWarrantyDate: true);
+    }
   }
 
   Future<void> _load({

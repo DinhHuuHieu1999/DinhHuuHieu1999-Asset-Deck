@@ -201,13 +201,24 @@ and real Dart HTTPS checks passed; the operator confirmed the listed Windows
 functional checks. Accessibility and deployment remain separate; see
 [the plan](../docs/inventory-location-overview-plan.md).
 
-## Read-only asset details
+## Asset details
 
 View details opens the selected inventory snapshot, not a live record. Enabled
 date/location reads must match its identity and version; failures never appear as
 unknown values. Refresh inventory and reopen to update the snapshot. Back preserves
-the inventory filters. The listed functional checks passed on a synthetic Windows fixture; screen-reader
-acceptance and deployment are not implied.
+the inventory filters. The original read-only details checks passed on a synthetic
+Windows fixture; screen-reader acceptance and deployment are not implied.
+
+Edit asset from details reuses the existing base-field editor with the selected
+record ID and version. Save closes details and reloads inventory with its applied
+filters and page; unapplied filter text is retained. Cancel returns to the same
+snapshot without a write or reload. Conflicts and unknown save outcomes retain the
+draft and block blind resubmission. Date/location verification must finish before
+editing is available; base-field editing does not write those optional fields.
+The operator confirmed this flow on a separate synthetic Windows fixture: saved
+Notes, unchanged dates/location, draft Keep/Discard and Back preserving Search.
+Screen-reader checks and regular deployment remain outside that acceptance.
+See [scope and verification](../docs/edit-from-asset-details-plan.md).
 
 ## Inventory overview drill-down
 

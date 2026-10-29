@@ -8,7 +8,7 @@ import 'api/asset_details.dart';
 import 'api/asset_location.dart';
 import 'api/asset_session.dart';
 
-/// Read-only selected list snapshot with version-verified optional information.
+/// Selected list snapshot with verified optional information and explicit editing.
 class AssetDetailsPage extends StatefulWidget {
   const AssetDetailsPage({
     super.key,
@@ -16,11 +16,15 @@ class AssetDetailsPage extends StatefulWidget {
     this.datesSource,
     this.locationSource,
     this.session,
+    this.onEdit,
   });
   final AssetRecord record;
   final AssetDatesSource? datesSource;
   final AssetLocationSource? locationSource;
   final AssetSession? session;
+
+  /// Opens editing for this exact snapshot; true means a confirmed save.
+  final Future<bool> Function(AssetRecord record)? onEdit;
 
   @override
   State<AssetDetailsPage> createState() => _AssetDetailsPageState();
@@ -32,6 +36,7 @@ class _AssetDetailsPageState extends State<AssetDetailsPage> {
   int _request = 0;
   bool _invalidated = false;
   bool _busy = true;
+  bool _editing = false;
   String? _error;
 
   @override
@@ -102,6 +107,39 @@ class _AssetDetailsPageState extends State<AssetDetailsPage> {
     }
   }
 
+  Future<void> _edit() async {
+    final edit = widget.onEdit;
+    if (edit == null ||
+        _busy ||
+        _editing ||
+        _invalidated ||
+        _details == null ||
+        _error != null)
+      return;
+    final record = widget.record;
+    final request = _request;
+    final revision = widget.session?.sessionRevision;
+    setState(() => _editing = true);
+    try {
+      final saved = await edit(record);
+      if (!mounted ||
+          _invalidated ||
+          request != _request ||
+          revision != widget.session?.sessionRevision)
+        return;
+      if (saved) Navigator.of(context).pop(true);
+    } catch (_) {
+      if (mounted && !_invalidated && request == _request) {
+        setState(
+          () => _error =
+              'Unable to open editing. Return to inventory and refresh.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _editing = false);
+    }
+  }
+
   @override
   void dispose() {
     _request++;
@@ -137,10 +175,19 @@ class _AssetDetailsPageState extends State<AssetDetailsPage> {
                 'Session changed. Return to inventory and sign in again.',
               )
             else ...[
-              const Text(
-                'Read-only inventory snapshot, not a live record. '
-                'To update it, return to inventory, refresh and reopen.',
+              Text(
+                widget.onEdit == null
+                    ? 'Read-only inventory snapshot, not a live record. To update it, return to inventory, refresh and reopen.'
+                    : 'Inventory snapshot, not a live record. Edit uses this version; a successful save returns to inventory.',
               ),
+              if (widget.onEdit != null)
+                OutlinedButton(
+                  onPressed:
+                      _busy || _editing || _details == null || _error != null
+                      ? null
+                      : _edit,
+                  child: const Text('Edit asset'),
+                ),
               if (_busy) const LinearProgressIndicator(),
               if (_error != null)
                 Padding(
