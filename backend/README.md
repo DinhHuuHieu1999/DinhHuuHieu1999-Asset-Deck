@@ -213,3 +213,13 @@ does not reserve, deduplicate or reject writes. No migration is required.
 
 See [serial warning contract](../docs/inventory-serial-warning.md) for limits and
 verification scope. Not deployed or native-accepted.
+
+## Single-asset refresh read
+
+`GET /api/v1/assets/:id` reads one authenticated owner's base asset using the
+existing assets flag, without pagination or a new migration. UUID validation,
+`Cache-Control: no-store` and identical 404 responses for absent/foreign IDs
+prevent ownership disclosure. The client verifies enabled optional values against
+the returned version before publishing a refreshed details snapshot. Source and
+mock tests are implemented; live acceptance is pending. See the
+[refresh plan](../docs/asset-details-refresh-plan.md).

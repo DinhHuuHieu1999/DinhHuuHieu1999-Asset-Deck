@@ -1,3 +1,4 @@
+import 'asset_read.dart';
 import 'asset_serial_check.dart';
 import 'asset_selection_export.dart';
 import 'asset_sort.dart';
@@ -28,6 +29,7 @@ import 'asset_store.dart';
 class AssetApi
     implements
         AssetSession,
+        AssetReadSource,
         AssetSerialCheckSource,
         AssetExportSource,
         AssetExportV2Source,
@@ -530,6 +532,24 @@ class AssetApi
   }
 
   /// Check exact serials across the owner inventory, rejecting stale session results.
+  /// Read one validated ID; reject stale-session and wrong-identity responses.
+  @override
+  Future<AssetRecord> readAsset(String id) async {
+    final epoch = _requireAccount();
+    if (!RegExp(
+      r'^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$',
+    ).hasMatch(id)) {
+      throw const AssetFailure('Invalid asset ID', definitelyNotSent: true);
+    }
+    final value = await _request('GET', 'assets/$id', epoch);
+    _current(epoch);
+    final result = _record(value);
+    if (result.id.toLowerCase() != id.toLowerCase()) {
+      throw const AssetFailure('Asset response identity mismatch');
+    }
+    return result;
+  }
+
   @override
   Future<bool> serialDuplicate(String serial, {String? excludeId}) async {
     final epoch = _requireAccount();

@@ -128,8 +128,13 @@ SERIAL_FILES = (FILES[0], FILES[1],
     'backend/src/domains/assets/asset-export.ts', FILES[-1])
 
 
+DETAILS_FILES = tuple(name.replace('asset-serial.postgres.spec.ts', 'asset-details.postgres.spec.ts') for name in SERIAL_FILES)
+
+
 def profile_settings(profile):
     """Only fixed source-owned profiles may choose a suite or fixture identity."""
+    if profile == 'details':
+        return DETAILS_FILES, 'asset-details-', 'asset_details_fixture_', 'ASSET_DETAILS', 'isolated-details-v1', 'asset_details_fixture_identity'
     if profile == 'serial':
         return SERIAL_FILES, 'asset-serial-', 'asset_serial_fixture_', 'ASSET_SERIAL', 'isolated-serial-v1', 'asset_serial_fixture_identity'
     if profile == 'selection-export':

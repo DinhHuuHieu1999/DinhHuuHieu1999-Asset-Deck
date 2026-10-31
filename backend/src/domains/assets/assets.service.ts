@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  NotFoundException,
   UnprocessableEntityException,
   type OnModuleInit,
 } from '@nestjs/common';
@@ -54,6 +55,13 @@ export class AssetsService implements OnModuleInit {
       );
     }
     return result;
+  }
+
+  /** Return one owned asset, with the same missing response for foreign IDs. */
+  public async findOne(owner: string, id: string) {
+    const record = await this.repository.findOne(owner, id);
+    if (record === null) throw new NotFoundException('Asset is unavailable');
+    return record;
   }
 
   /** Advisory only: not a reservation or uniqueness guarantee; never blocks writes. */

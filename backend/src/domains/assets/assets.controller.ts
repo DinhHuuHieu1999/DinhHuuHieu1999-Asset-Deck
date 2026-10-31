@@ -69,6 +69,16 @@ export class AssetsController {
     return this.service.exportInventory(owner(req));
   }
 
+  /** Read one authenticated owner's asset; unavailable IDs reveal no ownership. */
+  @Get(':id')
+  @Header('Cache-Control', 'no-store')
+  public findOne(
+    @Req() req: OwnerRequest,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.service.findOne(owner(req), id);
+  }
+
   /** Create one manually entered asset. */
   @Post()
   @Header('Cache-Control', 'no-store')

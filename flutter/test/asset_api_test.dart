@@ -132,6 +132,66 @@ void main() {
     });
     Future<void> login() => api.login(' synthetic ', ' synthetic-pass ');
 
+    test(
+      'read one authenticates, validates ID and rejects wrong identity',
+      () async {
+        final value = record();
+        final id = value['id'] as String;
+        await expectLater(api.readAsset(id), throwsA(isA<AssetFailure>()));
+        expect(calls, isEmpty);
+        await login();
+        final before = calls.length;
+        await expectLater(
+          api.readAsset('../overview'),
+          throwsA(isA<AssetFailure>()),
+        );
+        expect(calls.length, before);
+        handler = (request) async {
+          expect(request.method, 'GET');
+          expect(request.uri.path, '/api/v1/assets/$id');
+          json(request, value);
+        };
+        expect((await api.readAsset(id)).id, id);
+        handler = (request) async => json(request, {
+          ...value,
+          'id': 'b0000000-0000-4000-8000-000000000001',
+        });
+        await expectLater(api.readAsset(id), throwsA(isA<AssetFailure>()));
+        expect(calls.length, before + 2);
+      },
+    );
+
+    test(
+      'read one rejects malformed and unavailable responses without retry',
+      () async {
+        await login();
+        final before = calls.length;
+        final id = record()['id'] as String;
+        handler = (request) async => json(request, {'id': id});
+        await expectLater(api.readAsset(id), throwsA(isA<AssetFailure>()));
+        handler = (request) async =>
+            json(request, {'message': 'Asset is unavailable'}, status: 404);
+        await expectLater(api.readAsset(id), throwsA(isA<AssetFailure>()));
+        expect(calls.length, before + 2);
+      },
+    );
+    test('read one discards late response after sign-out', () async {
+      await login();
+      final entered = Completer<void>();
+      final release = Completer<void>();
+      handler = (request) async {
+        entered.complete();
+        await release.future;
+        json(request, record());
+      };
+      final pending = api.readAsset(record()['id'] as String);
+      final assertion = expectLater(pending, throwsA(isA<AssetFailure>()));
+      await entered.future;
+      api.signOut();
+      release.complete();
+      await assertion;
+    });
+
     test('serial check authenticates and preserves literal exact query and exclusion', () async {
       await expectLater(api.serialDuplicate('x'), throwsA(isA<AssetFailure>()));
       expect(calls, isEmpty);

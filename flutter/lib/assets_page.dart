@@ -1,3 +1,4 @@
+import 'api/asset_read.dart';
 import 'api/asset_selection_export.dart';
 import 'inventory_selection_export_page.dart';
 import 'api/asset_sort.dart';
@@ -147,6 +148,9 @@ class _AssetsPageState extends State<AssetsPage> {
       MaterialPageRoute(
         builder: (_) => AssetDetailsPage(
           record: record,
+          readSource: store is AssetReadSource
+              ? store as AssetReadSource
+              : null,
           onEdit: (original) =>
               openEditor(AssetEditor(store: store, original: original)),
           onEditDates: widget.enableAssetDates && store is AssetDatesSource

@@ -203,6 +203,8 @@ export function allowed(
   if (method === "POST" && raw === "/api/v1/assets/import")
     return importEnabled === true;
   const path = raw.split("?")[0];
+  if (method === 'GET' && /^\/api\/v1\/assets\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw))
+    return true;
   if (method === "GET")
     return [
       "/api/v1/csrf-token",

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'api/asset.dart';
+import 'api/asset_read.dart';
 import 'api/asset_dates.dart';
 import 'api/asset_details.dart';
 import 'api/asset_location.dart';
@@ -13,6 +14,7 @@ class AssetDetailsPage extends StatefulWidget {
   const AssetDetailsPage({
     super.key,
     required this.record,
+    this.readSource,
     this.datesSource,
     this.locationSource,
     this.session,
@@ -21,6 +23,7 @@ class AssetDetailsPage extends StatefulWidget {
     this.onEditLocation,
   });
   final AssetRecord record;
+  final AssetReadSource? readSource;
   final AssetDatesSource? datesSource;
   final AssetLocationSource? locationSource;
   final AssetSession? session;
@@ -39,6 +42,7 @@ class AssetDetailsPage extends StatefulWidget {
 }
 
 class _AssetDetailsPageState extends State<AssetDetailsPage> {
+  late AssetRecord _record;
   AssetDetailsSnapshot? _details;
   StreamSubscription<int>? _subscription;
   int _request = 0;
@@ -50,6 +54,7 @@ class _AssetDetailsPageState extends State<AssetDetailsPage> {
   @override
   void initState() {
     super.initState();
+    _record = widget.record;
     _bind();
     _load();
   }
@@ -71,10 +76,12 @@ class _AssetDetailsPageState extends State<AssetDetailsPage> {
   void didUpdateWidget(covariant AssetDetailsPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.record, widget.record) ||
+        !identical(oldWidget.readSource, widget.readSource) ||
         !identical(oldWidget.datesSource, widget.datesSource) ||
         !identical(oldWidget.locationSource, widget.locationSource) ||
         !identical(oldWidget.session, widget.session)) {
       _subscription?.cancel();
+      _record = widget.record;
       _request++;
       _details = null;
       _error = null;
@@ -84,7 +91,7 @@ class _AssetDetailsPageState extends State<AssetDetailsPage> {
     }
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool refresh = false}) async {
     final request = ++_request;
     final revision = widget.session?.sessionRevision;
     bool current() =>
@@ -92,22 +99,36 @@ class _AssetDetailsPageState extends State<AssetDetailsPage> {
         request == _request &&
         !_invalidated &&
         widget.session?.sessionRevision == revision;
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
     try {
+      final record = refresh
+          ? await widget.readSource!.readAsset(_record.id)
+          : _record;
+      if (!current()) return;
+      if (record.id.toLowerCase() != _record.id.toLowerCase()) {
+        throw StateError('Asset identity mismatch');
+      }
       final value = await AssetDetailsSnapshot.load(
-        widget.record,
+        record,
         datesSource: widget.datesSource,
         locationSource: widget.locationSource,
         isCurrent: current,
       );
-      if (current()) setState(() => _details = value);
+      if (current())
+        setState(() {
+          _record = record;
+          _details = value;
+        });
     } catch (_) {
       if (current()) {
         setState(() {
-          _details = null;
-          _error =
-              'Could not verify dates and location for this snapshot. '
-              'Return to inventory, refresh and reopen details.';
+          if (!refresh) _details = null;
+          _error = refresh
+              ? 'Refresh failed. Previous snapshot retained; it may be out of date. Editing is disabled until refresh succeeds.'
+              : 'Could not verify dates and location for this snapshot. Return to inventory, refresh and reopen details.';
         });
       }
     } finally {
@@ -183,18 +204,27 @@ class _AssetDetailsPageState extends State<AssetDetailsPage> {
               )
             else ...[
               Text(
-                widget.onEdit == null &&
-                        widget.onEditDates == null &&
-                        widget.onEditLocation == null
+                widget.readSource != null
+                    ? 'Inventory snapshot, not a live record. Refresh details reads a new snapshot; editing uses the displayed version.'
+                    : widget.onEdit == null &&
+                          widget.onEditDates == null &&
+                          widget.onEditLocation == null
                     ? 'Read-only inventory snapshot, not a live record. To update it, return to inventory, refresh and reopen.'
                     : 'Inventory snapshot, not a live record. Edit uses this version; a successful save returns to inventory.',
               ),
+              if (widget.readSource != null)
+                OutlinedButton(
+                  onPressed: _busy || _editing
+                      ? null
+                      : () => _load(refresh: true),
+                  child: const Text('Refresh details'),
+                ),
               if (widget.onEdit != null)
                 OutlinedButton(
                   onPressed:
                       _busy || _editing || _details == null || _error != null
                       ? null
-                      : () => _edit(widget.record, widget.onEdit),
+                      : () => _edit(_record, widget.onEdit),
                   child: const Text('Edit asset'),
                 ),
               if (_busy) const LinearProgressIndicator(),
@@ -211,20 +241,20 @@ class _AssetDetailsPageState extends State<AssetDetailsPage> {
                     ),
                   ),
                 ),
-              _field('Name', widget.record.input.name),
-              _field('Category', widget.record.input.category),
-              _field('Status', widget.record.input.status),
+              _field('Name', _record.input.name),
+              _field('Category', _record.input.category),
+              _field('Status', _record.input.status),
               _field(
                 'Serial',
-                widget.record.input.serial.isEmpty
+                _record.input.serial.isEmpty
                     ? 'Not provided'
-                    : widget.record.input.serial,
+                    : _record.input.serial,
               ),
               _field(
                 'Notes',
-                widget.record.input.notes.isEmpty
+                _record.input.notes.isEmpty
                     ? 'Not provided'
-                    : widget.record.input.notes,
+                    : _record.input.notes,
               ),
               _field(
                 'Purchase date',
@@ -273,14 +303,14 @@ class _AssetDetailsPageState extends State<AssetDetailsPage> {
                       : () => _edit(_details?.location, widget.onEditLocation),
                   child: const Text('Edit location'),
                 ),
-              _field('Snapshot version', '${widget.record.version}'),
+              _field('Snapshot version', '${_record.version}'),
               _field(
                 'Created (UTC)',
-                widget.record.createdAt.toUtc().toIso8601String(),
+                _record.createdAt.toUtc().toIso8601String(),
               ),
               _field(
                 'Updated (UTC)',
-                widget.record.updatedAt.toUtc().toIso8601String(),
+                _record.updatedAt.toUtc().toIso8601String(),
               ),
             ],
           ],

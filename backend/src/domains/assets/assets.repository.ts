@@ -59,6 +59,16 @@ export class AssetsRepository {
     };
   }
 
+  /** Read one owned asset without revealing whether another owner's ID exists. */
+  public async findOne(owner: string, id: string): Promise<AssetRecord | null> {
+    this.owner(owner);
+    const result = await this.database.pool.query<AssetRecord>(
+      `SELECT ${projection} FROM assets.assets WHERE owner_id=$1 AND id=$2::uuid`,
+      [owner.toLowerCase(), id],
+    );
+    return result.rows[0] ?? null;
+  }
+
   /** Check all owned rows using literal case-sensitive equality, without returning records. */
   public async serialDuplicate(
     owner: string,

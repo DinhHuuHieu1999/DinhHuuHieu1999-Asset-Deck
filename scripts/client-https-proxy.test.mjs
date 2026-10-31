@@ -706,3 +706,15 @@ test('serial advisory route permits only GET and never adjacent paths', () => {
     assert.equal(allowed('GET', path), false);
   }
 });
+
+
+test('details read route accepts only an exact UUID path', () => {
+  const path = '/api/v1/assets/12345678-1234-4234-8234-123456789abc';
+  assert.equal(allowed('GET', path), true);
+  for (const suffix of ['?owner=foreign', '/extra', '/', '%2f', '#fragment'])
+    assert.equal(allowed('GET', path + suffix), false);
+  for (const method of ['DELETE', 'POST', 'PATCH'])
+    assert.equal(allowed(method, path), false);
+  for (const id of ['invalid', '12345678-1234-4234-8234-123456789abz'])
+    assert.equal(allowed('GET', '/api/v1/assets/' + id), false);
+});

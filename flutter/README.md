@@ -205,7 +205,10 @@ functional checks. Accessibility and deployment remain separate; see
 
 View details opens the selected inventory snapshot, not a live record. Enabled
 date/location reads must match its identity and version; failures never appear as
-unknown values. Refresh inventory and reopen to update the snapshot. Back preserves
+unknown values. With a read-capable source, Refresh details reads one asset and
+verifies enabled dates/location before replacing the entire snapshot. Failure
+retains the old snapshot with a stale warning and disables editing until a
+successful refresh. Without this capability, refresh inventory and reopen. Back preserves
 the inventory filters. The original read-only details checks passed on a synthetic
 Windows fixture; screen-reader acceptance and deployment are not implied.
 
