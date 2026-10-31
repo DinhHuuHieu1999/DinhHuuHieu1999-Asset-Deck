@@ -1,0 +1,1890 @@
+{
+  "schemaVersion": 1,
+  "adapter": "@codacy/tools-eslint-9",
+  "adapterVersion": "0.16.0",
+  "note": "Reviewed rule/options snapshot; does not auto-track live Codacy configuration. No findings exemption.",
+  "rules": [
+    {
+      "ruleId": "constructor-super",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "for-direction",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "getter-return",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/consistent-test-it",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest-dom/prefer-checked",
+      "group": "jest-dom",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest-dom/prefer-empty",
+      "group": "jest-dom",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest-dom/prefer-enabled-disabled",
+      "group": "jest-dom",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest-dom/prefer-focus",
+      "group": "jest-dom",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest-dom/prefer-in-document",
+      "group": "jest-dom",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest-dom/prefer-required",
+      "group": "jest-dom",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest-dom/prefer-to-have-attribute",
+      "group": "jest-dom",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest-dom/prefer-to-have-class",
+      "group": "jest-dom",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest-dom/prefer-to-have-style",
+      "group": "jest-dom",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest-dom/prefer-to-have-text-content",
+      "group": "jest-dom",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest-dom/prefer-to-have-value",
+      "group": "jest-dom",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/expect-expect",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest-extended/prefer-to-be-array",
+      "group": "jest-extended",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest-extended/prefer-to-be-false",
+      "group": "jest-extended",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest-extended/prefer-to-be-object",
+      "group": "jest-extended",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest-extended/prefer-to-be-true",
+      "group": "jest-extended",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest-extended/prefer-to-have-been-called-once",
+      "group": "jest-extended",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/max-expects",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/max-nested-describe",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/no-alias-methods",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/no-commented-out-tests",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/no-conditional-expect",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/no-conditional-in-test",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/no-confusing-set-timeout",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/no-deprecated-functions",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/no-disabled-tests",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/no-done-callback",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/no-duplicate-hooks",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/no-export",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/no-focused-tests",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/no-hooks",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/no-identical-title",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/no-interpolation-in-snapshots",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/no-jasmine-globals",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/no-large-snapshots",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/no-mocks-import",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/no-restricted-jest-methods",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/no-restricted-matchers",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/no-standalone-expect",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/no-test-prefixes",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/no-test-return-statement",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/no-untyped-mock-factory",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/padding-around-after-all-blocks",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/padding-around-after-each-blocks",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/padding-around-all",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/padding-around-before-all-blocks",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/padding-around-before-each-blocks",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/padding-around-describe-blocks",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/padding-around-expect-groups",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/padding-around-test-blocks",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/prefer-called-with",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/prefer-comparison-matcher",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/prefer-each",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/prefer-equality-matcher",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/prefer-expect-assertions",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/prefer-expect-resolves",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/prefer-hooks-in-order",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/prefer-hooks-on-top",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/prefer-importing-jest-globals",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/prefer-jest-mocked",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/prefer-lowercase-title",
+      "group": "jest",
+      "ruleValue": [
+        "error",
+        {
+          "ignoreTopLevelDescribe": false
+        }
+      ],
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/prefer-mock-promise-shorthand",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/prefer-snapshot-hint",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/prefer-spy-on",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/prefer-strict-equal",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/prefer-to-be",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/prefer-to-contain",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/prefer-todo",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/prefer-to-have-length",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/require-hook",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/require-top-level-describe",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/require-to-throw-message",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/valid-describe-callback",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/valid-expect",
+      "group": "jest",
+      "ruleValue": [
+        "error",
+        {
+          "alwaysAwait": false
+        }
+      ],
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/valid-expect-in-promise",
+      "group": "jest",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "jest/valid-title",
+      "group": "jest",
+      "ruleValue": [
+        "error",
+        {
+          "ignoreSpaces": false,
+          "ignoreTypeOfDescribeName": false,
+          "ignoreTypeOfTestName": false
+        }
+      ],
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-async-promise-executor",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-case-declarations",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-class-assign",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-compare-neg-zero",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-cond-assign",
+      "group": "core",
+      "ruleValue": ["error", "except-parens"],
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-constant-binary-expression",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-constant-condition",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-const-assign",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-control-regex",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-debugger",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-delete-var",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-dupe-args",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-dupe-class-members",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-dupe-else-if",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-dupe-keys",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-duplicate-case",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-empty",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-empty-character-class",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-empty-pattern",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-empty-static-block",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-ex-assign",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-extra-boolean-cast",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-fallthrough",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-func-assign",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-global-assign",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-import-assign",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-invalid-regexp",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-irregular-whitespace",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-loss-of-precision",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-misleading-character-class",
+      "group": "core",
+      "ruleValue": [
+        "error",
+        {
+          "allowEscape": false
+        }
+      ],
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-new-native-nonconstructor",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-nonoctal-decimal-escape",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-obj-calls",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-octal",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-prototype-builtins",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-redeclare",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-regex-spaces",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-self-assign",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-setter-return",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-shadow-restricted-names",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-sparse-arrays",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-this-before-super",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-undef",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-unexpected-multiline",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-unreachable",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-unsafe-finally",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-unsafe-negation",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-unsafe-optional-chaining",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-unused-labels",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-unused-private-class-members",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-unused-vars",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-useless-backreference",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-useless-catch",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-useless-escape",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "no-with",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "require-yield",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "security/detect-bidi-characters",
+      "group": "security",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "security/detect-buffer-noassert",
+      "group": "security",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "security/detect-child-process",
+      "group": "security",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "security/detect-disable-mustache-escape",
+      "group": "security",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "security/detect-eval-with-expression",
+      "group": "security",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "security/detect-new-buffer",
+      "group": "security",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "security/detect-no-csrf-before-method-override",
+      "group": "security",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "security/detect-non-literal-fs-filename",
+      "group": "security",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "security/detect-non-literal-regexp",
+      "group": "security",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "security/detect-non-literal-require",
+      "group": "security",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "security/detect-object-injection",
+      "group": "security",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "security/detect-possible-timing-attacks",
+      "group": "security",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "security/detect-pseudoRandomBytes",
+      "group": "security",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "security/detect-unsafe-regex",
+      "group": "security",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "security-node/detect-absence-of-name-option-in-exrpress-session",
+      "group": "security-node",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "security-node/detect-child-process",
+      "group": "security-node",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "security-node/detect-dangerous-redirects",
+      "group": "security-node",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "security-node/detect-eval-with-expr",
+      "group": "security-node",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "security-node/detect-html-injection",
+      "group": "security-node",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "security-node/detect-improper-exception-handling",
+      "group": "security-node",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "security-node/detect-non-literal-require-calls",
+      "group": "security-node",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "security-node/detect-nosql-injection",
+      "group": "security-node",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "security-node/detect-option-multiplestatements-in-mysql",
+      "group": "security-node",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "security-node/detect-option-rejectunauthorized-in-nodejs-httpsrequest",
+      "group": "security-node",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "security-node/detect-option-unsafe-in-serialize-javascript-npm-package",
+      "group": "security-node",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "security-node/detect-possible-timing-attacks",
+      "group": "security-node",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "security-node/detect-security-missconfiguration-cookie",
+      "group": "security-node",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "security-node/detect-unhandled-async-errors",
+      "group": "security-node",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "security-node/detect-unhandled-event-errors",
+      "group": "security-node",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "security-node/disable-ssl-across-node-server",
+      "group": "security-node",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "security-node/non-literal-reg-expr",
+      "group": "security-node",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/adjacent-overload-signatures",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/array-type",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/await-thenable",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/ban-ts-comment",
+      "group": "@typescript-eslint",
+      "ruleValue": [
+        "error",
+        {
+          "minimumDescriptionLength": 3
+        }
+      ],
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/ban-tslint-comment",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/class-literal-property-style",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/class-methods-use-this",
+      "group": "@typescript-eslint",
+      "ruleValue": [
+        "error",
+        {
+          "enforceForClassFields": true
+        }
+      ],
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/consistent-generic-constructors",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/consistent-indexed-object-style",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/consistent-return",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/consistent-type-assertions",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/consistent-type-definitions",
+      "group": "@typescript-eslint",
+      "ruleValue": ["error", "type"],
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/consistent-type-exports",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/default-param-last",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/dot-notation",
+      "group": "@typescript-eslint",
+      "ruleValue": [
+        "error",
+        {
+          "allowIndexSignaturePropertyAccess": false,
+          "allowKeywords": true,
+          "allowPattern": "",
+          "allowPrivateClassPropertyAccess": false,
+          "allowProtectedClassPropertyAccess": false
+        }
+      ],
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/explicit-function-return-type",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/explicit-member-accessibility",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/explicit-module-boundary-types",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/init-declarations",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/max-params",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/member-ordering",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/method-signature-style",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/naming-convention",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-array-constructor",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-array-delete",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-base-to-string",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-confusing-non-null-assertion",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-confusing-void-expression",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-deprecated",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-dupe-class-members",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-duplicate-enum-values",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-duplicate-type-constituents",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-dynamic-delete",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-empty-function",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-empty-interface",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-empty-object-type",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-explicit-any",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-extraneous-class",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-extra-non-null-assertion",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-floating-promises",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-for-in-array",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-implied-eval",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-import-type-side-effects",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-inferrable-types",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-invalid-this",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-invalid-void-type",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-loop-func",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-loss-of-precision",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-magic-numbers",
+      "group": "@typescript-eslint",
+      "ruleValue": [
+        "error",
+        {
+          "detectObjects": false,
+          "enforceConst": false,
+          "ignoreArrayIndexes": false,
+          "ignoreClassFieldInitialValues": false,
+          "ignoreDefaultValues": false,
+          "ignoreEnums": false,
+          "ignoreNumericLiteralTypes": false,
+          "ignoreReadonlyClassProperties": false,
+          "ignoreTypeIndexes": false
+        }
+      ],
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-meaningless-void-operator",
+      "group": "@typescript-eslint",
+      "ruleValue": [
+        "error",
+        {
+          "checkNever": false
+        }
+      ],
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-misused-new",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-misused-promises",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-misused-spread",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-mixed-enums",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-namespace",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/non-nullable-type-assertion-style",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-non-null-asserted-nullish-coalescing",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-non-null-asserted-optional-chain",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-non-null-assertion",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-redeclare",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-redundant-type-constituents",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-require-imports",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-restricted-imports",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-restricted-types",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-shadow",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-this-alias",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-type-alias",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unnecessary-boolean-literal-compare",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unnecessary-condition",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unnecessary-parameter-property-assignment",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unnecessary-qualifier",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unnecessary-template-expression",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unnecessary-type-arguments",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unnecessary-type-assertion",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unnecessary-type-constraint",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unnecessary-type-parameters",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-argument",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-assignment",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-call",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-declaration-merging",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-enum-comparison",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-function-type",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-member-access",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-return",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-type-assertion",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unsafe-unary-minus",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unused-expressions",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-unused-vars",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-use-before-define",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-useless-constructor",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-useless-empty-export",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-var-requires",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/no-wrapper-object-types",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/only-throw-error",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/parameter-properties",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/prefer-as-const",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/prefer-destructuring",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/prefer-enum-initializers",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/prefer-find",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/prefer-for-of",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/prefer-function-type",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/prefer-includes",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/prefer-literal-enum-member",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/prefer-namespace-keyword",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/prefer-nullish-coalescing",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/prefer-optional-chain",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/prefer-promise-reject-errors",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/prefer-readonly",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/prefer-readonly-parameter-types",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/prefer-reduce-type-parameter",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/prefer-regexp-exec",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/prefer-return-this-type",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/prefer-string-starts-ends-with",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/prefer-ts-expect-error",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/promise-function-async",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/related-getter-setter-pairs",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/require-array-sort-compare",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/require-await",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/restrict-plus-operands",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/restrict-template-expressions",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/return-await",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/sort-type-constituents",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/strict-boolean-expressions",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/switch-exhaustiveness-check",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/triple-slash-reference",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/typedef",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/unbound-method",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/unified-signatures",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "@typescript-eslint/use-unknown-in-catch-callback-variable",
+      "group": "@typescript-eslint",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "use-isnan",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "valid-typeof",
+      "group": "core",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    },
+    {
+      "ruleId": "xss/no-location-href-assign",
+      "group": "xss",
+      "ruleValue": "error",
+      "defaultsResolved": true
+    }
+  ],
+  "extensionPairs": [
+    ["class-methods-use-this", "@typescript-eslint/class-methods-use-this"],
+    ["consistent-return", "@typescript-eslint/consistent-return"],
+    ["default-param-last", "@typescript-eslint/default-param-last"],
+    ["dot-notation", "@typescript-eslint/dot-notation"],
+    ["init-declarations", "@typescript-eslint/init-declarations"],
+    ["max-params", "@typescript-eslint/max-params"],
+    ["no-array-constructor", "@typescript-eslint/no-array-constructor"],
+    ["no-dupe-class-members", "@typescript-eslint/no-dupe-class-members"],
+    ["no-empty-function", "@typescript-eslint/no-empty-function"],
+    ["no-implied-eval", "@typescript-eslint/no-implied-eval"],
+    ["no-invalid-this", "@typescript-eslint/no-invalid-this"],
+    ["no-loop-func", "@typescript-eslint/no-loop-func"],
+    ["no-loss-of-precision", "@typescript-eslint/no-loss-of-precision"],
+    ["no-magic-numbers", "@typescript-eslint/no-magic-numbers"],
+    ["no-redeclare", "@typescript-eslint/no-redeclare"],
+    ["no-restricted-imports", "@typescript-eslint/no-restricted-imports"],
+    ["no-shadow", "@typescript-eslint/no-shadow"],
+    ["no-unused-expressions", "@typescript-eslint/no-unused-expressions"],
+    ["no-unused-vars", "@typescript-eslint/no-unused-vars"],
+    ["no-use-before-define", "@typescript-eslint/no-use-before-define"],
+    ["no-useless-constructor", "@typescript-eslint/no-useless-constructor"],
+    ["prefer-destructuring", "@typescript-eslint/prefer-destructuring"],
+    [
+      "prefer-promise-reject-errors",
+      "@typescript-eslint/prefer-promise-reject-errors"
+    ],
+    ["require-await", "@typescript-eslint/require-await"]
+  ]
+}
