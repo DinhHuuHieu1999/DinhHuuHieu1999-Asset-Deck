@@ -132,6 +132,69 @@ void main() {
     });
     Future<void> login() => api.login(' synthetic ', ' synthetic-pass ');
 
+    test('serial check authenticates and preserves literal exact query and exclusion', () async {
+      await expectLater(api.serialDuplicate('x'), throwsA(isA<AssetFailure>()));
+      expect(calls, isEmpty);
+      await login();
+      final before = calls.length;
+      handler = (request) async {
+        expect(request.method, 'GET');
+        expect(request.uri.path, '/api/v1/assets/serial-duplicates');
+        expect(
+          request.headers.value('authorization'),
+          'Bearer synthetic-token',
+        );
+        expect(request.uri.queryParameters, {
+          'serial': 'AbC%_1',
+          'excludeId': 'a0000000-0000-4000-8000-000000000001',
+        });
+        json(request, {'duplicate': true});
+      };
+      expect(
+        await api.serialDuplicate(
+          ' AbC%_1 ',
+          excludeId: 'a0000000-0000-4000-8000-000000000001',
+        ),
+        isTrue,
+      );
+      expect(calls.length, before + 1);
+      await expectLater(
+        api.serialDuplicate('x', excludeId: 'invalid'),
+        throwsA(isA<AssetFailure>()),
+      );
+      await expectLater(
+        api.serialDuplicate('x' * 121),
+        throwsA(isA<AssetFailure>()),
+      );
+      expect(calls.length, before + 1);
+    });
+    test('serial malformed response and server failure never become clear or retry', () async {
+      await login();
+      final before = calls.length;
+      handler = (request) async => json(request, {'duplicate': 'false'});
+      await expectLater(api.serialDuplicate('x'), throwsA(isA<AssetFailure>()));
+      handler = (request) async =>
+          json(request, {'message': 'Unavailable'}, status: 503);
+      await expectLater(api.serialDuplicate('x'), throwsA(isA<AssetFailure>()));
+      expect(calls.length, before + 2);
+    });
+    test('sign-out rejects late serial result without retry', () async {
+      await login();
+      final entered = Completer<void>();
+      final release = Completer<void>();
+      handler = (request) async {
+        entered.complete();
+        await release.future;
+        json(request, {'duplicate': true});
+      };
+      final pending = api.serialDuplicate('x');
+      final assertion = expectLater(pending, throwsA(isA<AssetFailure>()));
+      await entered.future;
+      api.signOut();
+      release.complete();
+      await assertion;
+    });
+
     for (final mode in ['regular', 'warranty', 'location']) {
       test(
         'sort is allowlisted and sent on $mode inventory transport',

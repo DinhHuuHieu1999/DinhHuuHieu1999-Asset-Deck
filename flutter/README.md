@@ -292,3 +292,13 @@ recovery from invalid Exact location on a synthetic Windows fixture. Failure
 preservation and page-two reset remain widget-tested; native keyboard/screen-reader
 checks and deployment are not implied.
 See [behavior and checks](../docs/inventory-reset-filters.md).
+
+## Advisory serial duplicate check
+
+The manual editor can explicitly check an exact, case-sensitive serial against
+the signed-in account inventory. A duplicate or unavailable check never blocks
+Save. Editing Serial clears the previous result; no automatic check or retry runs.
+The optional capability leaves legacy/test stores unchanged.
+
+See [serial warning contract](../docs/inventory-serial-warning.md) for limits and
+verification scope. Not deployed or native-accepted.

@@ -56,6 +56,20 @@ export class AssetsService implements OnModuleInit {
     return result;
   }
 
+  /** Advisory only: not a reservation or uniqueness guarantee; never blocks writes. */
+  public serialDuplicate(
+    owner: string,
+    serial: string,
+    excludeId?: string,
+  ): Promise<{ duplicate: boolean }> {
+    const normalized = serial.trim();
+    if ([...normalized].length > 120 || normalized.includes('\0'))
+      throw new BadRequestException(
+        'Use a serial within 120 characters without NUL',
+      );
+    return this.repository.serialDuplicate(owner, normalized, excludeId);
+  }
+
   /** Return complete owner counts independently of list filters. */
   overview(owner: string) {
     return this.repository.overview(owner);

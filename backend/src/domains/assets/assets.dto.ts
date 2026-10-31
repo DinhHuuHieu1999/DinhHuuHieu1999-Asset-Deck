@@ -3,6 +3,8 @@ import { Type } from 'class-transformer';
 import {
   IsIn,
   IsInt,
+  IsOptional,
+  IsUUID,
   IsString,
   Matches,
   Max,
@@ -70,4 +72,15 @@ export class AssetQueryDto {
   @Min(0)
   @Max(100000)
   offset = 0;
+}
+
+/** Advisory exact serial lookup; identity exclusion is not an ownership assertion. */
+export class AssetSerialQueryDto {
+  @IsString()
+  @MaxLength(120)
+  @Matches(/^[^\0]*$/u)
+  serial = '';
+  @IsOptional()
+  @IsUUID()
+  excludeId?: string;
 }

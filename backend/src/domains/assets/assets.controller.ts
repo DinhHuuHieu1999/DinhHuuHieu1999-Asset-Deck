@@ -13,7 +13,12 @@ import {
 } from '@nestjs/common';
 import { Auth } from '../../shared/decorators/auth.decorator';
 import { isAccountId } from '../auth/account.repository';
-import { AssetInputDto, AssetQueryDto, AssetUpdateDto } from './assets.dto';
+import {
+  AssetInputDto,
+  AssetQueryDto,
+  AssetSerialQueryDto,
+  AssetUpdateDto,
+} from './assets.dto';
 import { AssetsService } from './assets.service';
 
 type OwnerRequest = { user?: { userId?: string } };
@@ -34,6 +39,20 @@ export class AssetsController {
   @Header('Cache-Control', 'no-store')
   list(@Req() req: OwnerRequest, @Query() query: AssetQueryDto) {
     return this.service.list(owner(req), query);
+  }
+
+  /** Report only whether another owned record has this exact nonblank serial. */
+  @Get('serial-duplicates')
+  @Header('Cache-Control', 'no-store')
+  public serialDuplicate(
+    @Req() req: OwnerRequest,
+    @Query() query: AssetSerialQueryDto,
+  ): Promise<{ duplicate: boolean }> {
+    return this.service.serialDuplicate(
+      owner(req),
+      query.serial,
+      query.excludeId,
+    );
   }
 
   /** Read complete owner counts without exposing other accounts or record details. */

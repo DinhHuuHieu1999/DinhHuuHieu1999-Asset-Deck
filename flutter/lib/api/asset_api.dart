@@ -1,3 +1,4 @@
+import 'asset_serial_check.dart';
 import 'asset_selection_export.dart';
 import 'asset_sort.dart';
 
@@ -27,6 +28,7 @@ import 'asset_store.dart';
 class AssetApi
     implements
         AssetSession,
+        AssetSerialCheckSource,
         AssetExportSource,
         AssetExportV2Source,
         AssetExportV3Source,
@@ -524,6 +526,38 @@ class AssetApi
       throw const AssetFailure(
         'Invalid asset dates response; reload before another write',
       );
+    }
+  }
+
+  /// Check exact serials across the owner inventory, rejecting stale session results.
+  @override
+  Future<bool> serialDuplicate(String serial, {String? excludeId}) async {
+    final epoch = _requireAccount();
+    final normalized = serial.trim();
+    if (normalized.runes.length > 120 ||
+        normalized.contains('\u0000') ||
+        (excludeId != null &&
+            !RegExp(
+              r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+            ).hasMatch(excludeId))) {
+      throw const AssetFailure(
+        'Invalid serial check input',
+        definitelyNotSent: true,
+      );
+    }
+    final path = Uri(
+      path: 'assets/serial-duplicates',
+      queryParameters: {
+        'serial': normalized,
+        if (excludeId != null) 'excludeId': excludeId,
+      },
+    ).toString();
+    final result = await _request('GET', path, epoch);
+    _current(epoch);
+    try {
+      return parseAssetSerialCheck(result);
+    } on FormatException {
+      throw const AssetFailure('Invalid serial check response');
     }
   }
 

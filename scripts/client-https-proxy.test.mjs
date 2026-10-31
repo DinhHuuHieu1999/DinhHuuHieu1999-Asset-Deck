@@ -694,3 +694,15 @@ test("explicit v3 recovery suppresses only a complete successful selected reply"
   const incomplete = await simulate({ ...selected, upstreamComplete: false });
   assert.equal(incomplete.res.code, 502);
 });
+
+
+test('serial advisory route permits only GET and never adjacent paths', () => {
+  assert.equal(allowed('GET', '/api/v1/assets/serial-duplicates?serial=AbC%25_1'), true);
+  for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
+    assert.equal(allowed(method, '/api/v1/assets/serial-duplicates'), false);
+  }
+  for (const path of ['/api/v1/assets/serial-duplicates/extra',
+    '/api/v1/assets/serial-duplicates%2fextra']) {
+    assert.equal(allowed('GET', path), false);
+  }
+});

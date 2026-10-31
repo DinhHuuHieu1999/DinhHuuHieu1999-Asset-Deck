@@ -59,6 +59,24 @@ export class AssetsRepository {
     };
   }
 
+  /** Check all owned rows using literal case-sensitive equality, without returning records. */
+  public async serialDuplicate(
+    owner: string,
+    serial: string,
+    excludeId?: string,
+  ): Promise<{ duplicate: boolean }> {
+    this.owner(owner);
+    const result = await this.database.pool.query<{ duplicate: boolean }>(
+      `SELECT EXISTS(SELECT 1 FROM assets.assets
+       WHERE owner_id=$1 AND serial=$2 AND serial<>''
+       AND ($3::uuid IS NULL OR id<>$3::uuid)) AS duplicate`,
+      [owner.toLowerCase(), serial, excludeId ?? null],
+    );
+    if (typeof result.rows[0]?.duplicate !== 'boolean')
+      throw new Error('asset_serial_check_missing');
+    return { duplicate: result.rows[0].duplicate };
+  }
+
   /** Aggregate the full owner inventory in one statement, independently of list filters. */
   async overview(owner: string) {
     this.owner(owner);

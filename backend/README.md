@@ -204,3 +204,12 @@ and location capabilities plus existing migrations 001, 002, 004 and 005. The se
 `GET /api/v1/assets/export/selection` route exports matching owner records, not
 a complete account backup. Existing exports remain unchanged. Seven isolated PostgreSQL scenarios and a
 separate real-client HTTPS fixture passed; no regular deployment is claimed; see [selection export plan](../docs/inventory-selection-export-plan.md).
+
+## Advisory serial duplicate check
+
+The authenticated assets API exposes a read-only exact serial check across all
+owned rows, optionally excluding the edited UUID. It returns only a boolean and
+does not reserve, deduplicate or reject writes. No migration is required.
+
+See [serial warning contract](../docs/inventory-serial-warning.md) for limits and
+verification scope. Not deployed or native-accepted.

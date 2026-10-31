@@ -210,6 +210,7 @@ export function allowed(
       "/api/v1/assets",
       "/api/v1/assets/export",
       "/api/v1/assets/overview",
+      "/api/v1/assets/serial-duplicates",
     ].includes(path);
   if (method === "POST")
     return [

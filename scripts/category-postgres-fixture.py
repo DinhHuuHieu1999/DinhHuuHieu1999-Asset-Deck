@@ -120,8 +120,18 @@ SELECTION_EXPORT_FILES = EXPORT_V3_FILES[:2] + (
 )
 
 
+SERIAL_FILES = (FILES[0], FILES[1],
+    'backend/src/domains/assets/asset-serial.postgres.spec.ts',
+    FILES[3], 'backend/src/domains/assets/assets.dto.ts',
+    'backend/src/domains/assets/asset-sort.ts',
+    'backend/src/domains/assets/asset-overview.ts',
+    'backend/src/domains/assets/asset-export.ts', FILES[-1])
+
+
 def profile_settings(profile):
     """Only fixed source-owned profiles may choose a suite or fixture identity."""
+    if profile == 'serial':
+        return SERIAL_FILES, 'asset-serial-', 'asset_serial_fixture_', 'ASSET_SERIAL', 'isolated-serial-v1', 'asset_serial_fixture_identity'
     if profile == 'selection-export':
         return SELECTION_EXPORT_FILES, 'asset-selection-export-', 'asset_selection_export_fixture_', 'ASSET_SELECTION_EXPORT', 'isolated-selection-export-v1', 'asset_selection_export_fixture_identity'
     if profile == 'sort':
