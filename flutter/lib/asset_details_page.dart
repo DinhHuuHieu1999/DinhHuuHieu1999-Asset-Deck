@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'api/asset.dart';
 import 'api/asset_read.dart';
@@ -49,6 +50,7 @@ class _AssetDetailsPageState extends State<AssetDetailsPage> {
   bool _invalidated = false;
   bool _busy = true;
   bool _editing = false;
+  bool _copying = false;
   String? _error;
 
   @override
@@ -89,6 +91,34 @@ class _AssetDetailsPageState extends State<AssetDetailsPage> {
       _bind();
       _load();
     }
+  }
+
+  Future<void> _copySerial() async {
+    if (_copying ||
+        _busy ||
+        _editing ||
+        _invalidated ||
+        _record.input.serial.isEmpty)
+      return;
+    final revision = widget.session?.sessionRevision;
+    final record = _record;
+    setState(() => _copying = true);
+    var message = 'Serial copied';
+    try {
+      await Clipboard.setData(ClipboardData(text: record.input.serial));
+    } catch (_) {
+      message = 'Could not copy serial. Try again.';
+    } finally {
+      if (mounted) setState(() => _copying = false);
+    }
+    if (!mounted ||
+        _invalidated ||
+        widget.session?.sessionRevision != revision ||
+        !identical(record, _record))
+      return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _load({bool refresh = false}) async {
@@ -249,6 +279,16 @@ class _AssetDetailsPageState extends State<AssetDetailsPage> {
                 _record.input.serial.isEmpty
                     ? 'Not provided'
                     : _record.input.serial,
+              ),
+              OutlinedButton(
+                onPressed:
+                    _busy ||
+                        _editing ||
+                        _copying ||
+                        _record.input.serial.isEmpty
+                    ? null
+                    : _copySerial,
+                child: const Text('Copy serial'),
               ),
               _field(
                 'Notes',

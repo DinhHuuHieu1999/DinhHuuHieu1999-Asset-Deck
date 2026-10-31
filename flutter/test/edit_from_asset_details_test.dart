@@ -108,13 +108,21 @@ void main() {
     );
     await tester.pump();
     expect(
-      tester.widget<OutlinedButton>(find.byType(OutlinedButton)).onPressed,
+      tester
+          .widget<OutlinedButton>(
+            find.widgetWithText(OutlinedButton, 'Edit asset'),
+          )
+          .onPressed,
       isNull,
     );
     pending.completeError(StateError('Synthetic read failure'));
     await tester.pumpAndSettle();
     expect(
-      tester.widget<OutlinedButton>(find.byType(OutlinedButton)).onPressed,
+      tester
+          .widget<OutlinedButton>(
+            find.widgetWithText(OutlinedButton, 'Edit asset'),
+          )
+          .onPressed,
       isNull,
     );
     expect(calls, 0);
