@@ -15,15 +15,15 @@ r = m.repository
 
 
 class CheckFixtureTests(unittest.TestCase):
-    def test_four_assertions_are_required_without_skips(self):
-        valid = dict(success=True, numPassedTests=4, numTotalTests=4,
+    def test_six_assertions_are_required_without_skips(self):
+        valid = dict(success=True, numPassedTests=6, numTotalTests=6,
                      numFailedTests=0, numPendingTests=0,
                      numRuntimeErrorTestSuites=0, numPassedTestSuites=1)
-        r.validate_result(valid, expected=4)
-        for field, value in [('numPassedTests', 3), ('numPendingTests', 1),
-                             ('numTotalTests', 5), ('success', False)]:
+        r.validate_result(valid, expected=6)
+        for field, value in [('numPassedTests', 5), ('numPendingTests', 1),
+                             ('numTotalTests', 7), ('success', False)]:
             with self.assertRaises(r.client.Refusal):
-                r.validate_result(dict(valid, **{field: value}), expected=4)
+                r.validate_result(dict(valid, **{field: value}), expected=6)
 
     def test_unknown_profile_never_runs_a_command(self):
         with patch.object(r.client.Runtime, 'run') as run:
@@ -71,7 +71,7 @@ class CheckFixtureTests(unittest.TestCase):
                     assert 'ASSET_CATEGORY_FIXTURE_OPT_IN' not in env
                     assert command[4].endswith('asset-check.postgres.spec.ts')
                     destination = next(v.split('=',1)[1] for v in command if v.startswith('--outputFile='))
-                    Path(destination).write_text(json.dumps(dict(success=True, numPassedTests=4, numTotalTests=4,
+                    Path(destination).write_text(json.dumps(dict(success=True, numPassedTests=6, numTotalTests=6,
                         numFailedTests=0, numPendingTests=0, numRuntimeErrorTestSuites=0, numPassedTestSuites=1)), encoding='utf-8')
                 return b''
         with tempfile.TemporaryDirectory() as folder:

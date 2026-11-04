@@ -16,11 +16,12 @@ class CheckProfileTests(unittest.TestCase):
         spec = importlib.util.spec_from_file_location('check_tls_wrapper', Path(__file__).with_name('check-https-fixture.py'))
         wrapper = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(wrapper)
-        valid = dict(status='completed', syntheticOnly=True, checkDateAcceptance=True,
+        valid = dict(status='completed', syntheticOnly=True, checkDateAcceptance=True, checkedBeforeAcceptance=True,
                      owners=2, nativeDialog='not-exercised')
         wrapper.validate_result(valid)
         for value in (dict(valid, owners=True), dict(valid, owners=1),
-                      dict(valid, unexpected=True), dict(valid, status='failed')):
+                      {k: v for k, v in valid.items() if k != 'checkedBeforeAcceptance'},
+                      dict(valid, checkedBeforeAcceptance=False), dict(valid, unexpected=True), dict(valid, status='failed')):
             with self.assertRaises(wrapper.client.Refusal):
                 wrapper.validate_result(value)
         self.assertEqual(len(wrapper.FILES), len(set(wrapper.FILES)))
@@ -29,7 +30,7 @@ class CheckProfileTests(unittest.TestCase):
         spec = importlib.util.spec_from_file_location('check_tls_acceptance', Path(__file__).with_name('check-https-fixture.py'))
         wrapper = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(wrapper)
-        valid = dict(status='completed', syntheticOnly=True, checkDateAcceptance=True,
+        valid = dict(status='completed', syntheticOnly=True, checkDateAcceptance=True, checkedBeforeAcceptance=True,
                      owners=2, nativeDialog='not-exercised')
         import json
         from unittest.mock import MagicMock
@@ -54,6 +55,22 @@ class CheckProfileTests(unittest.TestCase):
             with patch.object(wrapper, 'source_hashes', return_value={'source': 'a'}):
                 with self.assertRaises(wrapper.client.Refusal):
                     wrapper.acceptance(root, args, runtime, root, 'a'*32, None, None)
+            runtime.run.assert_called_once()
+
+    def test_failure_diagnostic_keeps_only_bounded_stage_kind_and_status(self):
+        import json
+        from unittest.mock import MagicMock
+        spec = importlib.util.spec_from_file_location('check_diagnostic_wrapper', Path(__file__).with_name('check-https-fixture.py'))
+        wrapper = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(wrapper)
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            runtime = MagicMock()
+            runtime.run.return_value = json.dumps(dict(status='failed', stage='checked-before-warranty-boundary', failureKind='api', httpStatus=400, body='private-do-not-persist', token='private'))
+            with patch.object(wrapper, 'source_hashes', return_value={}):
+                with self.assertRaises(wrapper.client.Refusal):
+                    wrapper.acceptance(root, SimpleNamespace(dart='synthetic', tls_port=29513), runtime, root, 'a'*32, None, None)
+            self.assertEqual(json.loads((root/'check-diagnostic.json').read_text()), dict(status='failed', stage='checked-before-warranty-boundary', failureKind='api', httpStatus=400))
             runtime.run.assert_called_once()
 
     def test_profile_requires_an_exact_boolean(self):

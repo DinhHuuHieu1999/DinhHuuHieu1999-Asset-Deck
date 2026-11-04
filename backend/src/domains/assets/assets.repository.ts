@@ -1,4 +1,4 @@
-import { assetCheckPredicate } from './asset-check';
+import { assetCheckFilter } from './asset-check';
 import { assetOrderBy } from './asset-sort';
 import {
   ASSET_OVERVIEW_MAX_CATEGORIES,
@@ -38,6 +38,7 @@ export class AssetsRepository {
 
   /** Search/filter the authenticated owner's rows before fixed-size pagination. */
   async list(owner: string, query: AssetQueryDto) {
+    const check = assetCheckFilter(query.checkMode, query.checkBefore, 6);
     this.owner(owner);
     const result = await this.database.pool.query<AssetRecord>(
       `SELECT ${projection} FROM assets.assets WHERE owner_id=$1
@@ -45,7 +46,7 @@ export class AssetsRepository {
          OR strpos(lower(category),lower($3))>0 OR strpos(lower(serial),lower($3))>0)
        AND ($4='' OR status=$4)
        AND ($5='' OR category=$5)
-       ${assetCheckPredicate(query.checkMode)}
+       ${check.sql}
        ORDER BY ${assetOrderBy(query.sort)} LIMIT 51 OFFSET $2`,
       [
         owner.toLowerCase(),
@@ -53,6 +54,7 @@ export class AssetsRepository {
         query.q.trim(),
         query.status,
         (query.category ?? '').trim(),
+        ...check.values,
       ],
     );
     return {

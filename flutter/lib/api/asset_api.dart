@@ -32,6 +32,7 @@ class AssetApi
         AssetSession,
         AssetReadSource,
         AssetCheckSource,
+        AssetCheckBeforeSource,
         AssetSerialCheckSource,
         AssetExportSource,
         AssetExportV2Source,
@@ -190,11 +191,13 @@ class AssetApi
   Future<AssetPage> list({
     String sort = 'updated_desc',
     bool unchecked = false,
+    String checkBefore = '',
     required String query,
     required String status,
     String category = '',
     required int offset,
   }) async {
+    assetCheckQuery(unchecked: unchecked, before: checkBefore);
     final epoch = _requireAccount();
     if (!assetSorts.contains(sort)) {
       throw const AssetFailure(
@@ -214,7 +217,7 @@ class AssetApi
     final path = Uri(
       path: 'assets',
       queryParameters: {
-        if (unchecked) 'checkMode': 'unchecked',
+        ...assetCheckQuery(unchecked: unchecked, before: checkBefore),
         'q': query.trim(),
         'status': status,
         if (category.trim().isNotEmpty) 'category': category.trim(),
@@ -259,6 +262,7 @@ class AssetApi
   Future<AssetWarrantyPage> listWarranty({
     String sort = 'updated_desc',
     bool unchecked = false,
+    String checkBefore = '',
     required String query,
     required String status,
     String category = '',
@@ -266,6 +270,7 @@ class AssetApi
     String asOf = '',
     required int offset,
   }) async {
+    assetCheckQuery(unchecked: unchecked, before: checkBefore);
     final epoch = _requireAccount();
     if (!assetSorts.contains(sort)) {
       throw const AssetFailure(
@@ -291,7 +296,7 @@ class AssetApi
     final path = Uri(
       path: 'assets/warranty',
       queryParameters: {
-        if (unchecked) 'checkMode': 'unchecked',
+        ...assetCheckQuery(unchecked: unchecked, before: checkBefore),
         'q': query.trim(),
         'status': status,
         if (category.trim().isNotEmpty) 'category': category.trim(),
@@ -400,6 +405,7 @@ class AssetApi
   Future<AssetLocationPage> listLocations({
     String sort = 'updated_desc',
     bool unchecked = false,
+    String checkBefore = '',
     required String query,
     required String status,
     String category = '',
@@ -409,6 +415,7 @@ class AssetApi
     String warranty = '',
     String asOf = '',
   }) async {
+    assetCheckQuery(unchecked: unchecked, before: checkBefore);
     final epoch = _requireAccount();
     if (!assetSorts.contains(sort)) {
       throw const AssetFailure(
@@ -443,7 +450,7 @@ class AssetApi
     final path = Uri(
       path: 'assets/locations/inventory',
       queryParameters: {
-        if (unchecked) 'checkMode': 'unchecked',
+        ...assetCheckQuery(unchecked: unchecked, before: checkBefore),
         'q': query.trim(),
         'status': status,
         'category': category.trim(),
@@ -540,6 +547,92 @@ class AssetApi
     return AssetCheckPage(
       await list(
         unchecked: true,
+        query: query,
+        status: status,
+        offset: offset,
+        sort: sort,
+        category: category,
+      ),
+    );
+  }
+
+  /// List dated assets strictly before an explicit cutoff without changing legacy stores.
+  @override
+  Future<AssetCheckPage> listCheckedBefore({
+    required String checkBefore,
+    required String query,
+    required String status,
+    required int offset,
+    String sort = 'updated_desc',
+    String category = '',
+    bool includeLocation = false,
+    String locationMode = 'all',
+    String? location,
+    String warranty = '',
+    String asOf = '',
+  }) async {
+    if (checkBefore.isEmpty)
+      throw const AssetFailure(
+        'Check cutoff is required',
+        definitelyNotSent: true,
+      );
+    if (includeLocation) {
+      final result = await listLocations(
+        checkBefore: checkBefore,
+        query: query,
+        status: status,
+        offset: offset,
+        sort: sort,
+        category: category,
+        locationMode: locationMode,
+        location: location,
+        warranty: warranty,
+        asOf: asOf,
+      );
+      return AssetCheckPage(
+        AssetPage(
+          result.items.map((item) => item.asset).toList(),
+          result.nextOffset,
+        ),
+        locations: {
+          for (final item in result.items) item.asset.id: item.location,
+        },
+        warranty: result.warrantyPage,
+      );
+    }
+    if (locationMode != 'all' || location != null) {
+      throw const AssetFailure(
+        'Location filtering is unavailable',
+        definitelyNotSent: true,
+      );
+    }
+    if (warranty.isNotEmpty) {
+      final result = await listWarranty(
+        checkBefore: checkBefore,
+        query: query,
+        status: status,
+        offset: offset,
+        sort: sort,
+        category: category,
+        warranty: warranty,
+        asOf: asOf,
+      );
+      return AssetCheckPage(
+        AssetPage(
+          result.items.map((item) => item.asset).toList(),
+          result.nextOffset,
+        ),
+        warranty: result,
+      );
+    }
+    if (asOf.isNotEmpty)
+      throw const AssetFailure(
+        'Reference date requires warranty filter',
+        definitelyNotSent: true,
+      );
+    return AssetCheckPage(
+      await list(
+        checkBefore: checkBefore,
         query: query,
         status: status,
         offset: offset,

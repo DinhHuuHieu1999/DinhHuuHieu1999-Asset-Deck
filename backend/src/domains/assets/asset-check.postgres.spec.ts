@@ -185,4 +185,121 @@ suite('isolated manual check repository acceptance', () => {
       new Set([...first.items, ...second.items].map((item) => item.id)).size,
     ).toBe(51);
   });
+  it('checked-before excludes boundary/Unknown and filters before pagination per owner', async () => {
+    const category = 'before-pagination';
+    const matching: string[] = [];
+    for (let index = 0; index < 54; index++) {
+      const row = await repository.create(owner, {
+        ...input,
+        name: `Before ${String(index).padStart(3, '0')}`,
+        category,
+      });
+      if (index < 53)
+        await checks.update(owner, row.id, {
+          version: 1,
+          lastCheckedOn:
+            index < 51
+              ? '2024-02-28'
+              : index === 51
+                ? '2024-02-29'
+                : '2024-03-01',
+        });
+      if (index < 51) matching.push(row.id);
+    }
+    const foreign = await repository.create(other, { ...input, category });
+    await checks.update(other, foreign.id, {
+      version: 1,
+      lastCheckedOn: '2024-02-28',
+    });
+    const query: AssetQueryDto = {
+      q: '%_1',
+      status: 'stored',
+      category,
+      offset: 0,
+      sort: 'name_asc',
+      checkMode: 'before',
+      checkBefore: '2024-02-29',
+    };
+    const first = await repository.list(owner, query);
+    const second = await repository.list(owner, { ...query, offset: 50 });
+    expect(first.items).toHaveLength(50);
+    expect(first.nextOffset).toBe(50);
+    expect(second.items).toHaveLength(1);
+    expect(second.nextOffset).toBeNull();
+    expect([...first.items, ...second.items].map((item) => item.id)).toEqual(
+      matching,
+    );
+    expect(
+      (await repository.list(other, query)).items.map((item) => item.id),
+    ).toEqual([foreign.id]);
+  });
+  it('combines cutoff with literal location and warranty without mutating rows', async () => {
+    const category = 'before-combined';
+    const ids: string[] = [];
+    for (const lastCheckedOn of ['2024-02-28', '2024-02-29', null]) {
+      const row = await repository.create(owner, { ...input, category });
+      await dates.update(owner, row.id, {
+        version: 1,
+        purchasedOn: '2024-01-01',
+        warrantyExpiresOn: '2025-01-01',
+      });
+      await locations.update(owner, row.id, {
+        version: 2,
+        location: 'Room %_1',
+      });
+      await checks.update(owner, row.id, { version: 3, lastCheckedOn });
+      ids.push(row.id);
+    }
+    const query: AssetQueryDto = {
+      q: '%_1',
+      status: 'stored',
+      category,
+      offset: 0,
+      sort: 'name_asc',
+      checkMode: 'before',
+      checkBefore: '2024-02-29',
+    };
+    const window = {
+      filter: 'expired' as const,
+      asOf: '2026-01-01',
+      through: '2026-01-31',
+    };
+    const before = await pool.query(
+      'SELECT * FROM assets.assets WHERE owner_id=$1 AND category=$2 ORDER BY id',
+      [owner, category],
+    );
+    for (const result of [
+      await dates.warrantyList(
+        owner,
+        { ...query, warranty: 'expired', asOf: window.asOf },
+        window,
+      ),
+      await locations.list(owner, query, {
+        mode: 'exact',
+        location: 'Room %_1',
+      }),
+      await locations.list(
+        owner,
+        query,
+        { mode: 'exact', location: 'Room %_1' },
+        window,
+      ),
+    ])
+      expect(result.items.map((item) => item.id)).toEqual([ids[0]]);
+    expect(
+      (
+        await locations.list(
+          other,
+          query,
+          { mode: 'exact', location: 'Room %_1' },
+          window,
+        )
+      ).items,
+    ).toEqual([]);
+    const after = await pool.query(
+      'SELECT * FROM assets.assets WHERE owner_id=$1 AND category=$2 ORDER BY id',
+      [owner, category],
+    );
+    expect(after.rows).toEqual(before.rows);
+  });
 });

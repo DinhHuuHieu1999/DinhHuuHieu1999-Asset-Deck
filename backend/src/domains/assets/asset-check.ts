@@ -61,3 +61,22 @@ export function assetCheckPredicate(mode: unknown): string {
     throw new BadRequestException('Check filtering is unavailable');
   return 'AND last_checked_on IS NULL';
 }
+
+/** Validate a fixed filter and return a bound cutoff, never interpolated date SQL. */
+export function assetCheckFilter(
+  mode: unknown,
+  cutoff: unknown = '',
+  parameter = 1,
+): Readonly<{ sql: string; values: string[] }> {
+  if (mode !== 'before') {
+    if (cutoff !== '') throw new BadRequestException('Unexpected check cutoff');
+    return { sql: assetCheckPredicate(mode), values: [] };
+  }
+  if (!isAssetCheckEnabled())
+    throw new BadRequestException('Check filtering is unavailable');
+  if (!isAssetCalendarDate(cutoff))
+    throw new BadRequestException('Invalid check cutoff');
+  if (!Number.isInteger(parameter) || parameter < 1 || parameter > 11)
+    throw new Error('invalid_check_parameter');
+  return { sql: `AND last_checked_on < $${parameter}::date`, values: [cutoff] };
+}

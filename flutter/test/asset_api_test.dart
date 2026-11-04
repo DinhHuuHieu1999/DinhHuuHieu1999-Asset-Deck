@@ -178,6 +178,112 @@ void main() {
       );
     }
 
+    for (final kind in ['base', 'warranty', 'location', 'combined']) {
+      test(
+        'checked-before filter reaches $kind endpoint with applied filters',
+        () async {
+          await login();
+          handler = (request) async {
+            expect(request.uri.queryParameters['checkMode'], 'before');
+            expect(request.uri.queryParameters['checkBefore'], '2024-02-29');
+            if (kind == 'combined') {
+              expect(request.uri.queryParameters['location'], 'Room %_1');
+              expect(request.uri.queryParameters['warranty'], 'expired');
+              expect(request.uri.queryParameters['asOf'], '2026-10-31');
+            }
+            expect(request.uri.queryParameters['q'], '%_');
+            expect(request.uri.queryParameters['status'], 'stored');
+            expect(request.uri.queryParameters['sort'], 'name_asc');
+            expect(request.uri.queryParameters['category'], 'fixture');
+            expect(
+              request.uri.path,
+              kind == 'base'
+                  ? '/api/v1/assets'
+                  : kind == 'warranty'
+                  ? '/api/v1/assets/warranty'
+                  : '/api/v1/assets/locations/inventory',
+            );
+            json(request, {
+              'items': <Object?>[],
+              'nextOffset': null,
+              if ((kind == 'warranty' || kind == 'combined')) ...{
+                'warranty': 'expired',
+                'asOf': '2026-10-31',
+                'through': '2026-11-30',
+              },
+            });
+          };
+          final result = await api.listCheckedBefore(
+            checkBefore: '2024-02-29',
+            query: '%_',
+            status: 'stored',
+            offset: 0,
+            sort: 'name_asc',
+            category: 'fixture',
+            includeLocation: kind == 'location' || kind == 'combined',
+            locationMode: kind == 'combined' ? 'exact' : 'all',
+            location: kind == 'combined' ? 'Room %_1' : null,
+            warranty: (kind == 'warranty' || kind == 'combined')
+                ? 'expired'
+                : '',
+            asOf: (kind == 'warranty' || kind == 'combined')
+                ? '2026-10-31'
+                : '',
+          );
+          expect(result.page.items, isEmpty);
+        },
+      );
+    }
+
+    for (final cutoff in [
+      '',
+      '2023-02-29',
+      '2024-02-29 ',
+      '0000-01-01',
+      '2024-01-01T00:00:00Z',
+    ]) {
+      test(
+        'invalid checked-before cutoff refuses transport: $cutoff',
+        () async {
+          await login();
+          final count = calls.length;
+          await expectLater(
+            api.listCheckedBefore(
+              checkBefore: cutoff,
+              query: '',
+              status: '',
+              offset: 0,
+            ),
+            throwsA(isA<Exception>()),
+          );
+          expect(calls.length, count);
+        },
+      );
+    }
+
+    test('checked-before refuses location scope when location capability is absent', () async {
+      await login();
+      final count = calls.length;
+      await expectLater(
+        api.listCheckedBefore(
+          checkBefore: '2024-03-01',
+          query: '',
+          status: '',
+          offset: 0,
+          locationMode: 'exact',
+          location: 'Room %_1',
+        ),
+        throwsA(
+          isA<AssetFailure>().having(
+            (error) => error.definitelyNotSent,
+            'not sent',
+            true,
+          ),
+        ),
+      );
+      expect(calls.length, count);
+    });
+
     test(
       'check date reads and clears one shared-version snapshot with CSRF',
       () async {

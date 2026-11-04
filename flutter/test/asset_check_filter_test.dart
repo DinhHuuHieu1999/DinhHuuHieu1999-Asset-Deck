@@ -13,7 +13,28 @@ import 'package:asset_desk/assets_page.dart';
 
 import 'assets_page_test.dart' show FakeStore;
 
-class CheckStore extends FakeStore implements AssetCheckSource {
+class CheckStore extends FakeStore
+    implements AssetCheckSource, AssetCheckBeforeSource {
+  final beforeCalls = <String>[];
+  @override
+  Future<AssetCheckPage> listCheckedBefore({
+    required String checkBefore,
+    required String query,
+    required String status,
+    required int offset,
+    String sort = 'updated_desc',
+    String category = '',
+    bool includeLocation = false,
+    String locationMode = 'all',
+    String? location,
+    String warranty = '',
+    String asOf = '',
+  }) async {
+    beforeCalls.add(checkBefore);
+    if (failure != null) throw failure!;
+    return AssetCheckPage(AssetPage([], null));
+  }
+
   int uncheckedCalls = 0;
   @override
   Future<AssetCheckPage> listUnchecked({
@@ -43,94 +64,157 @@ class CheckExportStore extends CheckStore
 
 void main() {
   testWidgets(
-    'matching export is disabled only for an applied unknown-date filter',
+    'before date validates, applies explicitly and refresh retains applied cutoff',
     (tester) async {
-      tester.view.physicalSize = const Size(1000, 2200);
+      tester.view.physicalSize = const Size(1000, 2400);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
+      final store = CheckStore();
       await tester.pumpWidget(
-        MaterialApp(
-          home: AssetsPage(
-            store: CheckExportStore(),
-            enableAssetCheck: true,
-            enableSelectionExport: true,
-            enableAssetDates: true,
-            enableAssetLocation: true,
-          ),
-        ),
+        MaterialApp(home: AssetsPage(store: store, enableAssetCheck: true)),
       );
       await tester.pumpAndSettle();
-      final export = find.widgetWithText(
-        OutlinedButton,
-        'Export matching assets JSON',
-      );
-      expect(tester.widget<OutlinedButton>(export).onPressed, isNotNull);
-      Future<void> press(String text) async {
+      Future<void> press(String label) async {
         await tester.scrollUntilVisible(
-          find.text(text),
-          250,
+          find.text(label),
+          200,
           scrollable: find.byType(Scrollable).first,
         );
-        await tester.tap(find.text(text));
+        await tester.tap(find.text(label));
         await tester.pumpAndSettle();
       }
 
-      await press('Only unknown check dates');
+      await press('Checked before');
       await press('Apply filters');
-      await tester.scrollUntilVisible(
-        find.text('Export matching assets JSON'),
-        -250,
-        scrollable: find.byType(Scrollable).first,
+      expect(find.text('Enter a real date as YYYY-MM-DD.'), findsOneWidget);
+      expect(store.beforeCalls, isEmpty);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Before date'),
+        '2024-02-29',
       );
-      expect(tester.widget<OutlinedButton>(export).onPressed, isNull);
+      await press('Apply filters');
+      expect(store.beforeCalls, ['2024-02-29']);
       expect(
-        find.textContaining('Matching export is unavailable'),
+        find.text('Applied check filter: Before 2024-02-29'),
         findsOneWidget,
       );
-      await press('Reset filters');
-      await tester.scrollUntilVisible(
-        find.text('Export matching assets JSON'),
-        -250,
-        scrollable: find.byType(Scrollable).first,
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Before date'),
+        '2025-01-01',
       );
-      expect(tester.widget<OutlinedButton>(export).onPressed, isNotNull);
+      await press('Refresh inventory');
+      expect(store.beforeCalls, ['2024-02-29', '2024-02-29']);
+      await press('Reset filters');
+      expect(find.text('Applied check filter: All assets'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'Before date'), findsNothing);
     },
   );
-  testWidgets('failed apply preserves the old page and applied check mode', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(1000, 1800);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    final store = CheckStore();
-    await tester.pumpWidget(
-      MaterialApp(home: AssetsPage(store: store, enableAssetCheck: true)),
-    );
-    await tester.pumpAndSettle();
-    Future<void> press(String text) async {
-      await tester.ensureVisible(find.text(text));
-      await tester.tap(find.text(text));
-      await tester.pumpAndSettle();
-    }
 
-    await press('Only unknown check dates');
-    store.failure = const AssetFailure('Synthetic filter unavailable');
-    await press('Apply filters');
-    expect(store.uncheckedCalls, 1);
-    expect(find.text('Applied check filter: All assets'), findsOneWidget);
-    await tester.scrollUntilVisible(
-      find.text('Laptop'),
-      250,
-      scrollable: find.byType(Scrollable).first,
+  for (final before in [false, true]) {
+    testWidgets(
+      'matching export respects applied check filter (before: $before)',
+      (tester) async {
+        tester.view.physicalSize = const Size(1000, 2200);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: AssetsPage(
+              store: CheckExportStore(),
+              enableAssetCheck: true,
+              enableSelectionExport: true,
+              enableAssetDates: true,
+              enableAssetLocation: true,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final export = find.widgetWithText(
+          OutlinedButton,
+          'Export matching assets JSON',
+        );
+        expect(tester.widget<OutlinedButton>(export).onPressed, isNotNull);
+        Future<void> press(String text) async {
+          await tester.scrollUntilVisible(
+            find.text(text),
+            250,
+            scrollable: find.byType(Scrollable).first,
+          );
+          await tester.tap(find.text(text));
+          await tester.pumpAndSettle();
+        }
+
+        await press(before ? 'Checked before' : 'Only unknown check dates');
+        if (before) {
+          await tester.enterText(
+            find.widgetWithText(TextField, 'Before date'),
+            '2024-02-29',
+          );
+        }
+        await press('Apply filters');
+        await tester.scrollUntilVisible(
+          find.text('Export matching assets JSON'),
+          -250,
+          scrollable: find.byType(Scrollable).first,
+        );
+        expect(tester.widget<OutlinedButton>(export).onPressed, isNull);
+        expect(
+          find.textContaining('Matching export is unavailable'),
+          findsOneWidget,
+        );
+        await press('Reset filters');
+        await tester.scrollUntilVisible(
+          find.text('Export matching assets JSON'),
+          -250,
+          scrollable: find.byType(Scrollable).first,
+        );
+        expect(tester.widget<OutlinedButton>(export).onPressed, isNotNull);
+      },
     );
-    expect(find.text('Laptop'), findsOneWidget);
-    store.failure = null;
-    await press('Refresh inventory');
-    expect(store.uncheckedCalls, 1);
-    expect(find.text('Applied check filter: All assets'), findsOneWidget);
-  });
+    testWidgets(
+      'failed apply preserves old page and check mode (before: $before)',
+      (tester) async {
+        tester.view.physicalSize = const Size(1000, 1800);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final store = CheckStore();
+        await tester.pumpWidget(
+          MaterialApp(home: AssetsPage(store: store, enableAssetCheck: true)),
+        );
+        await tester.pumpAndSettle();
+        Future<void> press(String text) async {
+          await tester.ensureVisible(find.text(text));
+          await tester.tap(find.text(text));
+          await tester.pumpAndSettle();
+        }
+
+        await press(before ? 'Checked before' : 'Only unknown check dates');
+        if (before) {
+          await tester.enterText(
+            find.widgetWithText(TextField, 'Before date'),
+            '2024-02-29',
+          );
+        }
+        store.failure = const AssetFailure('Synthetic filter unavailable');
+        await press('Apply filters');
+        expect(before ? store.beforeCalls.length : store.uncheckedCalls, 1);
+        expect(find.text('Applied check filter: All assets'), findsOneWidget);
+        await tester.scrollUntilVisible(
+          find.text('Laptop'),
+          250,
+          scrollable: find.byType(Scrollable).first,
+        );
+        expect(find.text('Laptop'), findsOneWidget);
+        store.failure = null;
+        await press('Refresh inventory');
+        expect(before ? store.beforeCalls.length : store.uncheckedCalls, 1);
+        expect(find.text('Applied check filter: All assets'), findsOneWidget);
+      },
+    );
+  }
   testWidgets('disabled feature exposes no check filter or reads', (
     tester,
   ) async {
@@ -172,7 +256,11 @@ void main() {
       expect(store.uncheckedCalls, 2);
       expect(find.text('Applied check filter: All assets'), findsOneWidget);
       expect(
-        tester.widget<CheckboxListTile>(find.byType(CheckboxListTile)).value,
+        tester
+            .widget<CheckboxListTile>(
+              find.widgetWithText(CheckboxListTile, 'Only unknown check dates'),
+            )
+            .value,
         false,
       );
     },
@@ -210,10 +298,11 @@ void main() {
       );
       await tester.pumpAndSettle();
       await tester.scrollUntilVisible(
-        find.text('Only unknown check dates'),
+        find.text('Checked before'),
         250,
         scrollable: find.byType(Scrollable).first,
       );
+      await tester.tap(find.text('Checked before'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       final directory = Platform.environment['ASSET_DESK_UI_CAPTURE_DIR'];

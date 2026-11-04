@@ -117,6 +117,45 @@ Future<void> main(List<String> args) async {
           details.dates!.input.purchasedOn == '2024-02-29' &&
           details.dates!.input.warrantyExpiresOn == '2027-02-28',
     );
+    stage = 'checked-before';
+    for (final cutoff in ['2024-03-01', '2024-03-02']) {
+      for (final scope in ['base', 'warranty', 'location', 'combined']) {
+        stage =
+            'checked-before-$scope-${cutoff == '2024-03-01' ? 'boundary' : 'earlier'}';
+        final result = await a.listCheckedBefore(
+          checkBefore: cutoff,
+          query: '%_1',
+          status: 'stored',
+          offset: 0,
+          category: 'fixture',
+          includeLocation: scope == 'location' || scope == 'combined',
+          locationMode: scope == 'location' || scope == 'combined'
+              ? 'exact'
+              : 'all',
+          location: scope == 'location' || scope == 'combined'
+              ? 'Room %_1'
+              : null,
+          warranty: scope == 'warranty' || scope == 'combined'
+              ? 'expiring_soon'
+              : '',
+          asOf: scope == 'warranty' || scope == 'combined' ? '2027-02-01' : '',
+        );
+        check(
+          cutoff == '2024-03-01'
+              ? result.page.items.isEmpty
+              : result.page.items.length == 1 &&
+                    result.page.items.single.id == row.id,
+        );
+      }
+    }
+    check(
+      (await b.listCheckedBefore(
+        checkBefore: '2024-03-02',
+        query: '',
+        status: '',
+        offset: 0,
+      )).page.items.isEmpty,
+    );
     stage = 'filter-clear';
     check(
       (await a.listUnchecked(
@@ -147,6 +186,14 @@ Future<void> main(List<String> args) async {
         offset: 0,
       )).page.items.isEmpty,
     );
+    check(
+      (await a.listCheckedBefore(
+        checkBefore: '2024-03-02',
+        query: '',
+        status: '',
+        offset: 0,
+      )).page.items.isEmpty,
+    );
     stage = 'sign-out';
     a.signOut();
     await refused(() => a.readCheckDate(row.id), 401);
@@ -155,12 +202,25 @@ Future<void> main(List<String> args) async {
         'status': 'completed',
         'syntheticOnly': true,
         'checkDateAcceptance': true,
+        'checkedBeforeAcceptance': true,
         'owners': 2,
         'nativeDialog': 'not-exercised',
       }),
     );
-  } catch (_) {
-    stdout.writeln(jsonEncode({'status': 'failed', 'stage': stage}));
+  } catch (error) {
+    stdout.writeln(
+      jsonEncode({
+        'status': 'failed',
+        'stage': stage,
+        'failureKind': error is AssetFailure
+            ? 'api'
+            : error is FormatException
+            ? 'format'
+            : 'assertion',
+        if (error is AssetFailure && error.statusCode != null)
+          'httpStatus': error.statusCode,
+      }),
+    );
   } finally {
     for (final client in clients) {
       client.close();

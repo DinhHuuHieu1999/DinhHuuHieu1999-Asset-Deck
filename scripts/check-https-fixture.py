@@ -24,7 +24,7 @@ def preflight(root, args):
 
 def validate_result(value):
     """Partial, malformed or incorrectly typed output is not acceptance."""
-    expected = dict(status='completed', syntheticOnly=True, checkDateAcceptance=True, owners=2, nativeDialog='not-exercised')
+    expected = dict(status='completed', syntheticOnly=True, checkDateAcceptance=True, checkedBeforeAcceptance=True, owners=2, nativeDialog='not-exercised')
     if (not isinstance(value, dict) or value != expected or
             any(type(value.get(key)) is not type(item) for key, item in expected.items())):
         raise client.Refusal('Check-date Dart result incomplete')
@@ -41,13 +41,19 @@ def acceptance(root, args, runtime, folder, identity, backend, proxy):
     output = runtime.run([args.dart, '--disable-dart-dev', str(root/FILES[0]),
                           '--synthetic-only', 'https://localhost:%s/api/v1' % args.tls_port, identity], cwd=root/'flutter')
     value = json.loads(output)
-    stages = ('arguments', 'marker', 'anonymous-csrf', 'registration', 'create', 'update', 'owner-version', 'details', 'filter-clear', 'sign-out')
+    stages = ('arguments', 'marker', 'anonymous-csrf', 'registration', 'create', 'update', 'owner-version', 'details', 'checked-before', 'filter-clear', 'sign-out')
+    stages += tuple('checked-before-%s-%s' % (scope, boundary) for scope in ('base', 'warranty', 'location', 'combined') for boundary in ('boundary', 'earlier'))
     if isinstance(value, dict) and value.get('status') == 'failed' and value.get('stage') in stages:
-        (folder/'check-diagnostic.json').write_text(json.dumps({'status': 'failed', 'stage': value['stage']})+'\n', encoding='utf-8')
+        diagnostic = {'status': 'failed', 'stage': value['stage']}
+        if value.get('failureKind') in ('api', 'format', 'assertion'):
+            diagnostic['failureKind'] = value['failureKind']
+        if type(value.get('httpStatus')) is int and 100 <= value['httpStatus'] <= 599:
+            diagnostic['httpStatus'] = value['httpStatus']
+        (folder/'check-diagnostic.json').write_text(json.dumps(diagnostic)+'\n', encoding='utf-8')
     validate_result(value)
     if source_hashes(root) != before:
         raise client.Refusal('Check-date source changed during acceptance')
-    return dict(status='completed', syntheticOnly=True, checkDateDartClient=True,
+    return dict(status='completed', syntheticOnly=True, checkDateDartClient=True, checkedBeforeDartClient=True,
                 nativeAcceptance='pending', checkSourceHashes=before)
 
 

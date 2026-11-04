@@ -73,3 +73,34 @@ class AssetCheckPage {
   final Map<String, String?> locations;
   final AssetWarrantyPage? warranty;
 }
+
+/// Optional cutoff capability; existing Unknown-only stores need not implement it.
+abstract interface class AssetCheckBeforeSource {
+  Future<AssetCheckPage> listCheckedBefore({
+    required String checkBefore,
+    required String query,
+    required String status,
+    required int offset,
+    String sort = 'updated_desc',
+    String category = '',
+    bool includeLocation = false,
+    String locationMode = 'all',
+    String? location,
+    String warranty = '',
+    String asOf = '',
+  });
+}
+
+/// Build bounded check filters before transport, preserving strict calendar input.
+Map<String, String> assetCheckQuery({
+  bool unchecked = false,
+  String before = '',
+}) {
+  if (before.isNotEmpty && (unchecked || !isAssetCalendarDate(before))) {
+    throw const FormatException('Invalid check filter');
+  }
+  return {
+    if (unchecked) 'checkMode': 'unchecked',
+    if (before.isNotEmpty) ...{'checkMode': 'before', 'checkBefore': before},
+  };
+}

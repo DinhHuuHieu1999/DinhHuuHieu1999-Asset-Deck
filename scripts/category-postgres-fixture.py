@@ -277,7 +277,7 @@ def execute(root, args, runtime, profile='category', verification=None):
                     cwd=root / 'backend', env=test_env)
         if result_file.stat().st_size > 1024 * 1024:
             raise client.Refusal('Oversized test result')
-        expected = 8 if profile in ('import-v2', 'import-v3') else 7 if profile in ('warranty-overview', 'selection-export') else 4
+        expected = 6 if profile == 'check' else 8 if profile in ('import-v2', 'import-v3') else 7 if profile in ('warranty-overview', 'selection-export') else 4
         validate_result(json.loads(result_file.read_text(encoding='utf-8')), expected)
         if verification is not None:
             verification(runtime, name, database, identity, folder)

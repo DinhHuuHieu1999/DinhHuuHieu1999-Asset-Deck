@@ -81,6 +81,12 @@ class _AssetsPageState extends State<AssetsPage> {
   bool get _hasLocation =>
       widget.enableAssetLocation && widget.store is AssetLocationSource;
   bool _unchecked = false, _loadedUnchecked = false;
+  bool _beforeCheck = false;
+  final _checkBefore = TextEditingController();
+  String _loadedCheckBefore = '';
+  String? _checkBeforeError;
+  bool get _hasCheckBefore =>
+      _hasCheck && widget.store is AssetCheckBeforeSource;
   bool get _hasCheck =>
       widget.enableAssetCheck && widget.store is AssetCheckSource;
   String _loadedCategory = '';
@@ -101,6 +107,7 @@ class _AssetsPageState extends State<AssetsPage> {
 
   @override
   void dispose() {
+    _checkBefore.dispose();
     _query.dispose();
     _category.dispose();
     _location.dispose();
@@ -108,7 +115,12 @@ class _AssetsPageState extends State<AssetsPage> {
   }
 
   Future<void> _openSelectionExport() async {
-    if (_busy || _page == null || _error != null || _loadedUnchecked) return;
+    if (_busy ||
+        _page == null ||
+        _error != null ||
+        _loadedUnchecked ||
+        _loadedCheckBefore.isNotEmpty)
+      return;
     final scope = AssetSelectionScope.fromJson({
       'q': _loadedQuery,
       'status': _loadedStatus,
@@ -220,6 +232,18 @@ class _AssetsPageState extends State<AssetsPage> {
         : (apply ? _category.text.trim() : _loadedCategory);
     final unchecked =
         _hasCheck && !resetFilters && (apply ? _unchecked : _loadedUnchecked);
+    final checkBefore = _hasCheckBefore && !resetFilters
+        ? (apply ? (_beforeCheck ? _checkBefore.text : '') : _loadedCheckBefore)
+        : '';
+    if (apply &&
+        !resetFilters &&
+        _hasCheckBefore &&
+        _beforeCheck &&
+        !isAssetCalendarDate(checkBefore)) {
+      setState(() => _checkBeforeError = 'Enter a real date as YYYY-MM-DD.');
+      return;
+    }
+    if (apply || resetFilters) _checkBeforeError = null;
     final warranty = resetFilters ? '' : (apply ? _warranty : _loadedWarranty);
     final reference =
         warrantyReference ??
@@ -270,7 +294,25 @@ class _AssetsPageState extends State<AssetsPage> {
       final AssetPage page;
       AssetWarrantyPage? warrantyPage;
       Map<String, String?> locations = {};
-      if (unchecked) {
+      if (checkBefore.isNotEmpty) {
+        final result = await (widget.store as AssetCheckBeforeSource)
+            .listCheckedBefore(
+              checkBefore: checkBefore,
+              query: query,
+              status: status,
+              offset: offset,
+              sort: sort,
+              category: category,
+              includeLocation: _hasLocation,
+              locationMode: locationMode,
+              location: location,
+              warranty: warranty,
+              asOf: reference,
+            );
+        page = result.page;
+        warrantyPage = result.warranty;
+        locations = result.locations;
+      } else if (unchecked) {
         final result = await (widget.store as AssetCheckSource).listUnchecked(
           query: query,
           status: status,
@@ -350,8 +392,12 @@ class _AssetsPageState extends State<AssetsPage> {
         _loadedSort = sort;
         _loadedCategory = category;
         _loadedUnchecked = unchecked;
+        _loadedCheckBefore = checkBefore;
         if (resetFilters) {
           _unchecked = false;
+          _beforeCheck = false;
+          _checkBefore.clear();
+          _checkBeforeError = null;
           _query.clear();
           _category.clear();
           _location.clear();
@@ -470,6 +516,9 @@ class _AssetsPageState extends State<AssetsPage> {
     setState(() {
       _sort = _loadedSort;
       _unchecked = false;
+      _beforeCheck = false;
+      _checkBefore.clear();
+      _checkBeforeError = null;
       _query.clear();
       _category.clear();
       _status = '';
@@ -500,6 +549,9 @@ class _AssetsPageState extends State<AssetsPage> {
     setState(() {
       _sort = _loadedSort;
       _unchecked = false;
+      _beforeCheck = false;
+      _checkBefore.clear();
+      _checkBeforeError = null;
       _query.clear();
       _category.text = selection.category;
       _status = selection.status;
@@ -524,6 +576,9 @@ class _AssetsPageState extends State<AssetsPage> {
     setState(() {
       _sort = _loadedSort;
       _unchecked = false;
+      _beforeCheck = false;
+      _checkBefore.clear();
+      _checkBeforeError = null;
       _query.clear();
       _category.clear();
       _status = '';
@@ -583,14 +638,18 @@ class _AssetsPageState extends State<AssetsPage> {
               const SizedBox(height: 8),
               OutlinedButton(
                 onPressed:
-                    _busy || _page == null || _error != null || _loadedUnchecked
+                    _busy ||
+                        _page == null ||
+                        _error != null ||
+                        _loadedUnchecked ||
+                        _loadedCheckBefore.isNotEmpty
                     ? null
                     : _openSelectionExport,
                 child: const Text('Export matching assets JSON'),
               ),
-              if (_loadedUnchecked)
+              if (_loadedUnchecked || _loadedCheckBefore.isNotEmpty)
                 const Text(
-                  'Matching export is unavailable for the unchecked filter. Reset filters first.',
+                  'Matching export is unavailable for check-date filters. Reset filters first.',
                 ),
             ],
             if (widget.store case final AssetExportSource source) ...[
@@ -832,12 +891,59 @@ class _AssetsPageState extends State<AssetsPage> {
                 value: _unchecked,
                 onChanged: _busy
                     ? null
-                    : (value) => setState(() => _unchecked = value ?? false),
+                    : (value) => setState(() {
+                        _unchecked = value ?? false;
+                        if (_unchecked) _beforeCheck = false;
+                        _checkBeforeError = null;
+                      }),
                 controlAffinity: ListTileControlAffinity.leading,
                 contentPadding: EdgeInsets.zero,
               ),
+              if (_hasCheckBefore) ...[
+                CheckboxListTile(
+                  title: const Text('Checked before'),
+                  subtitle: const Text(
+                    'Excludes the selected day and Unknown dates.',
+                  ),
+                  value: _beforeCheck,
+                  onChanged: _busy
+                      ? null
+                      : (value) => setState(() {
+                          _beforeCheck = value ?? false;
+                          if (_beforeCheck) _unchecked = false;
+                          _checkBeforeError = null;
+                        }),
+                  controlAffinity: ListTileControlAffinity.leading,
+                  contentPadding: EdgeInsets.zero,
+                ),
+                if (_beforeCheck) ...[
+                  TextField(
+                    controller: _checkBefore,
+                    enabled: !_busy,
+                    maxLength: 10,
+                    decoration: const InputDecoration(labelText: 'Before date'),
+                  ),
+                  const Text(
+                    'YYYY-MM-DD; only earlier manual check dates match.',
+                  ),
+                ],
+                if (_checkBeforeError != null)
+                  Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      _checkBeforeError!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ),
+              ],
               Text(
-                'Applied check filter: ${_loadedUnchecked ? "Unknown date" : "All assets"}',
+                'Applied check filter: ${_loadedCheckBefore.isNotEmpty
+                    ? "Before $_loadedCheckBefore"
+                    : _loadedUnchecked
+                    ? "Unknown date"
+                    : "All assets"}',
               ),
               const Text('Existing JSON exports exclude check dates.'),
               const SizedBox(height: 12),

@@ -1,4 +1,4 @@
-import { assetCheckPredicate } from './asset-check';
+import { assetCheckFilter } from './asset-check';
 import { assetOrderBy } from './asset-sort';
 import {
   buildAssetLocationOverview,
@@ -87,6 +87,11 @@ export class AssetLocationRepository {
     filter: Readonly<AssetLocationFilter>,
     window?: Readonly<AssetWarrantyWindow>,
   ) {
+    const check = assetCheckFilter(
+      query.checkMode,
+      query.checkBefore,
+      window ? 11 : 8,
+    );
     const result = await this.database.pool.query<
       AssetRecord & { location: string | null }
     >(
@@ -111,7 +116,7 @@ export class AssetLocationRepository {
          OR ($8='expiring_soon' AND warranty_expires_on >= $9::date AND warranty_expires_on <= $10::date))`
            : ''
        }
-       ${assetCheckPredicate(query.checkMode)}
+       ${check.sql}
        ORDER BY ${assetOrderBy(query.sort)} LIMIT 51 OFFSET $2`,
       [
         this.owner(owner),
@@ -122,6 +127,7 @@ export class AssetLocationRepository {
         filter.mode,
         filter.location,
         ...(window ? [window.filter, window.asOf, window.through] : []),
+        ...check.values,
       ],
     );
     const nextOffset = result.rows.length > 50 ? query.offset + 50 : null;

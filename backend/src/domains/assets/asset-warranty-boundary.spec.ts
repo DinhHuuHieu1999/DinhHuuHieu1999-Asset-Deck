@@ -30,6 +30,7 @@ describe('warranty list boundary', () => {
     expect(await validate({ warranty: 'expired' })).toEqual({
       sort: 'updated_desc',
       checkMode: 'all',
+      checkBefore: '',
       q: '',
       status: '',
       category: '',

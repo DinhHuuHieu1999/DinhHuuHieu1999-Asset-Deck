@@ -1,4 +1,4 @@
-import { assetCheckPredicate } from './asset-check';
+import { assetCheckFilter } from './asset-check';
 import { assetOrderBy } from './asset-sort';
 import {
   buildAssetWarrantyOverview,
@@ -73,6 +73,7 @@ export class AssetDatesRepository {
     query: AssetWarrantyQueryDto,
     window: Readonly<AssetWarrantyWindow>,
   ) {
+    const check = assetCheckFilter(query.checkMode, query.checkBefore, 9);
     const result = await this.database.pool.query<AssetExportV2Record>(
       `SELECT id,name,category,serial,status,notes,version,
         to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "createdAt",
@@ -86,7 +87,7 @@ export class AssetDatesRepository {
        AND (($6='expired' AND warranty_expires_on < $7::date)
          OR ($6='expiring_soon' AND warranty_expires_on >= $7::date
            AND warranty_expires_on <= $8::date))
-       ${assetCheckPredicate(query.checkMode)}
+       ${check.sql}
        ORDER BY ${assetOrderBy(query.sort)} LIMIT 51 OFFSET $2`,
       [
         this.owner(owner),
@@ -97,6 +98,7 @@ export class AssetDatesRepository {
         window.filter,
         window.asOf,
         window.through,
+        ...check.values,
       ],
     );
     const nextOffset = result.rows.length > 50 ? query.offset + 50 : null;
