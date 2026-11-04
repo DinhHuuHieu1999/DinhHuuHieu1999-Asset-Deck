@@ -1,3 +1,4 @@
+import 'asset_check.dart';
 import 'asset_read.dart';
 import 'asset_serial_check.dart';
 import 'asset_selection_export.dart';
@@ -30,6 +31,7 @@ class AssetApi
     implements
         AssetSession,
         AssetReadSource,
+        AssetCheckSource,
         AssetSerialCheckSource,
         AssetExportSource,
         AssetExportV2Source,
@@ -187,6 +189,7 @@ class AssetApi
   @override
   Future<AssetPage> list({
     String sort = 'updated_desc',
+    bool unchecked = false,
     required String query,
     required String status,
     String category = '',
@@ -211,6 +214,7 @@ class AssetApi
     final path = Uri(
       path: 'assets',
       queryParameters: {
+        if (unchecked) 'checkMode': 'unchecked',
         'q': query.trim(),
         'status': status,
         if (category.trim().isNotEmpty) 'category': category.trim(),
@@ -254,6 +258,7 @@ class AssetApi
   @override
   Future<AssetWarrantyPage> listWarranty({
     String sort = 'updated_desc',
+    bool unchecked = false,
     required String query,
     required String status,
     String category = '',
@@ -286,6 +291,7 @@ class AssetApi
     final path = Uri(
       path: 'assets/warranty',
       queryParameters: {
+        if (unchecked) 'checkMode': 'unchecked',
         'q': query.trim(),
         'status': status,
         if (category.trim().isNotEmpty) 'category': category.trim(),
@@ -393,6 +399,7 @@ class AssetApi
   @override
   Future<AssetLocationPage> listLocations({
     String sort = 'updated_desc',
+    bool unchecked = false,
     required String query,
     required String status,
     String category = '',
@@ -436,6 +443,7 @@ class AssetApi
     final path = Uri(
       path: 'assets/locations/inventory',
       queryParameters: {
+        if (unchecked) 'checkMode': 'unchecked',
         'q': query.trim(),
         'status': status,
         'category': category.trim(),
@@ -458,6 +466,140 @@ class AssetApi
       );
     } on FormatException {
       throw const AssetFailure('Invalid inventory location response');
+    }
+  }
+
+  /// Reuse validated transports with an explicit server-side NULL filter.
+  @override
+  Future<AssetCheckPage> listUnchecked({
+    required String query,
+    required String status,
+    required int offset,
+    String sort = 'updated_desc',
+    String category = '',
+    bool includeLocation = false,
+    String locationMode = 'all',
+    String? location,
+    String warranty = '',
+    String asOf = '',
+  }) async {
+    if (includeLocation) {
+      final result = await listLocations(
+        unchecked: true,
+        query: query,
+        status: status,
+        offset: offset,
+        sort: sort,
+        category: category,
+        locationMode: locationMode,
+        location: location,
+        warranty: warranty,
+        asOf: asOf,
+      );
+      return AssetCheckPage(
+        AssetPage(
+          result.items.map((item) => item.asset).toList(),
+          result.nextOffset,
+        ),
+        locations: {
+          for (final item in result.items) item.asset.id: item.location,
+        },
+        warranty: result.warrantyPage,
+      );
+    }
+    if (locationMode != 'all' || location != null) {
+      throw const AssetFailure(
+        'Location filtering is unavailable',
+        definitelyNotSent: true,
+      );
+    }
+    if (warranty.isNotEmpty) {
+      final result = await listWarranty(
+        unchecked: true,
+        query: query,
+        status: status,
+        offset: offset,
+        sort: sort,
+        category: category,
+        warranty: warranty,
+        asOf: asOf,
+      );
+      return AssetCheckPage(
+        AssetPage(
+          result.items.map((item) => item.asset).toList(),
+          result.nextOffset,
+        ),
+        warranty: result,
+      );
+    }
+    if (asOf.isNotEmpty)
+      throw const AssetFailure(
+        'Reference date requires warranty filter',
+        definitelyNotSent: true,
+      );
+    return AssetCheckPage(
+      await list(
+        unchecked: true,
+        query: query,
+        status: status,
+        offset: offset,
+        sort: sort,
+        category: category,
+      ),
+    );
+  }
+
+  /// Read the separate manual-check snapshot under the current session.
+  @override
+  Future<AssetCheck> readCheckDate(String id) async {
+    final epoch = _requireAccount();
+    _dateIdentity(id);
+    final value = await _request('GET', 'assets/$id/check-date', epoch);
+    _current(epoch);
+    return _checkDate(value, id);
+  }
+
+  /// Submit once; uncertain writes require reload rather than automatic retry.
+  @override
+  Future<AssetCheck> updateCheckDate(AssetCheck original, String? date) async {
+    final epoch = _requireAccount();
+    _dateIdentity(original.id);
+    final Map<String, Object?> body;
+    try {
+      body = original.replacement(date);
+    } on FormatException {
+      throw const AssetFailure(
+        'Invalid check date or version',
+        definitelyNotSent: true,
+      );
+    }
+    final value = await _request(
+      'PUT',
+      'assets/${original.id}/check-date',
+      epoch,
+      body,
+    );
+    _current(epoch);
+    final result = _checkDate(value, original.id);
+    if (result.version != original.version + 1 ||
+        result.lastCheckedOn != date) {
+      throw const AssetFailure(
+        'Invalid check date update response; reload before another write',
+      );
+    }
+    return result;
+  }
+
+  AssetCheck _checkDate(Map<String, Object?> value, String id) {
+    try {
+      final result = AssetCheck.fromJson(value);
+      if (result.id.toLowerCase() != id.toLowerCase())
+        throw const FormatException('Unexpected asset identity');
+      return result;
+    } on FormatException {
+      throw const AssetFailure(
+        'Invalid asset check date response; reload before another write',
+      );
     }
   }
 

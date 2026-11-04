@@ -1,3 +1,5 @@
+import 'api/asset_check.dart';
+import 'asset_check_editor.dart';
 import 'api/asset_read.dart';
 import 'api/asset_selection_export.dart';
 import 'inventory_selection_export_page.dart';
@@ -47,6 +49,7 @@ class AssetsPage extends StatefulWidget {
     this.enableInventoryImportV3 = false,
     this.enableAssetDates = false,
     this.enableAssetLocation = false,
+    this.enableAssetCheck = false,
     this.enableInventoryExportV3 = false,
     this.enableSelectionExport = false,
     this.importApiBase = '',
@@ -58,6 +61,7 @@ class AssetsPage extends StatefulWidget {
   final bool enableInventoryImportV3;
   final bool enableAssetDates;
   final bool enableAssetLocation;
+  final bool enableAssetCheck;
   final bool enableInventoryExportV3;
   final bool enableSelectionExport;
   final InventoryExportFiles? exportFiles;
@@ -76,6 +80,9 @@ class _AssetsPageState extends State<AssetsPage> {
   Map<String, String?> _locations = {};
   bool get _hasLocation =>
       widget.enableAssetLocation && widget.store is AssetLocationSource;
+  bool _unchecked = false, _loadedUnchecked = false;
+  bool get _hasCheck =>
+      widget.enableAssetCheck && widget.store is AssetCheckSource;
   String _loadedCategory = '';
   String _warranty = '', _loadedWarranty = '';
   AssetWarrantyPage? _warrantyPage;
@@ -101,7 +108,7 @@ class _AssetsPageState extends State<AssetsPage> {
   }
 
   Future<void> _openSelectionExport() async {
-    if (_busy || _page == null || _error != null) return;
+    if (_busy || _page == null || _error != null || _loadedUnchecked) return;
     final scope = AssetSelectionScope.fromJson({
       'q': _loadedQuery,
       'status': _loadedStatus,
@@ -173,6 +180,17 @@ class _AssetsPageState extends State<AssetsPage> {
               ? store as AssetDatesSource
               : null,
           locationSource: _hasLocation ? store as AssetLocationSource : null,
+          checkSource: widget.enableAssetCheck && store is AssetCheckSource
+              ? store as AssetCheckSource
+              : null,
+          onEditCheck: widget.enableAssetCheck && store is AssetCheckSource
+              ? (original) => openEditor(
+                  AssetCheckEditor(
+                    source: store as AssetCheckSource,
+                    original: original,
+                  ),
+                )
+              : null,
           session: store is AssetSession ? store : null,
         ),
       ),
@@ -200,6 +218,8 @@ class _AssetsPageState extends State<AssetsPage> {
     final category = resetFilters
         ? ''
         : (apply ? _category.text.trim() : _loadedCategory);
+    final unchecked =
+        _hasCheck && !resetFilters && (apply ? _unchecked : _loadedUnchecked);
     final warranty = resetFilters ? '' : (apply ? _warranty : _loadedWarranty);
     final reference =
         warrantyReference ??
@@ -250,7 +270,23 @@ class _AssetsPageState extends State<AssetsPage> {
       final AssetPage page;
       AssetWarrantyPage? warrantyPage;
       Map<String, String?> locations = {};
-      if (_hasLocation) {
+      if (unchecked) {
+        final result = await (widget.store as AssetCheckSource).listUnchecked(
+          query: query,
+          status: status,
+          offset: offset,
+          sort: sort,
+          category: category,
+          includeLocation: _hasLocation,
+          locationMode: locationMode,
+          location: location,
+          warranty: warranty,
+          asOf: warranty.isNotEmpty ? reference : '',
+        );
+        page = result.page;
+        locations = result.locations;
+        warrantyPage = result.warranty;
+      } else if (_hasLocation) {
         final result = await (widget.store as AssetLocationSource)
             .listLocations(
               sort: sort,
@@ -313,7 +349,9 @@ class _AssetsPageState extends State<AssetsPage> {
         _loadedStatus = status;
         _loadedSort = sort;
         _loadedCategory = category;
+        _loadedUnchecked = unchecked;
         if (resetFilters) {
+          _unchecked = false;
           _query.clear();
           _category.clear();
           _location.clear();
@@ -431,6 +469,7 @@ class _AssetsPageState extends State<AssetsPage> {
       return;
     setState(() {
       _sort = _loadedSort;
+      _unchecked = false;
       _query.clear();
       _category.clear();
       _status = '';
@@ -460,6 +499,7 @@ class _AssetsPageState extends State<AssetsPage> {
       return;
     setState(() {
       _sort = _loadedSort;
+      _unchecked = false;
       _query.clear();
       _category.text = selection.category;
       _status = selection.status;
@@ -483,6 +523,7 @@ class _AssetsPageState extends State<AssetsPage> {
     if (!mounted || selection == null || _busy) return;
     setState(() {
       _sort = _loadedSort;
+      _unchecked = false;
       _query.clear();
       _category.clear();
       _status = '';
@@ -541,11 +582,16 @@ class _AssetsPageState extends State<AssetsPage> {
                 widget.store is AssetSelectionExportSource) ...[
               const SizedBox(height: 8),
               OutlinedButton(
-                onPressed: _busy || _page == null || _error != null
+                onPressed:
+                    _busy || _page == null || _error != null || _loadedUnchecked
                     ? null
                     : _openSelectionExport,
                 child: const Text('Export matching assets JSON'),
               ),
+              if (_loadedUnchecked)
+                const Text(
+                  'Matching export is unavailable for the unchecked filter. Reset filters first.',
+                ),
             ],
             if (widget.store case final AssetExportSource source) ...[
               const SizedBox(height: 8),
@@ -777,6 +823,25 @@ class _AssetsPageState extends State<AssetsPage> {
                   : (s) => setState(() => _status = s ?? ''),
             ),
             const SizedBox(height: 12),
+            if (_hasCheck) ...[
+              CheckboxListTile(
+                title: const Text('Only unknown check dates'),
+                subtitle: const Text(
+                  'Unknown check date only. Apply filters to update results.',
+                ),
+                value: _unchecked,
+                onChanged: _busy
+                    ? null
+                    : (value) => setState(() => _unchecked = value ?? false),
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+              ),
+              Text(
+                'Applied check filter: ${_loadedUnchecked ? "Unknown date" : "All assets"}',
+              ),
+              const Text('Existing JSON exports exclude check dates.'),
+              const SizedBox(height: 12),
+            ],
             DropdownButtonFormField<String>(
               key: ValueKey('inventory-sort-$_sort'),
               selectedItemBuilder: (context) => const [

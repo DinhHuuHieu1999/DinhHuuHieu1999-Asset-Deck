@@ -29,6 +29,7 @@ describe('warranty list boundary', () => {
   it('validates bounded inherited search/status/category and paging defaults', async () => {
     expect(await validate({ warranty: 'expired' })).toEqual({
       sort: 'updated_desc',
+      checkMode: 'all',
       q: '',
       status: '',
       category: '',

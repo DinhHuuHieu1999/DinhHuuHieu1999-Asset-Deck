@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'api/asset.dart';
+import 'api/asset_check.dart';
 import 'api/asset_read.dart';
 import 'api/asset_dates.dart';
 import 'api/asset_details.dart';
@@ -18,6 +19,8 @@ class AssetDetailsPage extends StatefulWidget {
     this.readSource,
     this.datesSource,
     this.locationSource,
+    this.checkSource,
+    this.onEditCheck,
     this.session,
     this.onEdit,
     this.onEditDates,
@@ -27,6 +30,10 @@ class AssetDetailsPage extends StatefulWidget {
   final AssetReadSource? readSource;
   final AssetDatesSource? datesSource;
   final AssetLocationSource? locationSource;
+  final AssetCheckSource? checkSource;
+
+  /// Edits only the check date verified against this snapshot version.
+  final Future<bool> Function(AssetCheck check)? onEditCheck;
   final AssetSession? session;
 
   /// Opens editing for this exact snapshot; true means a confirmed save.
@@ -81,6 +88,7 @@ class _AssetDetailsPageState extends State<AssetDetailsPage> {
         !identical(oldWidget.readSource, widget.readSource) ||
         !identical(oldWidget.datesSource, widget.datesSource) ||
         !identical(oldWidget.locationSource, widget.locationSource) ||
+        !identical(oldWidget.checkSource, widget.checkSource) ||
         !identical(oldWidget.session, widget.session)) {
       _subscription?.cancel();
       _record = widget.record;
@@ -143,6 +151,7 @@ class _AssetDetailsPageState extends State<AssetDetailsPage> {
       }
       final value = await AssetDetailsSnapshot.load(
         record,
+        checkSource: widget.checkSource,
         datesSource: widget.datesSource,
         locationSource: widget.locationSource,
         isCurrent: current,
@@ -158,6 +167,8 @@ class _AssetDetailsPageState extends State<AssetDetailsPage> {
           if (!refresh) _details = null;
           _error = refresh
               ? 'Refresh failed. Previous snapshot retained; it may be out of date. Editing is disabled until refresh succeeds.'
+              : widget.checkSource != null
+              ? 'Could not verify optional fields for this snapshot. Return to inventory, refresh and reopen details.'
               : 'Could not verify dates and location for this snapshot. Return to inventory, refresh and reopen details.';
         });
       }
@@ -238,7 +249,8 @@ class _AssetDetailsPageState extends State<AssetDetailsPage> {
                     ? 'Inventory snapshot, not a live record. Refresh details reads a new snapshot; editing uses the displayed version.'
                     : widget.onEdit == null &&
                           widget.onEditDates == null &&
-                          widget.onEditLocation == null
+                          widget.onEditLocation == null &&
+                          widget.onEditCheck == null
                     ? 'Read-only inventory snapshot, not a live record. To update it, return to inventory, refresh and reopen.'
                     : 'Inventory snapshot, not a live record. Edit uses this version; a successful save returns to inventory.',
               ),
@@ -343,6 +355,28 @@ class _AssetDetailsPageState extends State<AssetDetailsPage> {
                       : () => _edit(_details?.location, widget.onEditLocation),
                   child: const Text('Edit location'),
                 ),
+              if (widget.checkSource != null) ...[
+                _field(
+                  'Last inventory check',
+                  _details?.checkDate != null
+                      ? _details!.checkDate!.lastCheckedOn ?? 'Unknown'
+                      : _unloaded,
+                ),
+                const Text(
+                  'Manual date, not proof of inspection. Existing JSON exports exclude check dates.',
+                ),
+                if (widget.onEditCheck != null)
+                  OutlinedButton(
+                    onPressed:
+                        _busy ||
+                            _editing ||
+                            _error != null ||
+                            _details?.checkDate == null
+                        ? null
+                        : () => _edit(_details?.checkDate, widget.onEditCheck),
+                    child: const Text('Edit last inventory check'),
+                  ),
+              ],
               _field('Snapshot version', '${_record.version}'),
               _field(
                 'Created (UTC)',

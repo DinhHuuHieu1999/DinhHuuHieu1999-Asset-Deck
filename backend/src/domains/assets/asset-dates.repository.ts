@@ -1,3 +1,4 @@
+import { assetCheckPredicate } from './asset-check';
 import { assetOrderBy } from './asset-sort';
 import {
   buildAssetWarrantyOverview,
@@ -85,6 +86,7 @@ export class AssetDatesRepository {
        AND (($6='expired' AND warranty_expires_on < $7::date)
          OR ($6='expiring_soon' AND warranty_expires_on >= $7::date
            AND warranty_expires_on <= $8::date))
+       ${assetCheckPredicate(query.checkMode)}
        ORDER BY ${assetOrderBy(query.sort)} LIMIT 51 OFFSET $2`,
       [
         this.owner(owner),

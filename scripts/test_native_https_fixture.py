@@ -45,6 +45,44 @@ class NativeTests(unittest.TestCase):
             guard.start()
             self.addCleanup(guard.stop)
 
+    def test_check_profile_requires_exact_defines_and_exclusive_boolean(self):
+        self.args.check_mode = True
+        defines = {'ASSET_DESK_ENABLE_ASSET_CHECK': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+        for candidate in (None, {}, dict(defines, ASSET_DESK_ENABLE_IMPORT='true'),
+                          dict(defines, ASSET_DESK_ENABLE_ASSET_CHECK='false')):
+            self.manifest['buildDefines'] = candidate
+            self.write_manifest()
+            with self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+        self.manifest['buildDefines'] = defines
+        self.write_manifest()
+        native.verify_candidate(self.root, self.args)
+        for field in ('import_mode', 'location_mode', 'selection_export_mode'):
+            setattr(self.args, field, True)
+            with self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+            setattr(self.args, field, False)
+        self.args.check_mode = 'true'
+        with self.assertRaises(native.client.Refusal):
+            native.verify_candidate(self.root, self.args)
+
+    def test_check_handoff_remains_pending_and_does_not_prepare_import(self):
+        self.args.check_mode = True
+        self.manifest['buildDefines'] = {'ASSET_DESK_ENABLE_ASSET_CHECK': 'true',
+            'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true', 'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+        self.write_manifest()
+        runtime = self.runtime()
+        result = self.run_session(runtime)
+        handoff = json.loads((self.root/'evidence/operator-handoff.json').read_text())
+        self.assertTrue(handoff['checkMode'])
+        self.assertEqual(handoff['expectedAssets'], 1)
+        self.assertNotIn('importFile', handoff)
+        self.assertIn('Only unknown check dates', handoff['instructions'])
+        self.assertEqual(result['nativeAcceptance'], 'pending')
+        runtime.start.assert_called_once()
+
     def write_manifest(self):
         (self.folder / 'candidate.json').write_text(json.dumps(self.manifest), encoding='utf-8')
 

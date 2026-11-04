@@ -718,3 +718,17 @@ test('details read route accepts only an exact UUID path', () => {
   for (const id of ['invalid', '12345678-1234-4234-8234-123456789abz'])
     assert.equal(allowed('GET', '/api/v1/assets/' + id), false);
 });
+
+test('check-date handler forwards explicit capability and preserves auth failures', async () => {
+  const url = '/api/v1/assets/00000000-0000-4000-8000-000000000000/check-date';
+  for (const method of ['GET', 'PUT']) {
+    const denied = await simulate({ method, url });
+    assert.equal(denied.calls, 0);
+    assert.equal(denied.res.code, 404);
+    const status = method === 'GET' ? 401 : 403;
+    const result = await simulate({ method, url, status,
+      capabilities: { checkEnabled: true, datesEnabled: true, locationEnabled: true } });
+    assert.equal(result.calls, 1);
+    assert.equal(result.res.code, status);
+  }
+});

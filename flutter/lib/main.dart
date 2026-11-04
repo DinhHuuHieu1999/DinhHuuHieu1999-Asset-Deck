@@ -31,6 +31,9 @@ void main() {
         enableInventoryExportV3: const bool.fromEnvironment(
           'ASSET_DESK_ENABLE_EXPORT_V3',
         ),
+        enableAssetCheck: const bool.fromEnvironment(
+          'ASSET_DESK_ENABLE_ASSET_CHECK',
+        ),
         enableAssetLocation: const bool.fromEnvironment(
           'ASSET_DESK_ENABLE_ASSET_LOCATION',
         ),

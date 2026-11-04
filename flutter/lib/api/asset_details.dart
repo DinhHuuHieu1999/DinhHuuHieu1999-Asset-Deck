@@ -1,17 +1,20 @@
 import 'asset.dart';
+import 'asset_check.dart';
 import 'asset_dates.dart';
 import 'asset_location.dart';
 import 'asset_store.dart';
 
 /// Optional values verified against the selected inventory snapshot version.
 class AssetDetailsSnapshot {
-  const AssetDetailsSnapshot({this.dates, this.location});
+  const AssetDetailsSnapshot({this.dates, this.location, this.checkDate});
+  final AssetCheck? checkDate;
   final AssetDates? dates;
   final AssetLocation? location;
 
   /// Read enabled capabilities once; never merge different asset versions.
   static Future<AssetDetailsSnapshot> load(
     AssetRecord record, {
+    AssetCheckSource? checkSource,
     AssetDatesSource? datesSource,
     AssetLocationSource? locationSource,
     bool Function()? isCurrent,
@@ -44,7 +47,21 @@ class AssetDetailsSnapshot {
       });
       _match(record, location.id, location.version);
     }
-    return AssetDetailsSnapshot(dates: dates, location: location);
+    final checkDate = await checkSource?.readCheckDate(record.id);
+    current();
+    if (checkDate != null) {
+      AssetCheck.fromJson({
+        'id': checkDate.id,
+        'version': checkDate.version,
+        'lastCheckedOn': checkDate.lastCheckedOn,
+      });
+      _match(record, checkDate.id, checkDate.version);
+    }
+    return AssetDetailsSnapshot(
+      dates: dates,
+      location: location,
+      checkDate: checkDate,
+    );
   }
 
   static void _match(AssetRecord record, String id, int version) {

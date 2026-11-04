@@ -1,3 +1,5 @@
+import { AssetCheckModule } from './domains/assets/asset-check.module';
+import { isAssetCheckEnabled } from './domains/assets/asset-check';
 import { AssetSelectionExportModule } from './domains/assets/asset-selection-export.module';
 import { isAssetSelectionExportEnabled } from './domains/assets/asset-selection-export.config';
 import { AssetImportV3Module } from './domains/assets/asset-import-v3.module';
@@ -32,6 +34,7 @@ export async function bootstrap(): Promise<void> {
   const selectionExportEnabled = isAssetSelectionExportEnabled();
   const exportV3Enabled = isAssetExportV3Enabled();
   const locationEnabled = isAssetLocationEnabled();
+  const checkEnabled = isAssetCheckEnabled();
   const importEnabled = isAssetImportEnabled();
   const datesEnabled = isAssetDatesEnabled();
   const importV3Enabled = isAssetImportV3Enabled();
@@ -47,6 +50,7 @@ export async function bootstrap(): Promise<void> {
         ...(importV2Enabled ? [AssetImportV2Module] : []),
         ...(importV3Enabled ? [AssetImportV3Module] : []),
         ...(locationEnabled ? [AssetLocationModule] : []),
+        ...(checkEnabled ? [AssetCheckModule] : []),
       ],
     },
     {

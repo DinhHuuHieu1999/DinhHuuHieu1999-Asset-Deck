@@ -1,3 +1,5 @@
+import 'package:asset_desk/api/asset_check.dart';
+
 import 'asset_selection_export_test.dart' show selectionFixture;
 
 import 'package:asset_desk/api/asset_selection_export.dart';
@@ -131,6 +133,119 @@ void main() {
       expect(handlerErrors, isEmpty);
     });
     Future<void> login() => api.login(' synthetic ', ' synthetic-pass ');
+
+    for (final kind in ['base', 'warranty', 'location']) {
+      test(
+        'unchecked filter reaches $kind endpoint with applied filters',
+        () async {
+          await login();
+          handler = (request) async {
+            expect(request.uri.queryParameters['checkMode'], 'unchecked');
+            expect(request.uri.queryParameters['q'], '%_');
+            expect(request.uri.queryParameters['status'], 'stored');
+            expect(request.uri.queryParameters['sort'], 'name_asc');
+            expect(request.uri.queryParameters['category'], 'fixture');
+            expect(
+              request.uri.path,
+              kind == 'base'
+                  ? '/api/v1/assets'
+                  : kind == 'warranty'
+                  ? '/api/v1/assets/warranty'
+                  : '/api/v1/assets/locations/inventory',
+            );
+            json(request, {
+              'items': <Object?>[],
+              'nextOffset': null,
+              if (kind == 'warranty') ...{
+                'warranty': 'expired',
+                'asOf': '2026-10-31',
+                'through': '2026-11-30',
+              },
+            });
+          };
+          final result = await api.listUnchecked(
+            query: '%_',
+            status: 'stored',
+            offset: 0,
+            sort: 'name_asc',
+            category: 'fixture',
+            includeLocation: kind == 'location',
+            warranty: kind == 'warranty' ? 'expired' : '',
+            asOf: kind == 'warranty' ? '2026-10-31' : '',
+          );
+          expect(result.page.items, isEmpty);
+        },
+      );
+    }
+
+    test(
+      'check date reads and clears one shared-version snapshot with CSRF',
+      () async {
+        await login();
+        const id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+        handler = (request) async {
+          expect(request.uri.path, '/api/v1/assets/$id/check-date');
+          expect(request.headers.value('authorization'), isNotEmpty);
+          if (request.method == 'PUT') {
+            expect(request.headers.value('x-csrf-token'), 'synthetic-csrf');
+            expect(await body(request), {'version': 1, 'lastCheckedOn': null});
+            json(request, {'id': id, 'version': 2, 'lastCheckedOn': null});
+          } else {
+            json(request, {
+              'id': id,
+              'version': 1,
+              'lastCheckedOn': '2024-02-29',
+            });
+          }
+        };
+        final original = await api.readCheckDate(id);
+        expect(original.lastCheckedOn, '2024-02-29');
+        expect((await api.updateCheckDate(original, null)).version, 2);
+      },
+    );
+    test(
+      'check date invalid input is not sent; wrong response identity fails',
+      () async {
+        await login();
+        const id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+        final before = calls.length;
+        await expectLater(
+          api.readCheckDate('../other'),
+          throwsA(isA<AssetFailure>()),
+        );
+        await expectLater(
+          api.updateCheckDate(
+            const AssetCheck(id: id, version: 1, lastCheckedOn: null),
+            '2025-02-29',
+          ),
+          throwsA(isA<AssetFailure>()),
+        );
+        expect(calls.length, before);
+        handler = (request) async => json(request, {
+          'id': 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          'version': 1,
+          'lastCheckedOn': null,
+        });
+        await expectLater(api.readCheckDate(id), throwsA(isA<AssetFailure>()));
+      },
+    );
+    test('check date write rejects mismatched version without retry', () async {
+      await login();
+      const id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+      var writes = 0;
+      handler = (request) async {
+        writes++;
+        json(request, {'id': id, 'version': 1, 'lastCheckedOn': null});
+      };
+      await expectLater(
+        api.updateCheckDate(
+          const AssetCheck(id: id, version: 1, lastCheckedOn: null),
+          null,
+        ),
+        throwsA(isA<AssetFailure>()),
+      );
+      expect(writes, 1);
+    });
 
     test(
       'read one authenticates, validates ID and rejects wrong identity',

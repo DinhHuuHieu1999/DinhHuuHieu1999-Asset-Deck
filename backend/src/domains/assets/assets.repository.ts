@@ -1,3 +1,4 @@
+import { assetCheckPredicate } from './asset-check';
 import { assetOrderBy } from './asset-sort';
 import {
   ASSET_OVERVIEW_MAX_CATEGORIES,
@@ -44,6 +45,7 @@ export class AssetsRepository {
          OR strpos(lower(category),lower($3))>0 OR strpos(lower(serial),lower($3))>0)
        AND ($4='' OR status=$4)
        AND ($5='' OR category=$5)
+       ${assetCheckPredicate(query.checkMode)}
        ORDER BY ${assetOrderBy(query.sort)} LIMIT 51 OFFSET $2`,
       [
         owner.toLowerCase(),

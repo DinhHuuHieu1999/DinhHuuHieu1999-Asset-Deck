@@ -26,6 +26,7 @@ export function validateConfig({
   exportV3Enabled = false,
   importV3Enabled = false,
   selectionExportEnabled = false,
+  checkEnabled = false,
   recoveryRequestId,
 }) {
   if (
@@ -34,6 +35,8 @@ export function validateConfig({
     typeof importV2Enabled !== "boolean" ||
     typeof locationEnabled !== "boolean" ||
     typeof exportV3Enabled !== "boolean" ||
+    typeof checkEnabled !== "boolean" ||
+    (checkEnabled && (!datesEnabled || !locationEnabled || importEnabled || importV2Enabled || importV3Enabled || exportV3Enabled || selectionExportEnabled)) ||
     typeof selectionExportEnabled !== "boolean" ||
     (selectionExportEnabled &&
       (!exportV3Enabled ||
@@ -95,6 +98,7 @@ export function parseProxyArgs(args) {
         "--export-v3-enabled",
         "--import-v3-enabled",
         "--selection-export-enabled",
+        "--check-enabled",
       ].includes(args[6]))
   )
     throw new Error("Explicit fixture opt-in required");
@@ -108,6 +112,7 @@ export function parseProxyArgs(args) {
       "--import-v3-enabled",
     ].includes(args[6]),
     datesEnabled: [
+      "--check-enabled",
       "--selection-export-enabled",
       "--import-v3-enabled",
       "--dates-enabled",
@@ -117,6 +122,7 @@ export function parseProxyArgs(args) {
     ].includes(args[6]),
     importV2Enabled: args[6] === "--import-v2-enabled",
     locationEnabled: [
+      "--check-enabled",
       "--selection-export-enabled",
       "--location-enabled",
       "--export-v3-enabled",
@@ -129,6 +135,7 @@ export function parseProxyArgs(args) {
     ].includes(args[6]),
     importV3Enabled: args[6] === "--import-v3-enabled",
     selectionExportEnabled: args[6] === "--selection-export-enabled",
+    checkEnabled: args[6] === "--check-enabled",
   };
   validateConfig(config);
   const port = Number(listen);
@@ -155,9 +162,12 @@ export function allowed(
   exportV3Enabled = false,
   importV3Enabled = false,
   selectionExportEnabled = false,
+  checkEnabled = false,
 ) {
   if (typeof raw !== "string" || !raw.startsWith("/") || raw.startsWith("//"))
     return false;
+  if (/^\/api\/v1\/assets\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/check-date$/i.test(raw))
+    return checkEnabled === true && ["GET", "PUT"].includes(method);
   if (raw.split("?")[0] === "/api/v1/assets/export/selection")
     return selectionExportEnabled === true && method === "GET";
   if (raw === "/api/v1/assets/import/v3")
@@ -303,6 +313,7 @@ export function createHandler(config, request = http.request) {
         config.exportV3Enabled,
         config.importV3Enabled,
         config.selectionExportEnabled,
+        config.checkEnabled,
       )
     ) {
       fail(404);

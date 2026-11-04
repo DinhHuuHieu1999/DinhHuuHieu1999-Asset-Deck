@@ -131,8 +131,20 @@ SERIAL_FILES = (FILES[0], FILES[1],
 DETAILS_FILES = tuple(name.replace('asset-serial.postgres.spec.ts', 'asset-details.postgres.spec.ts') for name in SERIAL_FILES)
 
 
+CHECK_FILES = LOCATION_FILES[:2] + (
+    'backend/src/domains/assets/asset-check.postgres.spec.ts',
+) + LOCATION_FILES[3:-1] + (
+    'backend/src/domains/assets/asset-check.repository.ts',
+    'backend/src/domains/assets/asset-check.ts',
+    'backend/migrations/003-asset-import.sql',
+    'backend/migrations/006-asset-check.sql', FILES[-1],
+)
+
+
 def profile_settings(profile):
     """Only fixed source-owned profiles may choose a suite or fixture identity."""
+    if profile == 'check':
+        return CHECK_FILES, 'asset-check-', 'asset_check_fixture_', 'ASSET_CHECK', 'isolated-check-v1', 'asset_check_fixture_identity'
     if profile == 'details':
         return DETAILS_FILES, 'asset-details-', 'asset_details_fixture_', 'ASSET_DETAILS', 'isolated-details-v1', 'asset_details_fixture_identity'
     if profile == 'serial':
@@ -238,6 +250,9 @@ def execute(root, args, runtime, profile='category', verification=None):
             migrations += ('backend/migrations/003-asset-import.sql', 'backend/migrations/004-asset-dates.sql')
         if profile == 'import-v3':
             migrations += ('backend/migrations/003-asset-import.sql', 'backend/migrations/004-asset-dates.sql', 'backend/migrations/005-asset-location.sql')
+        if profile == 'check':
+            migrations += ('backend/migrations/003-asset-import.sql', 'backend/migrations/004-asset-dates.sql',
+                           'backend/migrations/005-asset-location.sql', 'backend/migrations/006-asset-check.sql')
         for migration in migrations:
             runtime.run(['docker', 'exec', '-i', name, 'psql', '-v', 'ON_ERROR_STOP=1',
                          '-U', 'fixture', '-d', database], data=(root / migration).read_bytes())

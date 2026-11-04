@@ -305,3 +305,12 @@ The optional capability leaves legacy/test stores unchanged.
 
 See [serial warning contract](../docs/inventory-serial-warning.md) for limits and
 verification scope. Not deployed or native-accepted.
+
+## Manual check-date candidate
+
+`ASSET_DESK_ENABLE_ASSET_CHECK` defaults to false. When enabled with the matching
+backend feature, Details can read/edit a manual check date and inventory can filter
+unknown dates. Unknown includes cleared dates; it does not prove an asset was
+never checked. Existing JSON exports exclude this field; matching selection export
+is unavailable while this filter is applied. Migration and live/native acceptance
+remain separate rollout gates. See [the source plan](../docs/asset-last-checked-plan.md).
