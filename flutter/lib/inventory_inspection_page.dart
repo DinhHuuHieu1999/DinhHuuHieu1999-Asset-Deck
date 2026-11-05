@@ -1,3 +1,5 @@
+import 'api/asset_selection_export_v2.dart';
+
 import 'package:flutter/material.dart';
 
 import 'api/asset_export.dart';
@@ -12,12 +14,21 @@ class InventoryInspectionPage extends StatefulWidget {
     super.key,
     required this.files,
     this.v3 = false,
-  }) : selection = false;
+  }) : selection = false,
+       selectionV2 = false;
 
   /// A distinct local selection inspector, never a full-export fallback.
   const InventoryInspectionPage.selection({super.key, required this.files})
     : v3 = false,
-      selection = true;
+      selection = true,
+      selectionV2 = false;
+
+  /// Read-only v2 selection, never inferred from a full inventory file.
+  const InventoryInspectionPage.selectionV2({super.key, required this.files})
+    : v3 = false,
+      selection = true,
+      selectionV2 = true;
+  final bool selectionV2;
   final InventoryInspectionFiles files;
   final bool v3;
   final bool selection;
@@ -28,6 +39,7 @@ class InventoryInspectionPage extends StatefulWidget {
 
 class _InventoryInspectionPageState extends State<InventoryInspectionPage> {
   AssetSelectionExport? _selectionPreview;
+  AssetSelectionExportV2? _selectionV2Preview;
   AssetExport? _preview;
   AssetExportV3? _v3Preview;
   bool _busy = false;
@@ -51,9 +63,22 @@ class _InventoryInspectionPageState extends State<InventoryInspectionPage> {
       // A new selection invalidates old evidence before asynchronous verification.
       setState(() {
         _selectionPreview = null;
+        _selectionV2Preview = null;
         _preview = null;
         _v3Preview = null;
       });
+      if (widget.selectionV2) {
+        final preview = await inspectAssetSelectionV2Bytes(
+          bytes,
+          digest: widget.files.digest,
+        );
+        if (!mounted) return;
+        setState(() {
+          _selectionV2Preview = preview;
+          _message = 'Checksum matches';
+        });
+        return;
+      }
       if (widget.selection) {
         final preview = await inspectAssetSelectionBytes(
           bytes,
@@ -91,6 +116,7 @@ class _InventoryInspectionPageState extends State<InventoryInspectionPage> {
       if (!mounted) return;
       setState(() {
         _selectionPreview = null;
+        _selectionV2Preview = null;
         _preview = null;
         _v3Preview = null;
         _message =
@@ -106,13 +132,24 @@ class _InventoryInspectionPageState extends State<InventoryInspectionPage> {
     final preview = _preview;
     final v3Preview = _v3Preview;
     final selection = _selectionPreview;
-    final count = selection?.count ?? v3Preview?.count ?? preview?.count ?? 0;
+    final selectionV2 = _selectionV2Preview;
+    final count =
+        selectionV2?.count ??
+        selection?.count ??
+        v3Preview?.count ??
+        preview?.count ??
+        0;
     final exportedAt =
-        selection?.exportedAt ?? v3Preview?.exportedAt ?? preview?.exportedAt;
+        selectionV2?.exportedAt ??
+        selection?.exportedAt ??
+        v3Preview?.exportedAt ??
+        preview?.exportedAt;
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          widget.selection
+          widget.selectionV2
+              ? 'Inspect selection JSON v2'
+              : widget.selection
               ? 'Inspect selection JSON'
               : widget.v3
               ? 'Inspect inventory JSON v3'
@@ -152,7 +189,7 @@ class _InventoryInspectionPageState extends State<InventoryInspectionPage> {
                       const LinearProgressIndicator(
                         semanticsLabel: 'Inspecting local JSON',
                       ),
-                    if (selection != null &&
+                    if ((selection != null || selectionV2 != null) &&
                         !_busy &&
                         _message != 'Checksum matches')
                       const Text('Checksum matches'),
@@ -162,11 +199,14 @@ class _InventoryInspectionPageState extends State<InventoryInspectionPage> {
                       Text(
                         'Assets: $count; Exported: ${exportedAt.toIso8601String()}',
                       ),
-                    if (selection != null)
+                    if (selection != null || selectionV2 != null)
                       ExpansionTile(
                         title: const Text('File filters'),
                         children: [
-                          for (final entry in selection.scope.filters.entries)
+                          for (final entry
+                              in (selectionV2?.scope.toQuery() ??
+                                      selection!.scope.filters)
+                                  .entries)
                             ListTile(
                               title: Text(entry.key),
                               subtitle: Text('${entry.value ?? '(none)'}'),
@@ -177,6 +217,7 @@ class _InventoryInspectionPageState extends State<InventoryInspectionPage> {
                   ],
                 );
               final v3Record =
+                  selectionV2?.records[index - 1].record ??
                   selection?.records[index - 1] ??
                   v3Preview?.records[index - 1];
               final record = v3Record?.asset ?? preview!.records[index - 1];
@@ -190,6 +231,10 @@ class _InventoryInspectionPageState extends State<InventoryInspectionPage> {
                         record.input.name,
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
+                      if (selectionV2 != null)
+                        Text(
+                          'Last checked: ${selectionV2.records[index - 1].lastCheckedDate ?? '(unknown)'}',
+                        ),
                       if (v3Record != null) ...[
                         Text('Location: ${v3Record.location ?? '(unknown)'}'),
                         Text(

@@ -1,3 +1,4 @@
+import 'asset_selection_export_v2.dart';
 import 'asset_check_overview.dart';
 import 'asset_check.dart';
 import 'asset_read.dart';
@@ -41,6 +42,7 @@ class AssetApi
         AssetExportV2Source,
         AssetExportV3Source,
         AssetSelectionExportSource,
+        AssetSelectionExportV2Source,
         AssetImportSource,
         AssetImportV2Source,
         AssetImportV3Source,
@@ -1006,6 +1008,34 @@ class AssetApi
     _current(epoch);
     try {
       final result = await AssetSelectionExport.parse(value, digest: digest);
+      _current(epoch);
+      final actual = result.scope.toQuery();
+      if (actual.length != expected.length ||
+          expected.entries.any((entry) => actual[entry.key] != entry.value)) {
+        throw const FormatException('Selection response scope mismatch');
+      }
+      return result;
+    } on FormatException {
+      throw const AssetFailure('Invalid selection export, scope or checksum');
+    }
+  }
+
+  /// Verify selection identity and session after transport and asynchronous digest.
+  @override
+  Future<AssetSelectionExportV2> exportSelectionV2({
+    required AssetSelectionScopeV2 scope,
+    required AssetExportDigest digest,
+  }) async {
+    final epoch = _requireAccount();
+    final expected = scope.toQuery();
+    final path = Uri(
+      path: 'assets/export/selection-v2',
+      queryParameters: expected,
+    ).toString();
+    final value = await _request('GET', path, epoch);
+    _current(epoch);
+    try {
+      final result = await AssetSelectionExportV2.parse(value, digest: digest);
       _current(epoch);
       final actual = result.scope.toQuery();
       if (actual.length != expected.length ||

@@ -16,6 +16,7 @@ _spec.loader.exec_module(client)
 
 def verify_candidate(root, args):
     """Require a complete hashed deployment, pinned to the intended TLS endpoint."""
+    selection_v2 = client.selection_export_v2_mode(args)
     manual_check = client.check_mode(args)
     selection = client.selection_export_mode(args)
     v3 = client.import_v3_mode(args)
@@ -73,6 +74,9 @@ def verify_candidate(root, args):
         defines = {'ASSET_DESK_ENABLE_ASSET_CHECK': 'true',
                    'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
                    'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+    if selection_v2:
+        defines.update(ASSET_DESK_ENABLE_SELECTION_EXPORT_V2='true',
+                       ASSET_DESK_ENABLE_ASSET_CHECK='true')
     if (manual_check or enabled or location or export_v3 or selection) and value.get('buildDefines') != defines:
         raise client.Refusal('Candidate feature build contract missing')
     files = value['files']
@@ -171,6 +175,9 @@ def native_session(root, args, runtime, folder, identity, backend, proxy):
                        purchasedOn='2024-02-29', warrantyExpiresOn='2027-02-28',
                        locationLabel='Synthetic room %_1',
                        instructions='Sign in; apply Search Synthetic and status stored. Open filtered selection export, Prepare: one match with applied scope. Save to a new private file; Cancel must retain the prepared result. Back must retain inventory filters. This file is not a full backup and cannot be imported. Never use real data.')
+    if client.selection_export_v2_mode(args):
+        handoff.update(selectionExportV2Mode=True,
+            instructions='Sign in; apply Search Synthetic. Open Export matching assets JSON v2 with check dates, Prepare and save a new private file. Inspect selection JSON v2: checksum, one asset and Unknown check date. Cancel retains preview and checksum; invalid JSON clears both. No import or real data.')
     # Credentials are private local fixture evidence, never stdout or tracked source.
     with (folder / 'operator-handoff.json').open('x', encoding='utf-8') as stream:
         stream.write(json.dumps(handoff, indent=2) + '\n')
@@ -199,6 +206,7 @@ def main():
     parser.add_argument('--execute-synthetic', action='store_true')
     parser.add_argument('--check-mode', action='store_true')
     parser.add_argument('--selection-export-mode', action='store_true')
+    parser.add_argument('--selection-export-v2-mode', action='store_true')
     parser.add_argument('--export-v3-mode', action='store_true')
     parser.add_argument('--location-mode', action='store_true')
     parser.add_argument('--import-mode', action='store_true')

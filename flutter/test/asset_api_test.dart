@@ -1,3 +1,6 @@
+import 'asset_selection_export_v2_test.dart' show selectionV2Fixture;
+
+import 'package:asset_desk/api/asset_selection_export_v2.dart';
 import 'package:asset_desk/api/asset_check.dart';
 
 import 'asset_selection_export_test.dart' show selectionFixture;
@@ -1591,6 +1594,65 @@ void main() {
         api.exportSelection(scope: changed, digest: (_) async => 'a' * 64),
         throwsA(isA<AssetFailure>()),
       );
+    });
+    test('selection v2 export sends literal applied scope and rejects mismatched response', () async {
+      await api.login('synthetic@example.test', ' synthetic-pass ');
+      final value = selectionV2Fixture();
+      final payload =
+          jsonDecode(value['payload']! as String) as Map<String, Object?>;
+      final scope = AssetSelectionScopeV2.fromJson(
+        payload['filters']! as Map<String, Object?>,
+      );
+      handler = (request) async {
+        expect(request.uri.path, '/api/v1/assets/export/selection-v2');
+        expect(request.uri.queryParameters, scope.toQuery());
+        expect(request.uri.queryParameters['q'], '%_');
+        json(request, value);
+      };
+      expect(
+        (await api.exportSelectionV2(
+          scope: scope,
+          digest: (_) async => 'a' * 64,
+        )).count,
+        1,
+      );
+      final changed = AssetSelectionScopeV2.fromJson({
+        ...scope.base.filters,
+        'check': scope.check,
+        'status': 'repair',
+      });
+      handler = (request) async {
+        json(request, value);
+      };
+      await expectLater(
+        api.exportSelectionV2(scope: changed, digest: (_) async => 'a' * 64),
+        throwsA(isA<AssetFailure>()),
+      );
+    });
+
+    test('selection v2 rejects sign-out during digest', () async {
+      await login();
+      final value = selectionV2Fixture();
+      final body =
+          jsonDecode(value['payload']! as String) as Map<String, Object?>;
+      final scope = AssetSelectionScopeV2.fromJson(
+        body['filters']! as Map<String, Object?>,
+      );
+      handler = (request) async => json(request, value);
+      final entered = Completer<void>();
+      final release = Completer<String>();
+      final result = api.exportSelectionV2(
+        scope: scope,
+        digest: (_) {
+          entered.complete();
+          return release.future;
+        },
+      );
+      final assertion = expectLater(result, throwsA(isA<AssetFailure>()));
+      await entered.future;
+      api.signOut();
+      release.complete('a' * 64);
+      await assertion;
     });
     test('anonymous v3 export never requests data or digest', () async {
       await expectLater(

@@ -1,3 +1,4 @@
+import 'api/asset_selection_export_v2.dart';
 import 'api/asset_selection_export.dart';
 
 import 'dart:async';
@@ -34,13 +35,20 @@ abstract interface class InventorySelectionExportFiles {
   Future<bool> saveSelection(AssetSelectionExport snapshot);
 }
 
+/// Explicit v2 selection save capability; v1 adapters remain unchanged.
+abstract interface class InventorySelectionExportV2Files {
+  Future<String> digest(Uint8List bytes);
+  Future<bool> saveSelectionV2(AssetSelectionExportV2 snapshot);
+}
+
 /// Windows CNG and native Save As; no paths, credentials or implicit disk writes.
 class WindowsInventoryExportFiles
     implements
         InventoryExportFiles,
         InventoryExportV2Files,
         InventoryExportV3Files,
-        InventorySelectionExportFiles {
+        InventorySelectionExportFiles,
+        InventorySelectionExportV2Files {
   static const _channel = MethodChannel('asset_desk/inventory_export');
 
   @override
@@ -78,6 +86,10 @@ class WindowsInventoryExportFiles
 
   @override
   Future<bool> saveSelection(AssetSelectionExport snapshot) =>
+      _saveJson(snapshot.json, selection: true);
+
+  @override
+  Future<bool> saveSelectionV2(AssetSelectionExportV2 snapshot) =>
       _saveJson(snapshot.json, selection: true);
 
   Future<bool> _saveJson(String json, {bool selection = false}) async {

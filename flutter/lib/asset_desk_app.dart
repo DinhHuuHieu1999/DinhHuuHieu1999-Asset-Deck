@@ -19,6 +19,7 @@ class AssetDeskApp extends StatefulWidget {
     this.enableAssetCheck = false,
     this.enableInventoryExportV3 = false,
     this.enableSelectionExport = false,
+    this.enableSelectionExportV2 = false,
     this.importApiBase = '',
   });
   final String importApiBase;
@@ -31,6 +32,7 @@ class AssetDeskApp extends StatefulWidget {
   final bool enableAssetCheck;
   final bool enableInventoryExportV3;
   final bool enableSelectionExport;
+  final bool enableSelectionExportV2;
   @override
   State<AssetDeskApp> createState() => _AssetDeskAppState();
 }
@@ -126,6 +128,7 @@ class _AssetDeskAppState extends State<AssetDeskApp> {
               enableAssetCheck: widget.enableAssetCheck,
               enableInventoryExportV3: widget.enableInventoryExportV3,
               enableSelectionExport: widget.enableSelectionExport,
+              enableSelectionExportV2: widget.enableSelectionExportV2,
             ),
     );
   }

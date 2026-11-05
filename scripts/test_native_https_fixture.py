@@ -45,6 +45,48 @@ class NativeTests(unittest.TestCase):
             guard.start()
             self.addCleanup(guard.stop)
 
+    def test_selection_v2_requires_exact_capabilities(self):
+        self.args.selection_export_mode = True
+        self.args.selection_export_v2_mode = True
+        defines = {'ASSET_DESK_ENABLE_SELECTION_EXPORT': 'true',
+                   'ASSET_DESK_ENABLE_SELECTION_EXPORT_V2': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_CHECK': 'true',
+                   'ASSET_DESK_ENABLE_EXPORT_V3': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+        for key in defines:
+            self.manifest['buildDefines'] = {k: v for k, v in defines.items() if k != key}
+            self.write_manifest()
+            with self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+        self.manifest['buildDefines'] = defines
+        self.write_manifest()
+        native.verify_candidate(self.root, self.args)
+        self.args.selection_export_mode = False
+        with self.assertRaises(native.client.Refusal):
+            native.verify_candidate(self.root, self.args)
+
+    def test_selection_v2_handoff_keeps_native_acceptance_pending(self):
+        self.args.selection_export_mode = True
+        self.args.selection_export_v2_mode = True
+        self.manifest['buildDefines'] = {
+            'ASSET_DESK_ENABLE_SELECTION_EXPORT': 'true',
+            'ASSET_DESK_ENABLE_SELECTION_EXPORT_V2': 'true',
+            'ASSET_DESK_ENABLE_ASSET_CHECK': 'true',
+            'ASSET_DESK_ENABLE_EXPORT_V3': 'true',
+            'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+            'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+        self.write_manifest()
+        seed = self.root / native.seed_source(self.args)
+        seed.write_text('synthetic export seed', encoding='utf-8')
+        result = self.run_session(self.runtime())
+        handoff = json.loads((self.root / 'evidence/operator-handoff.json').read_text())
+        self.assertTrue(handoff['selectionExportV2Mode'])
+        self.assertEqual(handoff['expectedAssets'], 1)
+        self.assertNotIn('importFile', handoff)
+        self.assertIn('Inspect selection JSON v2', handoff['instructions'])
+        self.assertEqual(result['nativeAcceptance'], 'pending')
+
     def test_check_profile_requires_exact_defines_and_exclusive_boolean(self):
         self.args.check_mode = True
         defines = {'ASSET_DESK_ENABLE_ASSET_CHECK': 'true',

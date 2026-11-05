@@ -1,3 +1,5 @@
+import 'asset_selection_export_v2.dart';
+
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -35,6 +37,13 @@ Future<AssetSelectionExport> inspectAssetSelectionBytes(
     digest: digest,
   );
 }
+
+/// Explicit v2 inspection, without conversion, import or network capability.
+Future<AssetSelectionExportV2> inspectAssetSelectionV2Bytes(
+  Uint8List bytes, {
+  required AssetExportDigest digest,
+}) =>
+    AssetSelectionExportV2.parse(_decodeInspectionBytes(bytes), digest: digest);
 
 Map<String, Object?> _decodeInspectionBytes(Uint8List bytes) {
   if (bytes.length < 2 || bytes.length > 1024 * 1024) {

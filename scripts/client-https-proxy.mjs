@@ -25,6 +25,7 @@ export function validateConfig({
   locationEnabled = false,
   exportV3Enabled = false,
   importV3Enabled = false,
+  selectionExportV2Enabled = false,
   selectionExportEnabled = false,
   checkEnabled = false,
   recoveryRequestId,
@@ -42,8 +43,10 @@ export function validateConfig({
         importEnabled ||
         importV2Enabled ||
         importV3Enabled ||
-        exportV3Enabled ||
-        selectionExportEnabled)) ||
+        (!selectionExportV2Enabled &&
+          (exportV3Enabled || selectionExportEnabled)))) ||
+    typeof selectionExportV2Enabled !== "boolean" ||
+    (selectionExportV2Enabled && (!selectionExportEnabled || !checkEnabled)) ||
     typeof selectionExportEnabled !== "boolean" ||
     (selectionExportEnabled &&
       (!exportV3Enabled ||
@@ -104,6 +107,7 @@ export function parseProxyArgs(args) {
         "--location-enabled",
         "--export-v3-enabled",
         "--import-v3-enabled",
+        "--selection-export-v2-enabled",
         "--selection-export-enabled",
         "--check-enabled",
       ].includes(args[6]))
@@ -120,6 +124,7 @@ export function parseProxyArgs(args) {
     ].includes(args[6]),
     datesEnabled: [
       "--check-enabled",
+      "--selection-export-v2-enabled",
       "--selection-export-enabled",
       "--import-v3-enabled",
       "--dates-enabled",
@@ -130,19 +135,27 @@ export function parseProxyArgs(args) {
     importV2Enabled: args[6] === "--import-v2-enabled",
     locationEnabled: [
       "--check-enabled",
+      "--selection-export-v2-enabled",
       "--selection-export-enabled",
       "--location-enabled",
       "--export-v3-enabled",
       "--import-v3-enabled",
     ].includes(args[6]),
     exportV3Enabled: [
+      "--selection-export-v2-enabled",
       "--selection-export-enabled",
       "--export-v3-enabled",
       "--import-v3-enabled",
     ].includes(args[6]),
     importV3Enabled: args[6] === "--import-v3-enabled",
-    selectionExportEnabled: args[6] === "--selection-export-enabled",
-    checkEnabled: args[6] === "--check-enabled",
+    selectionExportV2Enabled: args[6] === "--selection-export-v2-enabled",
+    selectionExportEnabled: [
+      "--selection-export-v2-enabled",
+      "--selection-export-enabled",
+    ].includes(args[6]),
+    checkEnabled: ["--check-enabled", "--selection-export-v2-enabled"].includes(
+      args[6],
+    ),
   };
   validateConfig(config);
   const port = Number(listen);
@@ -170,6 +183,7 @@ export function allowed(
   importV3Enabled = false,
   selectionExportEnabled = false,
   checkEnabled = false,
+  selectionExportV2Enabled = false,
 ) {
   if (typeof raw !== "string" || !raw.startsWith("/") || raw.startsWith("//"))
     return false;
@@ -187,6 +201,8 @@ export function allowed(
         raw,
       )
     );
+  if (raw.split("?")[0] === "/api/v1/assets/export/selection-v2")
+    return selectionExportV2Enabled === true && method === "GET";
   if (raw.split("?")[0] === "/api/v1/assets/export/selection")
     return selectionExportEnabled === true && method === "GET";
   if (raw === "/api/v1/assets/import/v3")
@@ -338,6 +354,7 @@ export function createHandler(config, request = http.request) {
         config.importV3Enabled,
         config.selectionExportEnabled,
         config.checkEnabled,
+        config.selectionExportV2Enabled,
       )
     ) {
       fail(404);

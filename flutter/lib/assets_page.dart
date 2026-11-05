@@ -1,3 +1,5 @@
+import 'api/asset_selection_export_v2.dart';
+import 'inventory_selection_export_v2_page.dart';
 import 'api/asset_check_overview.dart';
 import 'check_overview_page.dart';
 import 'api/asset_check.dart';
@@ -54,6 +56,7 @@ class AssetsPage extends StatefulWidget {
     this.enableAssetCheck = false,
     this.enableInventoryExportV3 = false,
     this.enableSelectionExport = false,
+    this.enableSelectionExportV2 = false,
     this.importApiBase = '',
   });
   final String importApiBase;
@@ -66,6 +69,7 @@ class AssetsPage extends StatefulWidget {
   final bool enableAssetCheck;
   final bool enableInventoryExportV3;
   final bool enableSelectionExport;
+  final bool enableSelectionExportV2;
   final InventoryExportFiles? exportFiles;
   final InventoryInspectionFiles? inspectionFiles;
   @override
@@ -145,6 +149,42 @@ class _AssetsPageState extends State<AssetsPage> {
           source: widget.store as AssetSelectionExportSource,
           files: widget.exportFiles is InventorySelectionExportFiles
               ? widget.exportFiles! as InventorySelectionExportFiles
+              : WindowsInventoryExportFiles(),
+          scope: scope,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openSelectionExportV2() async {
+    if (_busy || _page == null || _error != null) return;
+    final scope = AssetSelectionScopeV2.fromJson({
+      'check': _loadedCheckBefore.isNotEmpty
+          ? {
+              'mode': _loadedOnOrAfterCheck ? 'on_or_after' : 'before',
+              'cutoff': _loadedCheckBefore,
+            }
+          : {'mode': _loadedUnchecked ? 'unknown' : 'all'},
+      'q': _loadedQuery,
+      'status': _loadedStatus,
+      'category': _loadedCategory,
+      'locationMode': _loadedLocationMode,
+      'location': _loadedLocation,
+      'sort': _loadedSort,
+      'warranty': _loadedWarranty.isEmpty
+          ? null
+          : {
+              'filter': _loadedWarranty,
+              'asOf': _warrantyPage!.asOf,
+              'through': _warrantyPage!.through,
+            },
+    });
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => InventorySelectionExportV2Page(
+          source: widget.store as AssetSelectionExportV2Source,
+          files: widget.exportFiles is InventorySelectionExportV2Files
+              ? widget.exportFiles! as InventorySelectionExportV2Files
               : WindowsInventoryExportFiles(),
           scope: scope,
         ),
@@ -719,6 +759,35 @@ class _AssetsPageState extends State<AssetsPage> {
                 const Text(
                   'Matching export is unavailable for check-date filters. Reset filters first.',
                 ),
+            ],
+            if (widget.enableSelectionExportV2 &&
+                widget.enableSelectionExport &&
+                _hasCheck &&
+                _hasLocation &&
+                widget.enableAssetDates &&
+                widget.store is AssetSelectionExportV2Source) ...[
+              OutlinedButton(
+                onPressed: _busy || _page == null || _error != null
+                    ? null
+                    : _openSelectionExportV2,
+                child: const Text(
+                  'Export matching assets JSON v2 with check dates',
+                ),
+              ),
+              OutlinedButton(
+                onPressed: _busy
+                    ? null
+                    : () => Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => InventoryInspectionPage.selectionV2(
+                            files:
+                                widget.inspectionFiles ??
+                                WindowsInventoryInspectionFiles(),
+                          ),
+                        ),
+                      ),
+                child: const Text('Inspect selection JSON v2 (no import)'),
+              ),
             ],
             if (widget.store case final AssetExportSource source) ...[
               const SizedBox(height: 8),
