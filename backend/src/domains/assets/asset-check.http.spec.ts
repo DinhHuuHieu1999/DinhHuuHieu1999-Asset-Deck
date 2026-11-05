@@ -1,3 +1,5 @@
+import { AssetsController } from './assets.controller';
+import { AssetsService } from './assets.service';
 import 'reflect-metadata';
 import { Test } from '@nestjs/testing';
 import {
@@ -36,8 +38,11 @@ describe('Check date HTTP validation with synthetic auth and no SQL', () => {
     };
     const csrf = new CsrfService();
     const module = await Test.createTestingModule({
-      controllers: [AssetCheckController],
-      providers: [{ provide: AssetCheckRepository, useValue: repository }],
+      controllers: [AssetsController, AssetCheckController],
+      providers: [
+        { provide: AssetCheckRepository, useValue: repository },
+        { provide: AssetsService, useValue: {} },
+      ],
     })
       .overrideGuard(JwtAuthGuard)
       .useValue({
@@ -133,5 +138,39 @@ describe('Check date HTTP validation with synthetic auth and no SQL', () => {
       version: 1,
       lastCheckedOn: null,
     });
+  });
+  it('overview is authenticated, no-store and passes only an explicit cutoff', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/assets/check-overview/counts?cutoff=2024-02-29')
+      .expect(401);
+    expect(repository.overview).not.toHaveBeenCalled();
+    for (const suffix of [
+      '',
+      '?cutoff=2023-02-29',
+      '?cutoff=2024-02-29&owner=other',
+      '?cutoff=2024-02-29&cutoff=2024-03-01',
+    ]) {
+      await request(app.getHttpServer())
+        .get('/api/v1/assets/check-overview/counts' + suffix)
+        .auth('synthetic', { type: 'bearer' })
+        .expect(400);
+    }
+    expect(repository.overview).not.toHaveBeenCalled();
+    const row = {
+      complete: true,
+      cutoff: '2024-02-29',
+      total: 0,
+      unknown: 0,
+      before: 0,
+      onOrAfter: 0,
+    };
+    repository.overview.mockResolvedValue(row);
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/assets/check-overview/counts?cutoff=2024-02-29')
+      .auth('synthetic', { type: 'bearer' })
+      .expect(200);
+    expect(response.body).toEqual(row);
+    expect(response.headers['cache-control']).toBe('no-store');
+    expect(repository.overview).toHaveBeenCalledWith(owner, '2024-02-29');
   });
 });

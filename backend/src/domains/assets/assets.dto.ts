@@ -55,11 +55,14 @@ export class AssetUpdateDto extends AssetInputDto {
 
 /** Fixed page size and literal substring search, without owner-selected queries. */
 export class AssetQueryDto {
-  @IsIn(['all', 'unchecked', 'before'])
-  checkMode?: 'all' | 'unchecked' | 'before' = 'all';
+  @IsIn(['all', 'unchecked', 'before', 'on_or_after'])
+  checkMode?: 'all' | 'unchecked' | 'before' | 'on_or_after' = 'all';
   @IsString()
   @MaxLength(10)
   checkBefore?: string = '';
+  @IsString()
+  @MaxLength(10)
+  checkOnOrAfter?: string = '';
   @IsIn(ASSET_SORTS)
   sort?: AssetSort = 'updated_desc';
   @IsString()

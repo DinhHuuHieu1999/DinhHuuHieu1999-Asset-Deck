@@ -235,6 +235,63 @@ void main() {
       );
     }
 
+    for (final kind in ['base', 'warranty', 'location', 'combined']) {
+      test(
+        'on-or-after filter reaches $kind endpoint with applied filters',
+        () async {
+          await login();
+          handler = (request) async {
+            expect(request.uri.queryParameters['checkMode'], 'on_or_after');
+            expect(request.uri.queryParameters['checkOnOrAfter'], '2024-02-29');
+            if (kind == 'combined') {
+              expect(request.uri.queryParameters['location'], 'Room %_1');
+              expect(request.uri.queryParameters['warranty'], 'expired');
+              expect(request.uri.queryParameters['asOf'], '2026-10-31');
+            }
+            expect(request.uri.queryParameters['q'], '%_');
+            expect(request.uri.queryParameters['status'], 'stored');
+            expect(request.uri.queryParameters['sort'], 'name_asc');
+            expect(request.uri.queryParameters['category'], 'fixture');
+            expect(
+              request.uri.path,
+              kind == 'base'
+                  ? '/api/v1/assets'
+                  : kind == 'warranty'
+                  ? '/api/v1/assets/warranty'
+                  : '/api/v1/assets/locations/inventory',
+            );
+            json(request, {
+              'items': <Object?>[],
+              'nextOffset': null,
+              if ((kind == 'warranty' || kind == 'combined')) ...{
+                'warranty': 'expired',
+                'asOf': '2026-10-31',
+                'through': '2026-11-30',
+              },
+            });
+          };
+          final result = await api.listCheckedOnOrAfter(
+            checkOnOrAfter: '2024-02-29',
+            query: '%_',
+            status: 'stored',
+            offset: 0,
+            sort: 'name_asc',
+            category: 'fixture',
+            includeLocation: kind == 'location' || kind == 'combined',
+            locationMode: kind == 'combined' ? 'exact' : 'all',
+            location: kind == 'combined' ? 'Room %_1' : null,
+            warranty: (kind == 'warranty' || kind == 'combined')
+                ? 'expired'
+                : '',
+            asOf: (kind == 'warranty' || kind == 'combined')
+                ? '2026-10-31'
+                : '',
+          );
+          expect(result.page.items, isEmpty);
+        },
+      );
+    }
+
     for (final cutoff in [
       '',
       '2023-02-29',
@@ -788,6 +845,101 @@ void main() {
         expect((await api.warrantyOverview()).unknown, 1);
       },
     );
+    test(
+      'check overview authenticates and sends only the strict cutoff',
+      () async {
+        await expectLater(
+          api.checkOverview(cutoff: '2024-02-29'),
+          throwsA(isA<AssetFailure>()),
+        );
+        expect(calls, isEmpty);
+        await login();
+        final before = calls.length;
+        for (final day in ['', '2023-02-29', ' 2024-02-29']) {
+          await expectLater(
+            api.checkOverview(cutoff: day),
+            throwsA(
+              isA<AssetFailure>().having(
+                (e) => e.definitelyNotSent,
+                'not sent',
+                true,
+              ),
+            ),
+          );
+        }
+        expect(calls.length, before);
+        handler = (request) async {
+          expect(request.method, 'GET');
+          expect(request.uri.path, '/api/v1/assets/check-overview/counts');
+          expect(request.uri.queryParameters, {'cutoff': '2024-02-29'});
+          expect(
+            request.headers.value('authorization'),
+            'Bearer synthetic-token',
+          );
+          json(request, {
+            'complete': true,
+            'cutoff': '2024-02-29',
+            'total': 1,
+            'unknown': 0,
+            'before': 1,
+            'onOrAfter': 0,
+          });
+        };
+        expect((await api.checkOverview(cutoff: '2024-02-29')).before, 1);
+        expect(calls.length, before + 1);
+      },
+    );
+    test(
+      'check overview refuses malformed and failed results without retry',
+      () async {
+        await login();
+        final before = calls.length;
+        handler = (request) async => json(request, {
+          'complete': true,
+          'cutoff': '2024-03-01',
+          'total': 0,
+          'unknown': 0,
+          'before': 0,
+          'onOrAfter': 0,
+        });
+        await expectLater(
+          api.checkOverview(cutoff: '2024-02-29'),
+          throwsA(isA<AssetFailure>()),
+        );
+        handler = (request) async =>
+            json(request, {'message': 'synthetic'}, status: 500);
+        await expectLater(
+          api.checkOverview(cutoff: '2024-02-29'),
+          throwsA(
+            isA<AssetFailure>().having((e) => e.statusCode, 'status', 500),
+          ),
+        );
+        expect(calls.length, before + 2);
+      },
+    );
+    test('check overview discards a late result after sign-out', () async {
+      await login();
+      final entered = Completer<void>(), release = Completer<void>();
+      handler = (request) async {
+        entered.complete();
+        await release.future;
+        json(request, {
+          'complete': true,
+          'cutoff': '2024-02-29',
+          'total': 0,
+          'unknown': 0,
+          'before': 0,
+          'onOrAfter': 0,
+        });
+      };
+      final pending = api.checkOverview(cutoff: '2024-02-29');
+      final assertion = expectLater(pending, throwsA(isA<AssetFailure>()));
+      await entered.future;
+      api.signOut();
+      release.complete();
+      await assertion;
+      expect(api.account, isNull);
+    });
     test('invalid warranty overview reference never sends a request', () async {
       await login();
       final before = calls.length;

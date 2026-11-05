@@ -1,3 +1,9 @@
+import { BadRequestException } from '@nestjs/common';
+import { isAssetCalendarDate } from './asset-dates';
+import {
+  buildAssetCheckOverview,
+  type AssetCheckOverviewRow,
+} from './asset-check-overview';
 import type { PostgresDatabase } from '../../infrastructure/database/postgres.database';
 import { isAccountId } from '../auth/account.repository';
 import { validateAssetCheckUpdate, type AssetCheckUpdate } from './asset-check';
@@ -23,6 +29,24 @@ export class AssetCheckRepository {
     await this.database.pool.query(
       `SELECT ${projection},owner_id FROM assets.assets LIMIT 0`,
     );
+  }
+
+  /** Count the complete owner inventory in one statement, never from list pages. */
+  async overview(owner: string, cutoff: string) {
+    const account = this.owner(owner);
+    if (!isAssetCalendarDate(cutoff))
+      throw new BadRequestException('Invalid check cutoff');
+    const result = await this.database.pool.query<AssetCheckOverviewRow>(
+      `SELECT count(*)::text AS total,
+        count(*) FILTER (WHERE last_checked_on IS NULL)::text AS unknown,
+        count(*) FILTER (WHERE last_checked_on < $2::date)::text AS before,
+        count(*) FILTER (WHERE last_checked_on >= $2::date)::text AS "onOrAfter"
+       FROM assets.assets WHERE owner_id=$1`,
+      [account, cutoff],
+    );
+    if (result.rows.length !== 1)
+      throw new Error('asset_check_overview_missing_aggregate');
+    return buildAssetCheckOverview(result.rows[0], cutoff);
   }
 
   /** Return the same absent result for missing and other-owner records. */

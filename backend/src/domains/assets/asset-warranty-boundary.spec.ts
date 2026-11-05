@@ -31,6 +31,7 @@ describe('warranty list boundary', () => {
       sort: 'updated_desc',
       checkMode: 'all',
       checkBefore: '',
+      checkOnOrAfter: '',
       q: '',
       status: '',
       category: '',

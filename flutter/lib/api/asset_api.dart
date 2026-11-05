@@ -1,3 +1,4 @@
+import 'asset_check_overview.dart';
 import 'asset_check.dart';
 import 'asset_read.dart';
 import 'asset_serial_check.dart';
@@ -33,6 +34,8 @@ class AssetApi
         AssetReadSource,
         AssetCheckSource,
         AssetCheckBeforeSource,
+        AssetCheckOverviewSource,
+        AssetCheckOnOrAfterSource,
         AssetSerialCheckSource,
         AssetExportSource,
         AssetExportV2Source,
@@ -192,12 +195,17 @@ class AssetApi
     String sort = 'updated_desc',
     bool unchecked = false,
     String checkBefore = '',
+    String checkOnOrAfter = '',
     required String query,
     required String status,
     String category = '',
     required int offset,
   }) async {
-    assetCheckQuery(unchecked: unchecked, before: checkBefore);
+    assetCheckQuery(
+      unchecked: unchecked,
+      before: checkBefore,
+      onOrAfter: checkOnOrAfter,
+    );
     final epoch = _requireAccount();
     if (!assetSorts.contains(sort)) {
       throw const AssetFailure(
@@ -217,7 +225,11 @@ class AssetApi
     final path = Uri(
       path: 'assets',
       queryParameters: {
-        ...assetCheckQuery(unchecked: unchecked, before: checkBefore),
+        ...assetCheckQuery(
+          unchecked: unchecked,
+          before: checkBefore,
+          onOrAfter: checkOnOrAfter,
+        ),
         'q': query.trim(),
         'status': status,
         if (category.trim().isNotEmpty) 'category': category.trim(),
@@ -231,6 +243,26 @@ class AssetApi
       return AssetPage.fromJson(result, offset: offset);
     } on FormatException {
       throw const AssetFailure('Invalid inventory response');
+    }
+  }
+
+  /// Read one complete check-date partition using the existing session guards.
+  @override
+  Future<AssetCheckOverview> checkOverview({required String cutoff}) async {
+    final epoch = _requireAccount();
+    if (!isAssetCalendarDate(cutoff)) {
+      throw const AssetFailure('Invalid check cutoff', definitelyNotSent: true);
+    }
+    final path = Uri(
+      path: 'assets/check-overview/counts',
+      queryParameters: {'cutoff': cutoff},
+    ).toString();
+    final result = await _request('GET', path, epoch);
+    _current(epoch);
+    try {
+      return AssetCheckOverview.fromJson(result, cutoff: cutoff);
+    } on FormatException {
+      throw const AssetFailure('Invalid check overview response');
     }
   }
 
@@ -263,6 +295,7 @@ class AssetApi
     String sort = 'updated_desc',
     bool unchecked = false,
     String checkBefore = '',
+    String checkOnOrAfter = '',
     required String query,
     required String status,
     String category = '',
@@ -270,7 +303,11 @@ class AssetApi
     String asOf = '',
     required int offset,
   }) async {
-    assetCheckQuery(unchecked: unchecked, before: checkBefore);
+    assetCheckQuery(
+      unchecked: unchecked,
+      before: checkBefore,
+      onOrAfter: checkOnOrAfter,
+    );
     final epoch = _requireAccount();
     if (!assetSorts.contains(sort)) {
       throw const AssetFailure(
@@ -296,7 +333,11 @@ class AssetApi
     final path = Uri(
       path: 'assets/warranty',
       queryParameters: {
-        ...assetCheckQuery(unchecked: unchecked, before: checkBefore),
+        ...assetCheckQuery(
+          unchecked: unchecked,
+          before: checkBefore,
+          onOrAfter: checkOnOrAfter,
+        ),
         'q': query.trim(),
         'status': status,
         if (category.trim().isNotEmpty) 'category': category.trim(),
@@ -406,6 +447,7 @@ class AssetApi
     String sort = 'updated_desc',
     bool unchecked = false,
     String checkBefore = '',
+    String checkOnOrAfter = '',
     required String query,
     required String status,
     String category = '',
@@ -415,7 +457,11 @@ class AssetApi
     String warranty = '',
     String asOf = '',
   }) async {
-    assetCheckQuery(unchecked: unchecked, before: checkBefore);
+    assetCheckQuery(
+      unchecked: unchecked,
+      before: checkBefore,
+      onOrAfter: checkOnOrAfter,
+    );
     final epoch = _requireAccount();
     if (!assetSorts.contains(sort)) {
       throw const AssetFailure(
@@ -450,7 +496,11 @@ class AssetApi
     final path = Uri(
       path: 'assets/locations/inventory',
       queryParameters: {
-        ...assetCheckQuery(unchecked: unchecked, before: checkBefore),
+        ...assetCheckQuery(
+          unchecked: unchecked,
+          before: checkBefore,
+          onOrAfter: checkOnOrAfter,
+        ),
         'q': query.trim(),
         'status': status,
         'category': category.trim(),
@@ -556,7 +606,7 @@ class AssetApi
     );
   }
 
-  /// List dated assets strictly before an explicit cutoff without changing legacy stores.
+  /// Fetch an exact check-date bucket using shared scope dispatch and validation.
   @override
   Future<AssetCheckPage> listCheckedBefore({
     required String checkBefore,
@@ -570,15 +620,73 @@ class AssetApi
     String? location,
     String warranty = '',
     String asOf = '',
+  }) => _listCheckCutoff(
+    cutoff: checkBefore,
+    onOrAfter: false,
+    query: query,
+    status: status,
+    offset: offset,
+    sort: sort,
+    category: category,
+    includeLocation: includeLocation,
+    locationMode: locationMode,
+    location: location,
+    warranty: warranty,
+    asOf: asOf,
+  );
+
+  /// Fetch an exact check-date bucket using shared scope dispatch and validation.
+  @override
+  Future<AssetCheckPage> listCheckedOnOrAfter({
+    required String checkOnOrAfter,
+    required String query,
+    required String status,
+    required int offset,
+    String sort = 'updated_desc',
+    String category = '',
+    bool includeLocation = false,
+    String locationMode = 'all',
+    String? location,
+    String warranty = '',
+    String asOf = '',
+  }) => _listCheckCutoff(
+    cutoff: checkOnOrAfter,
+    onOrAfter: true,
+    query: query,
+    status: status,
+    offset: offset,
+    sort: sort,
+    category: category,
+    includeLocation: includeLocation,
+    locationMode: locationMode,
+    location: location,
+    warranty: warranty,
+    asOf: asOf,
+  );
+
+  Future<AssetCheckPage> _listCheckCutoff({
+    required String cutoff,
+    required bool onOrAfter,
+    required String query,
+    required String status,
+    required int offset,
+    String sort = 'updated_desc',
+    String category = '',
+    bool includeLocation = false,
+    String locationMode = 'all',
+    String? location,
+    String warranty = '',
+    String asOf = '',
   }) async {
-    if (checkBefore.isEmpty)
+    if (!isAssetCalendarDate(cutoff))
       throw const AssetFailure(
         'Check cutoff is required',
         definitelyNotSent: true,
       );
     if (includeLocation) {
       final result = await listLocations(
-        checkBefore: checkBefore,
+        checkBefore: onOrAfter ? '' : cutoff,
+        checkOnOrAfter: onOrAfter ? cutoff : '',
         query: query,
         status: status,
         offset: offset,
@@ -608,7 +716,8 @@ class AssetApi
     }
     if (warranty.isNotEmpty) {
       final result = await listWarranty(
-        checkBefore: checkBefore,
+        checkBefore: onOrAfter ? '' : cutoff,
+        checkOnOrAfter: onOrAfter ? cutoff : '',
         query: query,
         status: status,
         offset: offset,
@@ -632,7 +741,8 @@ class AssetApi
       );
     return AssetCheckPage(
       await list(
-        checkBefore: checkBefore,
+        checkBefore: onOrAfter ? '' : cutoff,
+        checkOnOrAfter: onOrAfter ? cutoff : '',
         query: query,
         status: status,
         offset: offset,

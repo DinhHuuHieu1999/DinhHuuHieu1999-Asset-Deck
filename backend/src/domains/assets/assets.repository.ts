@@ -38,7 +38,12 @@ export class AssetsRepository {
 
   /** Search/filter the authenticated owner's rows before fixed-size pagination. */
   async list(owner: string, query: AssetQueryDto) {
-    const check = assetCheckFilter(query.checkMode, query.checkBefore, 6);
+    const check = assetCheckFilter(
+      query.checkMode,
+      query.checkBefore,
+      6,
+      query.checkOnOrAfter,
+    );
     this.owner(owner);
     const result = await this.database.pool.query<AssetRecord>(
       `SELECT ${projection} FROM assets.assets WHERE owner_id=$1

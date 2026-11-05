@@ -1,3 +1,5 @@
+import 'api/asset_check_overview.dart';
+import 'check_overview_page.dart';
 import 'api/asset_check.dart';
 import 'asset_check_editor.dart';
 import 'api/asset_read.dart';
@@ -82,6 +84,7 @@ class _AssetsPageState extends State<AssetsPage> {
       widget.enableAssetLocation && widget.store is AssetLocationSource;
   bool _unchecked = false, _loadedUnchecked = false;
   bool _beforeCheck = false;
+  bool _onOrAfterCheck = false, _loadedOnOrAfterCheck = false;
   final _checkBefore = TextEditingController();
   String _loadedCheckBefore = '';
   String? _checkBeforeError;
@@ -235,6 +238,10 @@ class _AssetsPageState extends State<AssetsPage> {
     final checkBefore = _hasCheckBefore && !resetFilters
         ? (apply ? (_beforeCheck ? _checkBefore.text : '') : _loadedCheckBefore)
         : '';
+    final onOrAfterCheck =
+        checkBefore.isNotEmpty &&
+        !resetFilters &&
+        (apply ? _onOrAfterCheck : _loadedOnOrAfterCheck);
     if (apply &&
         !resetFilters &&
         _hasCheckBefore &&
@@ -295,20 +302,34 @@ class _AssetsPageState extends State<AssetsPage> {
       AssetWarrantyPage? warrantyPage;
       Map<String, String?> locations = {};
       if (checkBefore.isNotEmpty) {
-        final result = await (widget.store as AssetCheckBeforeSource)
-            .listCheckedBefore(
-              checkBefore: checkBefore,
-              query: query,
-              status: status,
-              offset: offset,
-              sort: sort,
-              category: category,
-              includeLocation: _hasLocation,
-              locationMode: locationMode,
-              location: location,
-              warranty: warranty,
-              asOf: reference,
-            );
+        final result = onOrAfterCheck
+            ? await (widget.store as AssetCheckOnOrAfterSource)
+                  .listCheckedOnOrAfter(
+                    checkOnOrAfter: checkBefore,
+                    query: query,
+                    status: status,
+                    offset: offset,
+                    sort: sort,
+                    category: category,
+                    includeLocation: _hasLocation,
+                    locationMode: locationMode,
+                    location: location,
+                    warranty: warranty,
+                    asOf: reference,
+                  )
+            : await (widget.store as AssetCheckBeforeSource).listCheckedBefore(
+                checkBefore: checkBefore,
+                query: query,
+                status: status,
+                offset: offset,
+                sort: sort,
+                category: category,
+                includeLocation: _hasLocation,
+                locationMode: locationMode,
+                location: location,
+                warranty: warranty,
+                asOf: reference,
+              );
         page = result.page;
         warrantyPage = result.warranty;
         locations = result.locations;
@@ -393,9 +414,11 @@ class _AssetsPageState extends State<AssetsPage> {
         _loadedCategory = category;
         _loadedUnchecked = unchecked;
         _loadedCheckBefore = checkBefore;
+        _loadedOnOrAfterCheck = onOrAfterCheck;
         if (resetFilters) {
           _unchecked = false;
           _beforeCheck = false;
+          _onOrAfterCheck = false;
           _checkBefore.clear();
           _checkBeforeError = null;
           _query.clear();
@@ -496,6 +519,39 @@ class _AssetsPageState extends State<AssetsPage> {
     if (saved == true && mounted) await _load();
   }
 
+  Future<void> _openCheckOverview() async {
+    final store = widget.store;
+    final revision = store is AssetSession ? store.sessionRevision : null;
+    final selection = await Navigator.of(context).push<CheckOverviewSelection>(
+      MaterialPageRoute(
+        builder: (_) =>
+            CheckOverviewPage(source: store as AssetCheckOverviewSource),
+      ),
+    );
+    if (!mounted ||
+        selection == null ||
+        _busy ||
+        !identical(store, widget.store) ||
+        (store is AssetSession && store.sessionRevision != revision))
+      return;
+    setState(() {
+      _sort = _loadedSort;
+      _unchecked = selection.mode == 'unchecked';
+      _beforeCheck = !_unchecked;
+      _onOrAfterCheck = selection.mode == 'on_or_after';
+      _checkBefore.text = _unchecked ? '' : selection.cutoff;
+      _checkBeforeError = null;
+      _query.clear();
+      _category.clear();
+      _status = '';
+      _warranty = '';
+      _locationMode = 'all';
+      _location.clear();
+      _locationError = null;
+    });
+    await _load(apply: true);
+  }
+
   Future<void> _openWarrantyOverview() async {
     final store = widget.store;
     final revision = store is AssetSession ? store.sessionRevision : null;
@@ -517,6 +573,7 @@ class _AssetsPageState extends State<AssetsPage> {
       _sort = _loadedSort;
       _unchecked = false;
       _beforeCheck = false;
+      _onOrAfterCheck = false;
       _checkBefore.clear();
       _checkBeforeError = null;
       _query.clear();
@@ -550,6 +607,7 @@ class _AssetsPageState extends State<AssetsPage> {
       _sort = _loadedSort;
       _unchecked = false;
       _beforeCheck = false;
+      _onOrAfterCheck = false;
       _checkBefore.clear();
       _checkBeforeError = null;
       _query.clear();
@@ -577,6 +635,7 @@ class _AssetsPageState extends State<AssetsPage> {
       _sort = _loadedSort;
       _unchecked = false;
       _beforeCheck = false;
+      _onOrAfterCheck = false;
       _checkBefore.clear();
       _checkBeforeError = null;
       _query.clear();
@@ -614,6 +673,15 @@ class _AssetsPageState extends State<AssetsPage> {
               OutlinedButton(
                 onPressed: _busy ? null : _openLocationOverview,
                 child: const Text('Location overview'),
+              ),
+            ],
+            if (_hasCheckBefore &&
+                widget.store is AssetCheckOverviewSource &&
+                widget.store is AssetCheckOnOrAfterSource) ...[
+              const SizedBox(height: 8),
+              OutlinedButton(
+                onPressed: _busy ? null : _openCheckOverview,
+                child: const Text('Check-date overview'),
               ),
             ],
             if (widget.enableAssetDates &&
@@ -893,7 +961,10 @@ class _AssetsPageState extends State<AssetsPage> {
                     ? null
                     : (value) => setState(() {
                         _unchecked = value ?? false;
-                        if (_unchecked) _beforeCheck = false;
+                        if (_unchecked) {
+                          _beforeCheck = false;
+                          _onOrAfterCheck = false;
+                        }
                         _checkBeforeError = null;
                       }),
                 controlAffinity: ListTileControlAffinity.leading,
@@ -901,15 +972,20 @@ class _AssetsPageState extends State<AssetsPage> {
               ),
               if (_hasCheckBefore) ...[
                 CheckboxListTile(
-                  title: const Text('Checked before'),
-                  subtitle: const Text(
-                    'Excludes the selected day and Unknown dates.',
+                  title: Text(
+                    _onOrAfterCheck ? 'Checked on or after' : 'Checked before',
+                  ),
+                  subtitle: Text(
+                    _onOrAfterCheck
+                        ? 'Includes the selected day; excludes Unknown dates.'
+                        : 'Excludes the selected day and Unknown dates.',
                   ),
                   value: _beforeCheck,
                   onChanged: _busy
                       ? null
                       : (value) => setState(() {
                           _beforeCheck = value ?? false;
+                          if (!_beforeCheck) _onOrAfterCheck = false;
                           if (_beforeCheck) _unchecked = false;
                           _checkBeforeError = null;
                         }),
@@ -921,10 +997,16 @@ class _AssetsPageState extends State<AssetsPage> {
                     controller: _checkBefore,
                     enabled: !_busy,
                     maxLength: 10,
-                    decoration: const InputDecoration(labelText: 'Before date'),
+                    decoration: InputDecoration(
+                      labelText: _onOrAfterCheck
+                          ? 'On or after date'
+                          : 'Before date',
+                    ),
                   ),
-                  const Text(
-                    'YYYY-MM-DD; only earlier manual check dates match.',
+                  Text(
+                    _onOrAfterCheck
+                        ? 'YYYY-MM-DD; matching dates include the selected day.'
+                        : 'YYYY-MM-DD; only earlier manual check dates match.',
                   ),
                 ],
                 if (_checkBeforeError != null)
@@ -940,7 +1022,7 @@ class _AssetsPageState extends State<AssetsPage> {
               ],
               Text(
                 'Applied check filter: ${_loadedCheckBefore.isNotEmpty
-                    ? "Before $_loadedCheckBefore"
+                    ? (_loadedOnOrAfterCheck ? "On or after $_loadedCheckBefore" : "Before $_loadedCheckBefore")
                     : _loadedUnchecked
                     ? "Unknown date"
                     : "All assets"}',

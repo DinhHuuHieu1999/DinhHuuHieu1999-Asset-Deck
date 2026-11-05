@@ -141,8 +141,13 @@ CHECK_FILES = LOCATION_FILES[:2] + (
 )
 
 
+CHECK_OVERVIEW_FILES = CHECK_FILES[:2] + ('backend/src/domains/assets/asset-check-overview.postgres.spec.ts',) + CHECK_FILES[3:-1] + ('backend/src/domains/assets/asset-check-overview.ts', CHECK_FILES[-1])
+
+
 def profile_settings(profile):
     """Only fixed source-owned profiles may choose a suite or fixture identity."""
+    if profile == 'check-overview':
+        return CHECK_OVERVIEW_FILES, 'asset-check-overview-', 'asset_check_overview_fixture_', 'ASSET_CHECK_OVERVIEW', 'isolated-check-overview-v1', 'asset_check_overview_fixture_identity'
     if profile == 'check':
         return CHECK_FILES, 'asset-check-', 'asset_check_fixture_', 'ASSET_CHECK', 'isolated-check-v1', 'asset_check_fixture_identity'
     if profile == 'details':
@@ -250,7 +255,7 @@ def execute(root, args, runtime, profile='category', verification=None):
             migrations += ('backend/migrations/003-asset-import.sql', 'backend/migrations/004-asset-dates.sql')
         if profile == 'import-v3':
             migrations += ('backend/migrations/003-asset-import.sql', 'backend/migrations/004-asset-dates.sql', 'backend/migrations/005-asset-location.sql')
-        if profile == 'check':
+        if profile in ('check', 'check-overview'):
             migrations += ('backend/migrations/003-asset-import.sql', 'backend/migrations/004-asset-dates.sql',
                            'backend/migrations/005-asset-location.sql', 'backend/migrations/006-asset-check.sql')
         for migration in migrations:

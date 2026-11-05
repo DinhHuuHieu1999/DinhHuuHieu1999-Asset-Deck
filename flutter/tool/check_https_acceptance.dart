@@ -14,7 +14,13 @@ import 'client_https_acceptance.dart'
 Uri validateCheckDriverArgs(List<String> args) => validateDriverArgs(args);
 
 /// Marker-bound check-date acceptance using normal TLS and the real Dart client.
-Future<void> main(List<String> args) async {
+Future<void> main(List<String> args) => runCheckAcceptance(args);
+
+/// Reuse marker, TLS, owner and lifecycle checks with an optional overview probe.
+Future<void> runCheckAcceptance(
+  List<String> args, {
+  Future<void> Function(AssetApi, AssetApi)? overviewProbe,
+}) async {
   final clients = <AssetApi>[];
   final probe = HttpClient()..connectionTimeout = const Duration(seconds: 10);
   var stage = 'arguments';
@@ -52,6 +58,20 @@ Future<void> main(List<String> args) async {
     );
     check(unprotectedResponse.statusCode == 403);
     await unprotectedResponse.drain<void>();
+    if (overviewProbe != null) {
+      final overviewRequest = await probe.getUrl(
+        endpoint.replace(
+          path: '/api/v1/assets/check-overview/counts',
+          queryParameters: {'cutoff': '2024-03-01'},
+        ),
+      );
+      overviewRequest.followRedirects = false;
+      final overviewResponse = await overviewRequest.close().timeout(
+        const Duration(seconds: 10),
+      );
+      check(overviewResponse.statusCode == 401);
+      await overviewResponse.drain<void>();
+    }
     final suffix = List.generate(
       10,
       (_) => Random.secure().nextInt(256).toRadixString(16).padLeft(2, '0'),
@@ -194,6 +214,10 @@ Future<void> main(List<String> args) async {
         offset: 0,
       )).page.items.isEmpty,
     );
+    if (overviewProbe != null) {
+      stage = 'check-overview';
+      await overviewProbe(a, b);
+    }
     stage = 'sign-out';
     a.signOut();
     await refused(() => a.readCheckDate(row.id), 401);
@@ -203,6 +227,7 @@ Future<void> main(List<String> args) async {
         'syntheticOnly': true,
         'checkDateAcceptance': true,
         'checkedBeforeAcceptance': true,
+        if (overviewProbe != null) 'checkOverviewAcceptance': true,
         'owners': 2,
         'nativeDialog': 'not-exercised',
       }),

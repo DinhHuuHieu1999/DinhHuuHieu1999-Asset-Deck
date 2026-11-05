@@ -95,12 +95,38 @@ abstract interface class AssetCheckBeforeSource {
 Map<String, String> assetCheckQuery({
   bool unchecked = false,
   String before = '',
+  String onOrAfter = '',
 }) {
-  if (before.isNotEmpty && (unchecked || !isAssetCalendarDate(before))) {
+  if ((onOrAfter.isNotEmpty &&
+          (unchecked ||
+              before.isNotEmpty ||
+              !isAssetCalendarDate(onOrAfter))) ||
+      (before.isNotEmpty && (unchecked || !isAssetCalendarDate(before)))) {
     throw const FormatException('Invalid check filter');
   }
   return {
+    if (onOrAfter.isNotEmpty) ...{
+      'checkMode': 'on_or_after',
+      'checkOnOrAfter': onOrAfter,
+    },
     if (unchecked) 'checkMode': 'unchecked',
     if (before.isNotEmpty) ...{'checkMode': 'before', 'checkBefore': before},
   };
+}
+
+/// Optional inclusive cutoff capability for overview drill-down.
+abstract interface class AssetCheckOnOrAfterSource {
+  Future<AssetCheckPage> listCheckedOnOrAfter({
+    required String checkOnOrAfter,
+    required String query,
+    required String status,
+    required int offset,
+    String sort = 'updated_desc',
+    String category = '',
+    bool includeLocation = false,
+    String locationMode = 'all',
+    String? location,
+    String warranty = '',
+    String asOf = '',
+  });
 }

@@ -15,6 +15,7 @@ import {
 } from '@nestjs/common';
 import { Auth } from '../../shared/decorators/auth.decorator';
 import { isAccountId } from '../auth/account.repository';
+import { isAssetCalendarDate } from './asset-dates';
 import { validateAssetCheckUpdate } from './asset-check';
 import { AssetCheckRepository } from './asset-check.repository';
 
@@ -32,6 +33,24 @@ function account(req: OwnerRequest, query: Record<string, unknown>): string {
 @Controller('assets')
 export class AssetCheckController {
   constructor(private readonly repository: AssetCheckRepository) {}
+
+  /** Complete owner-only counts at an explicit calendar cutoff; no side effects. */
+  @Get('check-overview/counts')
+  @Header('Cache-Control', 'no-store')
+  async overview(
+    @Req() req: OwnerRequest,
+    @Query() query: Record<string, unknown>,
+  ) {
+    const owner = account(req, {});
+    if (
+      Object.keys(query).length !== 1 ||
+      !Object.hasOwn(query, 'cutoff') ||
+      !isAssetCalendarDate(query.cutoff)
+    ) {
+      throw new BadRequestException('Expected a calendar cutoff only');
+    }
+    return this.repository.overview(owner, query.cutoff as string);
+  }
 
   /** Read a manual calendar date without revealing another account's asset. */
   @Get(':id/check-date')

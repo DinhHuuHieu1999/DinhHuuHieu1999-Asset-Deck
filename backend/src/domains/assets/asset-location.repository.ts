@@ -91,6 +91,7 @@ export class AssetLocationRepository {
       query.checkMode,
       query.checkBefore,
       window ? 11 : 8,
+      query.checkOnOrAfter,
     );
     const result = await this.database.pool.query<
       AssetRecord & { location: string | null }

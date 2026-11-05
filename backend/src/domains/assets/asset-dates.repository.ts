@@ -73,7 +73,12 @@ export class AssetDatesRepository {
     query: AssetWarrantyQueryDto,
     window: Readonly<AssetWarrantyWindow>,
   ) {
-    const check = assetCheckFilter(query.checkMode, query.checkBefore, 9);
+    const check = assetCheckFilter(
+      query.checkMode,
+      query.checkBefore,
+      9,
+      query.checkOnOrAfter,
+    );
     const result = await this.database.pool.query<AssetExportV2Record>(
       `SELECT id,name,category,serial,status,notes,version,
         to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "createdAt",

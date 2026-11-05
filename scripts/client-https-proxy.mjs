@@ -36,7 +36,14 @@ export function validateConfig({
     typeof locationEnabled !== "boolean" ||
     typeof exportV3Enabled !== "boolean" ||
     typeof checkEnabled !== "boolean" ||
-    (checkEnabled && (!datesEnabled || !locationEnabled || importEnabled || importV2Enabled || importV3Enabled || exportV3Enabled || selectionExportEnabled)) ||
+    (checkEnabled &&
+      (!datesEnabled ||
+        !locationEnabled ||
+        importEnabled ||
+        importV2Enabled ||
+        importV3Enabled ||
+        exportV3Enabled ||
+        selectionExportEnabled)) ||
     typeof selectionExportEnabled !== "boolean" ||
     (selectionExportEnabled &&
       (!exportV3Enabled ||
@@ -166,8 +173,20 @@ export function allowed(
 ) {
   if (typeof raw !== "string" || !raw.startsWith("/") || raw.startsWith("//"))
     return false;
-  if (/^\/api\/v1\/assets\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/check-date$/i.test(raw))
+  if (
+    /^\/api\/v1\/assets\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/check-date$/i.test(
+      raw,
+    )
+  )
     return checkEnabled === true && ["GET", "PUT"].includes(method);
+  if (raw.split("?")[0] === "/api/v1/assets/check-overview/counts")
+    return (
+      checkEnabled === true &&
+      method === "GET" &&
+      /^\/api\/v1\/assets\/check-overview\/counts\?cutoff=[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(
+        raw,
+      )
+    );
   if (raw.split("?")[0] === "/api/v1/assets/export/selection")
     return selectionExportEnabled === true && method === "GET";
   if (raw === "/api/v1/assets/import/v3")
@@ -213,7 +232,12 @@ export function allowed(
   if (method === "POST" && raw === "/api/v1/assets/import")
     return importEnabled === true;
   const path = raw.split("?")[0];
-  if (method === 'GET' && /^\/api\/v1\/assets\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw))
+  if (
+    method === "GET" &&
+    /^\/api\/v1\/assets\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      raw,
+    )
+  )
     return true;
   if (method === "GET")
     return [

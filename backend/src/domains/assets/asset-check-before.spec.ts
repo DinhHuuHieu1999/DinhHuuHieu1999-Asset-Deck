@@ -1,3 +1,4 @@
+import { assetCheckFilter } from './asset-check';
 import { AssetDatesRepository } from './asset-dates.repository';
 import { AssetLocationRepository } from './asset-location.repository';
 import { AssetWarrantyQueryDto } from './asset-warranty.dto';
@@ -103,4 +104,77 @@ describe('checked-before parameter boundary', () => {
       expect(query).not.toHaveBeenCalled();
     },
   );
+});
+
+describe('on-or-after check cutoff contract', () => {
+  const original = process.env.ASSET_CHECK_ENABLED;
+  beforeEach(() => {
+    process.env.ASSET_CHECK_ENABLED = 'true';
+  });
+  afterEach(() => {
+    if (original === undefined) delete process.env.ASSET_CHECK_ENABLED;
+    else process.env.ASSET_CHECK_ENABLED = original;
+  });
+  it.each(['base', 'warranty', 'location', 'combined'])(
+    'binds on-or-after cutoff on %s route',
+    async (kind) => {
+      const query = jest.fn().mockResolvedValue({ rows: [] });
+      const database = { pool: { query } } as unknown as PostgresDatabase;
+      const input = Object.assign(new AssetWarrantyQueryDto(), {
+        checkMode: 'on_or_after',
+        checkOnOrAfter: '2024-02-29',
+        offset: 50,
+      });
+      const window = {
+        filter: 'expired' as const,
+        asOf: '2026-11-04',
+        through: '2026-12-04',
+      };
+      if (kind === 'base')
+        await new AssetsRepository(database).list(owner, input);
+      else if (kind === 'warranty')
+        await new AssetDatesRepository(database).warrantyList(
+          owner,
+          input,
+          window,
+        );
+      else
+        await new AssetLocationRepository(database).list(
+          owner,
+          input,
+          { mode: 'exact', location: 'Room %_1' },
+          kind === 'combined' ? window : undefined,
+        );
+      const [sql, values] = query.mock.calls[0];
+      const index = { base: 6, warranty: 9, location: 8, combined: 11 }[kind];
+      expect(sql).toContain(`AND last_checked_on >= $${index}::date`);
+      expect(sql).toContain('owner_id=$1');
+      expect(sql).not.toContain('2024-02-29');
+      expect(values.at(-1)).toBe('2024-02-29');
+      expect(values.length).toBe(index);
+    },
+  );
+  it('uses bound inclusive SQL and retains the boundary date', () => {
+    expect(assetCheckFilter('on_or_after', '', 6, '2024-02-29')).toEqual({
+      sql: 'AND last_checked_on >= $6::date',
+      values: ['2024-02-29'],
+    });
+  });
+  it.each(['', '2023-02-29', ' 2024-02-29', '2024-02-29T00:00:00Z'])(
+    'refuses invalid cutoff %s',
+    (cutoff) => {
+      expect(() => assetCheckFilter('on_or_after', '', 6, cutoff)).toThrow();
+    },
+  );
+  it('rejects conflicting and stray cutoffs and disabled feature', () => {
+    expect(() =>
+      assetCheckFilter('on_or_after', '2024-02-29', 6, '2024-02-29'),
+    ).toThrow();
+    for (const mode of ['all', 'unchecked', 'before'])
+      expect(() => assetCheckFilter(mode, '', 6, '2024-02-29')).toThrow();
+    process.env.ASSET_CHECK_ENABLED = 'false';
+    expect(() =>
+      assetCheckFilter('on_or_after', '', 6, '2024-02-29'),
+    ).toThrow();
+  });
 });

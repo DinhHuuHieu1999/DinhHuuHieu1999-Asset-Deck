@@ -67,7 +67,23 @@ export function assetCheckFilter(
   mode: unknown,
   cutoff: unknown = '',
   parameter = 1,
+  onOrAfter: unknown = '',
 ): Readonly<{ sql: string; values: string[] }> {
+  if (mode === 'on_or_after') {
+    if (cutoff !== '') throw new BadRequestException('Unexpected check cutoff');
+    if (!isAssetCheckEnabled())
+      throw new BadRequestException('Check filtering is unavailable');
+    if (!isAssetCalendarDate(onOrAfter))
+      throw new BadRequestException('Invalid check cutoff');
+    if (!Number.isInteger(parameter) || parameter < 1 || parameter > 11)
+      throw new Error('invalid_check_parameter');
+    return {
+      sql: `AND last_checked_on >= $${parameter}::date`,
+      values: [onOrAfter],
+    };
+  }
+  if (onOrAfter !== '')
+    throw new BadRequestException('Unexpected check cutoff');
   if (mode !== 'before') {
     if (cutoff !== '') throw new BadRequestException('Unexpected check cutoff');
     return { sql: assetCheckPredicate(mode), values: [] };
