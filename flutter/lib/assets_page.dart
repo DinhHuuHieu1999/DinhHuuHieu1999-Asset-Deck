@@ -133,6 +133,7 @@ class _AssetsPageState extends State<AssetsPage> {
         _page == null ||
         _error != null ||
         _loadedUnchecked ||
+        _loadedSort == 'checked_asc' ||
         _loadedCheckBefore.isNotEmpty)
       return;
     final scope = AssetSelectionScope.fromJson({
@@ -164,7 +165,11 @@ class _AssetsPageState extends State<AssetsPage> {
   }
 
   Future<void> _openSelectionExportV2() async {
-    if (_busy || _page == null || _error != null) return;
+    if (_busy ||
+        _page == null ||
+        _error != null ||
+        _loadedSort == 'checked_asc')
+      return;
     final scope = AssetSelectionScopeV2.fromJson({
       'check': _loadedCheckBefore.isNotEmpty
           ? {
@@ -757,6 +762,7 @@ class _AssetsPageState extends State<AssetsPage> {
                         _page == null ||
                         _error != null ||
                         _loadedUnchecked ||
+                        _loadedSort == 'checked_asc' ||
                         _loadedCheckBefore.isNotEmpty
                     ? null
                     : _openSelectionExport,
@@ -767,6 +773,10 @@ class _AssetsPageState extends State<AssetsPage> {
                   'Matching export is unavailable for check-date filters. Reset filters first.',
                 ),
             ],
+            if (_loadedSort == 'checked_asc' && widget.enableSelectionExport)
+              const Text(
+                'Matching JSON export does not support this sort. Apply Recent updates or Name A-Z to export.',
+              ),
             if (widget.enableSelectionExportV2 &&
                 widget.enableSelectionExport &&
                 _hasCheck &&
@@ -774,7 +784,11 @@ class _AssetsPageState extends State<AssetsPage> {
                 widget.enableAssetDates &&
                 widget.store is AssetSelectionExportV2Source) ...[
               OutlinedButton(
-                onPressed: _busy || _page == null || _error != null
+                onPressed:
+                    _busy ||
+                        _page == null ||
+                        _error != null ||
+                        _loadedSort == 'checked_asc'
                     ? null
                     : _openSelectionExportV2,
                 child: const Text(
@@ -1179,12 +1193,20 @@ class _AssetsPageState extends State<AssetsPage> {
             ],
             DropdownButtonFormField<String>(
               key: ValueKey('inventory-sort-$_sort'),
-              selectedItemBuilder: (context) => const [
+              selectedItemBuilder: (context) => [
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text('Recent updates'),
                 ),
-                Align(alignment: Alignment.centerLeft, child: Text('Name A-Z')),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Name A-Z'),
+                ),
+                if (_hasCheck)
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Oldest checked'),
+                  ),
               ],
               initialValue: _sort,
               isExpanded: true,
@@ -1193,17 +1215,27 @@ class _AssetsPageState extends State<AssetsPage> {
                 border: OutlineInputBorder(),
                 labelText: 'Sort inventory',
               ),
-              items: const [
-                DropdownMenuItem(
+              items: [
+                const DropdownMenuItem(
                   value: 'updated_desc',
                   child: Text('Updated most recently'),
                 ),
-                DropdownMenuItem(value: 'name_asc', child: Text('Name A-Z')),
+                const DropdownMenuItem(
+                  value: 'name_asc',
+                  child: Text('Name A-Z'),
+                ),
+                if (_hasCheck)
+                  const DropdownMenuItem(
+                    value: 'checked_asc',
+                    child: Text('Oldest check date (Unknown last)'),
+                  ),
               ],
               onChanged: _busy
                   ? null
                   : (value) {
-                      if (value != null && assetSorts.contains(value)) {
+                      if (value != null &&
+                          assetListSorts.contains(value) &&
+                          (value != 'checked_asc' || _hasCheck)) {
                         setState(() => _sort = value);
                       }
                     },
@@ -1334,7 +1366,11 @@ class _AssetsPageState extends State<AssetsPage> {
                 'Applied search: ${_loadedQuery.isEmpty ? '(none)' : _loadedQuery}; status: ${_loadedStatus.isEmpty ? 'all' : _loadedStatus}; category: ${_loadedCategory.isEmpty ? 'all' : _loadedCategory}',
               ),
               Text(
-                'Applied sort: ${_loadedSort == 'name_asc' ? 'Name A-Z' : 'Updated most recently'}',
+                'Applied sort: ${_loadedSort == 'checked_asc'
+                    ? 'Oldest check date (Unknown last)'
+                    : _loadedSort == 'name_asc'
+                    ? 'Name A-Z'
+                    : 'Updated most recently'}',
               ),
               if (_hasLocation)
                 Text(

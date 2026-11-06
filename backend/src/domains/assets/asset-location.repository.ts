@@ -1,5 +1,5 @@
 import { assetCheckFilter } from './asset-check';
-import { assetOrderBy } from './asset-sort';
+import { assetListOrderBy } from './asset-sort';
 import {
   buildAssetLocationOverview,
   type AssetLocationOverviewRow,
@@ -118,7 +118,7 @@ export class AssetLocationRepository {
            : ''
        }
        ${check.sql}
-       ORDER BY ${assetOrderBy(query.sort)} LIMIT 51 OFFSET $2`,
+       ORDER BY ${assetListOrderBy(query.sort)} LIMIT 51 OFFSET $2`,
       [
         this.owner(owner),
         query.offset,

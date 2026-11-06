@@ -559,9 +559,10 @@ void main() {
             await expectLater(run(invalid), throwsA(isA<AssetFailure>()));
           }
           expect(calls.length, before);
+          var expectedSort = 'name_asc';
           handler = (request) async {
             expect(request.method, 'GET');
-            expect(request.uri.queryParameters['sort'], 'name_asc');
+            expect(request.uri.queryParameters['sort'], expectedSort);
             json(request, {
               'items': <Object?>[],
               'nextOffset': null,
@@ -574,6 +575,9 @@ void main() {
           };
           await run('name_asc');
           expect(calls.length, before + 1);
+          expectedSort = 'checked_asc';
+          await run('checked_asc');
+          expect(calls.length, before + 2);
         },
       );
     }

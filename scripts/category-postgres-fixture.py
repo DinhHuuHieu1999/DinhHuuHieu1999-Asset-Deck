@@ -164,6 +164,9 @@ CHECK_FILES = LOCATION_FILES[:2] + (
 CHECK_OVERVIEW_FILES = CHECK_FILES[:2] + ('backend/src/domains/assets/asset-check-overview.postgres.spec.ts',) + CHECK_FILES[3:-1] + ('backend/src/domains/assets/asset-check-overview.ts', CHECK_FILES[-1])
 
 
+CHECK_SORT_FILES = CHECK_FILES[:2] + ('backend/src/domains/assets/asset-check-sort.postgres.spec.ts',) + CHECK_FILES[3:-1] + ('backend/src/domains/assets/asset-sort.ts', 'backend/src/domains/assets/assets.dto.ts', CHECK_FILES[-1])
+
+
 SELECTION_EXPORT_V2_FILES = SELECTION_EXPORT_FILES[:2] + (
     'backend/src/domains/assets/asset-selection-export-v2.postgres.spec.ts',
 ) + SELECTION_EXPORT_FILES[3:-1] + (
@@ -181,6 +184,8 @@ def profile_settings(profile):
         return EXPORT_V4_FILES, 'asset-export-v4-', 'asset_export_v4_fixture_', 'ASSET_EXPORT_V4', 'isolated-export-v4-v1', 'asset_export_v4_fixture_identity'
     if profile == 'selection-export-v2':
         return SELECTION_EXPORT_V2_FILES, 'asset-selection-v2-', 'asset_selection_v2_fixture_', 'ASSET_SELECTION_V2', 'isolated-selection-v2', 'asset_selection_v2_fixture_identity'
+    if profile == 'check-sort':
+        return CHECK_SORT_FILES, 'asset-check-sort-', 'asset_check_sort_fixture_', 'ASSET_CHECK_SORT', 'isolated-check-sort-v1', 'asset_check_sort_fixture_identity'
     if profile == 'check-overview':
         return CHECK_OVERVIEW_FILES, 'asset-check-overview-', 'asset_check_overview_fixture_', 'ASSET_CHECK_OVERVIEW', 'isolated-check-overview-v1', 'asset_check_overview_fixture_identity'
     if profile == 'check':
@@ -292,7 +297,7 @@ def execute(root, args, runtime, profile='category', verification=None):
             migrations += ('backend/migrations/003-asset-import.sql', 'backend/migrations/004-asset-dates.sql')
         if profile == 'import-v3':
             migrations += ('backend/migrations/003-asset-import.sql', 'backend/migrations/004-asset-dates.sql', 'backend/migrations/005-asset-location.sql')
-        if profile in ('check', 'check-overview', 'selection-export-v2', 'export-v4', 'import-v4'):
+        if profile in ('check', 'check-sort', 'check-overview', 'selection-export-v2', 'export-v4', 'import-v4'):
             migrations += ('backend/migrations/003-asset-import.sql', 'backend/migrations/004-asset-dates.sql',
                            'backend/migrations/005-asset-location.sql', 'backend/migrations/006-asset-check.sql')
         for migration in migrations:

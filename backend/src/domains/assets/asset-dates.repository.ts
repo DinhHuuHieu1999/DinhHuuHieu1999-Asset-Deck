@@ -1,5 +1,5 @@
 import { assetCheckFilter } from './asset-check';
-import { assetOrderBy } from './asset-sort';
+import { assetListOrderBy } from './asset-sort';
 import {
   buildAssetWarrantyOverview,
   type AssetWarrantyOverviewRow,
@@ -93,7 +93,7 @@ export class AssetDatesRepository {
          OR ($6='expiring_soon' AND warranty_expires_on >= $7::date
            AND warranty_expires_on <= $8::date))
        ${check.sql}
-       ORDER BY ${assetOrderBy(query.sort)} LIMIT 51 OFFSET $2`,
+       ORDER BY ${assetListOrderBy(query.sort)} LIMIT 51 OFFSET $2`,
       [
         this.owner(owner),
         query.offset,

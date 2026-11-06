@@ -329,3 +329,15 @@ See the [v4 proposal and current acceptance limits](../docs/inventory-import-v4-
 Synthetic HTTPS recovery fault injection passed; native Windows acceptance is
 still pending because Code Integrity blocked the candidate executable. This does
 not certify native dialogs or deployment.
+
+## Oldest manual check date sort
+
+With the manual-check capability enabled, Sort inventory offers **Oldest check
+date (Unknown last)**. Apply orders the full filtered owner inventory at the
+server before paging; Refresh/Reset/Back preserve the applied sort. Unknown does
+not prove an asset was never inspected. No check date is changed.
+
+Matching selection JSON v1/v2 cannot represent this new sort. Apply Recent
+updates or Name A-Z before exporting a selection; full exports are unaffected.
+See [the source contract and verification limits](../docs/asset-check-sort-plan.md).
+Live SQL/HTTPS and native checks remain pending; no rollout is implied.

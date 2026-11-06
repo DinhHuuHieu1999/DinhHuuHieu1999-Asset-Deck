@@ -1,4 +1,4 @@
-import { ASSET_SORTS, type AssetSort } from './asset-sort';
+import { ASSET_LIST_SORTS, type AssetListSort } from './asset-sort';
 import { Type } from 'class-transformer';
 import {
   IsIn,
@@ -63,8 +63,8 @@ export class AssetQueryDto {
   @IsString()
   @MaxLength(10)
   checkOnOrAfter?: string = '';
-  @IsIn(ASSET_SORTS)
-  sort?: AssetSort = 'updated_desc';
+  @IsIn(ASSET_LIST_SORTS)
+  sort?: AssetListSort = 'updated_desc';
   @IsString()
   @MaxLength(120)
   @Matches(/^[^\0]*$/u)

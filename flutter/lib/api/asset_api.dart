@@ -213,7 +213,7 @@ class AssetApi
       onOrAfter: checkOnOrAfter,
     );
     final epoch = _requireAccount();
-    if (!assetSorts.contains(sort)) {
+    if (!assetListSorts.contains(sort)) {
       throw const AssetFailure(
         'Invalid inventory sort',
         definitelyNotSent: true,
@@ -315,7 +315,7 @@ class AssetApi
       onOrAfter: checkOnOrAfter,
     );
     final epoch = _requireAccount();
-    if (!assetSorts.contains(sort)) {
+    if (!assetListSorts.contains(sort)) {
       throw const AssetFailure(
         'Invalid inventory sort',
         definitelyNotSent: true,
@@ -469,7 +469,7 @@ class AssetApi
       onOrAfter: checkOnOrAfter,
     );
     final epoch = _requireAccount();
-    if (!assetSorts.contains(sort)) {
+    if (!assetListSorts.contains(sort)) {
       throw const AssetFailure(
         'Invalid inventory sort',
         definitelyNotSent: true,
