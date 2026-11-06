@@ -16,6 +16,18 @@ FILES = ('backend/migrations/001-auth-accounts.sql', 'backend/migrations/002-ass
          'backend/node_modules/jest/bin/jest.js')
 
 
+SAVED_FILTER_FILES = FILES[:2] + (
+    'backend/src/domains/assets/asset-saved-filter.postgres.spec.ts',
+    'backend/src/domains/assets/asset-saved-filter.repository.ts',
+    'backend/src/domains/assets/asset-saved-filter.ts',
+    'backend/src/domains/assets/assets.dto.ts',
+    'backend/src/domains/assets/asset-dates.ts',
+    'backend/src/domains/assets/asset-location.ts',
+    'backend/src/domains/assets/asset-sort.ts',
+    'backend/src/domains/auth/account.repository.ts',
+    'backend/migrations/007-asset-saved-filters.sql', FILES[-1])
+
+
 OVERVIEW_FILES = (FILES[0], FILES[1],
                   'backend/src/domains/assets/assets-overview.postgres.spec.ts',
                   FILES[3], 'backend/src/domains/assets/asset-overview.ts', FILES[-1])
@@ -180,6 +192,8 @@ SELECTION_EXPORT_V2_FILES = SELECTION_EXPORT_FILES[:2] + (
 
 def profile_settings(profile):
     """Only fixed source-owned profiles may choose a suite or fixture identity."""
+    if profile == 'saved-filters':
+        return SAVED_FILTER_FILES, 'asset-saved-filters-', 'asset_saved_filters_fixture_', 'ASSET_SAVED_FILTERS', 'isolated-saved-filters-v1', 'asset_saved_filters_fixture_identity'
     if profile == 'export-v4':
         return EXPORT_V4_FILES, 'asset-export-v4-', 'asset_export_v4_fixture_', 'ASSET_EXPORT_V4', 'isolated-export-v4-v1', 'asset_export_v4_fixture_identity'
     if profile == 'selection-export-v2':
@@ -252,8 +266,8 @@ def execute(root, args, runtime, profile='category', verification=None):
     """Create one owned database; run once and retain stopped resources/evidence."""
     files, prefix, db_prefix, env_prefix, opt_in, marker_table = profile_settings(profile)
     preflight(root, args, profile)
-    if verification is not None and profile != 'dates':
-        raise client.Refusal('Recovery verification requires dates profile')
+    if verification is not None and profile not in ('dates', 'saved-filters'):
+        raise client.Refusal('Recovery verification requires an approved profile')
     image = runtime.run(['docker', 'image', 'inspect', '--format', '{{.Id}}', args.image]).decode().strip()
     if image != args.image:
         raise client.Refusal('Existing image mismatch')
@@ -293,6 +307,8 @@ def execute(root, args, runtime, profile='category', verification=None):
         migrations = files[:2] + (('backend/migrations/004-asset-dates.sql',) if profile in ('dates', 'export-v2', 'warranty', 'warranty-overview') else ())
         if profile in ('location', 'location-overview', 'export-v3', 'sort', 'selection-export'):
             migrations += ('backend/migrations/004-asset-dates.sql', 'backend/migrations/005-asset-location.sql')
+        if profile == 'saved-filters':
+            migrations += ('backend/migrations/007-asset-saved-filters.sql',)
         if profile == 'import-v2':
             migrations += ('backend/migrations/003-asset-import.sql', 'backend/migrations/004-asset-dates.sql')
         if profile == 'import-v3':
@@ -328,7 +344,7 @@ def execute(root, args, runtime, profile='category', verification=None):
         validate_result(json.loads(result_file.read_text(encoding='utf-8')), expected)
         if verification is not None:
             verification(runtime, name, database, identity, folder)
-            report['datesDatabaseRecovery'] = True
+            report['savedFiltersDatabaseRecovery' if profile == 'saved-filters' else 'datesDatabaseRecovery'] = True
         report.update(status='completed', repositoryTests=expected, syntheticOnly=True)
     finally:
         runtime.deadline = time.monotonic() + 30

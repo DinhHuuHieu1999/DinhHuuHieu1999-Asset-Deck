@@ -30,8 +30,10 @@ export function validateConfig({
   checkEnabled = false,
   exportV4Enabled = false,
   importV4Enabled = false,
+  savedFiltersEnabled = false,
   recoveryRequestId,
 }) {
+  if (typeof savedFiltersEnabled !== "boolean") throw new Error("Invalid saved filters profile");
   if (typeof importV4Enabled !== "boolean")
     throw new Error("Invalid v4 profile");
   if (importV4Enabled) {
@@ -155,6 +157,7 @@ export function parseProxyArgs(args) {
         "--selection-export-v2-enabled",
         "--selection-export-enabled",
         "--check-enabled",
+        "--saved-filters-enabled",
         "--export-v4-enabled",
         "--import-v4-enabled",
       ].includes(args[6]))
@@ -164,6 +167,7 @@ export function parseProxyArgs(args) {
   const config = {
     upstreamPort: Number(upstream),
     fixtureId,
+    savedFiltersEnabled: args[6] === "--saved-filters-enabled",
     importV4Enabled: args[6] === "--import-v4-enabled",
     importEnabled: [
       "--import-v4-enabled",
@@ -182,6 +186,7 @@ export function parseProxyArgs(args) {
       "--import-v2-enabled",
       "--location-enabled",
       "--export-v3-enabled",
+      "--saved-filters-enabled",
     ].includes(args[6]),
     importV2Enabled: args[6] === "--import-v2-enabled",
     locationEnabled: [
@@ -193,6 +198,7 @@ export function parseProxyArgs(args) {
       "--location-enabled",
       "--export-v3-enabled",
       "--import-v3-enabled",
+      "--saved-filters-enabled",
     ].includes(args[6]),
     exportV3Enabled: [
       "--export-v4-enabled",
@@ -216,6 +222,7 @@ export function parseProxyArgs(args) {
       "--import-v4-enabled",
       "--check-enabled",
       "--selection-export-v2-enabled",
+      "--saved-filters-enabled",
     ].includes(args[6]),
   };
   validateConfig(config);
@@ -247,9 +254,14 @@ export function allowed(
   selectionExportV2Enabled = false,
   exportV4Enabled = false,
   importV4Enabled = false,
+  savedFiltersEnabled = false,
 ) {
   if (typeof raw !== "string" || !raw.startsWith("/") || raw.startsWith("//"))
     return false;
+  if (raw === "/api/v1/inventory-saved-filters")
+    return savedFiltersEnabled === true && ["GET", "POST"].includes(method);
+  if (/^\/api\/v1\/inventory-saved-filters\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw))
+    return savedFiltersEnabled === true && ["PUT", "DELETE"].includes(method);
   if (
     /^\/api\/v1\/assets\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/check-date$/i.test(
       raw,
@@ -435,6 +447,7 @@ export function createHandler(config, request = http.request) {
         config.selectionExportV2Enabled,
         config.exportV4Enabled,
         config.importV4Enabled,
+        config.savedFiltersEnabled,
       )
     ) {
       fail(404);

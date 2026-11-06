@@ -15,6 +15,7 @@ class AssetDeskApp extends StatefulWidget {
     this.enableInventoryImportV2 = false,
     this.enableInventoryImportV4 = false,
     this.enableInventoryImportV3 = false,
+    this.enableSavedFilters = false,
     this.enableAssetDates = false,
     this.enableAssetLocation = false,
     this.enableAssetCheck = false,
@@ -24,6 +25,7 @@ class AssetDeskApp extends StatefulWidget {
     this.enableSelectionExportV2 = false,
     this.importApiBase = '',
   });
+  final bool enableSavedFilters;
   final String importApiBase;
   final AssetSession session;
   final bool enableInventoryImport;
@@ -123,6 +125,7 @@ class _AssetDeskAppState extends State<AssetDeskApp> {
           ? SignInPage(session: widget.session)
           : AssetsPage(
               store: widget.session,
+              enableSavedFilters: widget.enableSavedFilters,
               importApiBase: widget.importApiBase,
               enableInventoryImport: widget.enableInventoryImport,
               enableInventoryImportV2: widget.enableInventoryImportV2,

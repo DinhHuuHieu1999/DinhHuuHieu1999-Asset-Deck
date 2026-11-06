@@ -341,3 +341,12 @@ Matching selection JSON v1/v2 cannot represent this new sort. Apply Recent
 updates or Name A-Z before exporting a selection; full exports are unaffected.
 See [the source contract and verification limits](../docs/asset-check-sort-plan.md).
 Live SQL/HTTPS and native checks remain pending; no rollout is implied.
+
+## Optional saved inventory filters (source review)
+
+ASSET_DESK_ENABLE_SAVED_FILTERS defaults off and requires the matching optional
+backend capability and separately applied migration 007. Save the last successful
+applied query, then use a definition as draft and explicitly Apply. Fixed dates do
+not advance automatically. Rename/delete affect definitions, never assets.
+Source/widget checks are not native acceptance. See
+[saved-filter contract and remaining checks](../docs/saved-inventory-filters.md).

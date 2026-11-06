@@ -1,3 +1,4 @@
+import 'asset_saved_filter.dart';
 import 'asset_import_v4.dart';
 import 'asset_export_v4.dart';
 import 'asset_selection_export_v2.dart';
@@ -34,6 +35,7 @@ import 'asset_store.dart';
 class AssetApi
     implements
         AssetSession,
+        AssetSavedFilterSource,
         AssetReadSource,
         AssetCheckSource,
         AssetCheckBeforeSource,
@@ -1069,6 +1071,104 @@ class AssetApi
     }
   }
 
+  AssetSavedFilter _savedFilter(Map<String, Object?> value) {
+    try {
+      return AssetSavedFilter.fromJson(value);
+    } on FormatException {
+      throw const AssetFailure('Invalid saved filter response');
+    }
+  }
+
+  bool _savedFilterMatches(
+    AssetSavedFilter result,
+    String name,
+    AssetSavedFilterQuery query,
+  ) =>
+      result.name == validateSavedFilterName(name) &&
+      query.values.entries.every(
+        (entry) => result.query.values[entry.key] == entry.value,
+      );
+
+  @override
+  Future<List<AssetSavedFilter>> listSavedFilters() async {
+    final epoch = _requireAccount();
+    final response = await _request('GET', 'inventory-saved-filters', epoch);
+    final items = response['items'];
+    if (response.length != 1 || items is! List || items.length > 20)
+      throw const AssetFailure('Invalid saved filter list');
+    final records = items
+        .map((item) {
+          if (item is! Map<String, Object?>)
+            throw const AssetFailure('Invalid saved filter list');
+          return _savedFilter(item);
+        })
+        .toList(growable: false);
+    if (records.map((r) => r.id.toLowerCase()).toSet().length != records.length)
+      throw const AssetFailure('Duplicate saved filter identity');
+    return List.unmodifiable(records);
+  }
+
+  @override
+  Future<AssetSavedFilter> createSavedFilter(
+    String name,
+    AssetSavedFilterQuery query,
+  ) async {
+    final epoch = _requireAccount();
+    final result = _savedFilter(
+      await _request('POST', 'inventory-saved-filters', epoch, {
+        'name': validateSavedFilterName(name),
+        'schemaVersion': 1,
+        'query': query.values,
+      }),
+    );
+    if (result.version != 1 || !_savedFilterMatches(result, name, query))
+      throw const AssetFailure(
+        'Invalid saved filter response; reload before another write',
+      );
+    return result;
+  }
+
+  @override
+  Future<AssetSavedFilter> updateSavedFilter(
+    AssetSavedFilter original,
+    String name,
+    AssetSavedFilterQuery query,
+  ) async {
+    final epoch = _requireAccount();
+    if (original.version >= 2147483647)
+      throw const AssetFailure('Reload saved filter before editing');
+    final result = _savedFilter(
+      await _request('PUT', 'inventory-saved-filters/${original.id}', epoch, {
+        'name': validateSavedFilterName(name),
+        'schemaVersion': 1,
+        'query': query.values,
+        'version': original.version,
+      }),
+    );
+    if (result.id.toLowerCase() != original.id.toLowerCase() ||
+        result.version != original.version + 1 ||
+        !_savedFilterMatches(result, name, query))
+      throw const AssetFailure(
+        'Invalid saved filter update; reload before another write',
+      );
+    return result;
+  }
+
+  @override
+  Future<void> deleteSavedFilter(AssetSavedFilter original) async {
+    final epoch = _requireAccount();
+    final result = await _request(
+      'DELETE',
+      'inventory-saved-filters/${original.id}',
+      epoch,
+      {'version': original.version},
+    );
+    if (result.length != 1 || result['id'] != original.id)
+      throw const AssetFailure(
+        'Invalid saved filter deletion; reload before another write',
+      );
+  }
+
   @override
   Future<AssetRecord> create(AssetInput input) async {
     final epoch = _requireAccount();
@@ -1322,7 +1422,10 @@ class AssetApi
         if (response.statusCode < 200 || response.statusCode >= 300) {
           final message = switch (response.statusCode) {
             403 => 'Request rejected. Sign in again before another write.',
-            409 => 'Asset changed or is unavailable; refresh before editing.',
+            409 =>
+              path.startsWith('inventory-saved-filters')
+                  ? 'Saved filter changed or the 20-view limit was reached; reload saved filters.'
+                  : 'Asset changed or is unavailable; refresh before editing.',
             422 =>
               path == 'assets/export'
                   ? 'Inventory exceeds export limits (500 assets / 1 MiB); no partial export was produced.'

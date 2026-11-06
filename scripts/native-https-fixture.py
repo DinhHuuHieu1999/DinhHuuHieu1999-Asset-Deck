@@ -16,6 +16,7 @@ _spec.loader.exec_module(client)
 
 def verify_candidate(root, args):
     """Require a complete hashed deployment, pinned to the intended TLS endpoint."""
+    saved_filters = client.saved_filters_mode(args)
     v4 = client.import_v4_mode(args)
     export_v4 = client.export_v4_mode(args)
     selection_v2 = client.selection_export_v2_mode(args)
@@ -90,6 +91,8 @@ def verify_candidate(root, args):
                    'ASSET_DESK_ENABLE_ASSET_CHECK': 'true',
                    'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
                    'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+    if saved_filters:
+        defines.update(ASSET_DESK_ENABLE_SAVED_FILTERS='true')
     if (export_v4 or manual_check or enabled or location or export_v3 or selection) and value.get('buildDefines') != defines:
         raise client.Refusal('Candidate feature build contract missing')
     files = value['files']
@@ -183,6 +186,8 @@ def native_session(root, args, runtime, folder, identity, backend, proxy):
     if client.check_mode(args):
         handoff.update(checkMode=True, expectedAssets=1,
                        instructions='Sign in; open Details, edit Check date to 2024-03-01, save and refresh. Apply Only unknown check dates: zero assets. Reset, clear the date explicitly, save and refresh: one Unknown asset. Verify other fields remain unchanged. Never use real data.')
+    if client.saved_filters_mode(args):
+        handoff.update(savedFiltersMode=True, instructions='Sign in; apply a synthetic search, save the applied filter, change controls without Apply, then Use as draft. Verify explicit Apply, rename, Cancel delete and confirmed delete. Never use real data.')
     if client.location_mode(args):
         handoff.update(locationMode=True, expectedAssets=1,
                        locationLabel='Synthetic room %_1',
@@ -232,6 +237,7 @@ def main():
     parser.add_argument('--execute-native', action='store_true')
     parser.add_argument('--execute-synthetic', action='store_true')
     parser.add_argument('--check-mode', action='store_true')
+    parser.add_argument('--saved-filters-mode', action='store_true')
     parser.add_argument('--selection-export-mode', action='store_true')
     parser.add_argument('--selection-export-v2-mode', action='store_true')
     parser.add_argument('--export-v3-mode', action='store_true')

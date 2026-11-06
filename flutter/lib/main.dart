@@ -25,6 +25,9 @@ void main() {
     runApp(
       AssetDeskApp(
         session: api,
+        enableSavedFilters: const bool.fromEnvironment(
+          'ASSET_DESK_ENABLE_SAVED_FILTERS',
+        ),
         enableSelectionExportV2: const bool.fromEnvironment(
           'ASSET_DESK_ENABLE_SELECTION_EXPORT_V2',
         ),

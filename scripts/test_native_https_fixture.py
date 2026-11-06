@@ -45,6 +45,26 @@ class NativeTests(unittest.TestCase):
             guard.start()
             self.addCleanup(guard.stop)
 
+    def test_saved_filters_candidate_requires_exact_defines(self):
+        self.args.check_mode = True
+        self.args.saved_filters_mode = True
+        defines = dict(ASSET_DESK_ENABLE_ASSET_CHECK='true',
+                       ASSET_DESK_ENABLE_ASSET_LOCATION='true',
+                       ASSET_DESK_ENABLE_ASSET_DATES='true',
+                       ASSET_DESK_ENABLE_SAVED_FILTERS='true')
+        self.manifest['buildDefines'] = defines
+        self.write_manifest()
+        native.verify_candidate(self.root, self.args)
+        for key in defines:
+            self.manifest['buildDefines'] = {k:v for k,v in defines.items() if k != key}
+            self.write_manifest()
+            with self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+        self.manifest['buildDefines'] = dict(defines, UNREVIEWED_FEATURE='true')
+        self.write_manifest()
+        with self.assertRaises(native.client.Refusal):
+            native.verify_candidate(self.root, self.args)
+
     def enable_import_v4(self):
         self.args.import_v4_mode = True
         self.manifest['buildDefines'] = {

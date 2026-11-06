@@ -1,3 +1,5 @@
+import 'package:asset_desk/api/asset_saved_filter.dart';
+
 import 'asset_export_v4_test.dart' show exportV4Fixture;
 import 'asset_selection_export_v2_test.dart' show selectionV2Fixture;
 
@@ -137,6 +139,161 @@ void main() {
       expect(handlerErrors, isEmpty);
     });
     Future<void> login() => api.login(' synthetic ', ' synthetic-pass ');
+
+    Map<String, Object?> savedQuery() => {
+      'q': '%_',
+      'status': '',
+      'category': '',
+      'sort': 'checked_asc',
+      'locationMode': 'exact',
+      'location': 'Room %_1',
+      'warranty': 'expired',
+      'asOf': '2024-02-29',
+      'checkMode': 'before',
+      'checkBefore': '2024-03-01',
+      'checkOnOrAfter': '',
+    };
+    Map<String, Object?> savedRecord({int version = 1}) => {
+      'id': '11111111-1111-4111-8111-111111111111',
+      'name': 'Saved view',
+      'schemaVersion': 1,
+      'version': version,
+      'query': savedQuery(),
+    };
+    test('saved filters use bounded envelope and authenticated literal query transport', () async {
+      await login();
+      handler = (request) async {
+        expect(
+          request.headers.value('authorization'),
+          'Bearer synthetic-token',
+        );
+        expect(request.uri.path, '/api/v1/inventory-saved-filters');
+        expect(request.uri.hasQuery, false);
+        json(request, {
+          'items': [savedRecord()],
+        });
+      };
+      final views = await api.listSavedFilters();
+      expect(views.single.query.values['location'], 'Room %_1');
+      expect(views.single.query.values['asOf'], '2024-02-29');
+    });
+    test(
+      'saved filter create update delete keep CSRF and expected version',
+      () async {
+        await login();
+        handler = (request) async {
+          expect(request.headers.value('x-csrf-token'), 'synthetic-csrf');
+          final input = await body(request);
+          expect(input.containsKey('owner'), false);
+          if (request.method == 'POST') {
+            expect(input, {
+              'name': 'Saved view',
+              'schemaVersion': 1,
+              'query': savedQuery(),
+            });
+            json(request, savedRecord());
+          } else if (request.method == 'PUT') {
+            expect(input['version'], 1);
+            json(request, savedRecord(version: 2));
+          } else {
+            expect(request.method, 'DELETE');
+            expect(input, {'version': 2});
+            json(request, {'id': savedRecord()['id']});
+          }
+        };
+        final created = await api.createSavedFilter(
+          ' Saved view ',
+          AssetSavedFilterQuery.fromJson(savedQuery()),
+        );
+        final updated = await api.updateSavedFilter(
+          created,
+          'Saved view',
+          created.query,
+        );
+        await api.deleteSavedFilter(updated);
+      },
+    );
+    test(
+      'saved filter malformed or duplicate list is refused without retry',
+      () async {
+        await login();
+        var requests = 0;
+        handler = (request) async {
+          requests++;
+          json(request, {
+            'items': [savedRecord(), savedRecord()],
+          });
+        };
+        await expectLater(api.listSavedFilters(), throwsA(isA<AssetFailure>()));
+        expect(requests, 1);
+      },
+    );
+    test('saved filter changed version response is not trusted', () async {
+      await login();
+      handler = (request) async {
+        json(request, savedRecord(version: 1));
+      };
+      final original = AssetSavedFilter.fromJson(savedRecord());
+      await expectLater(
+        api.updateSavedFilter(original, 'Saved view', original.query),
+        throwsA(isA<AssetFailure>()),
+      );
+    });
+    for (final mutation in ['create', 'update']) {
+      for (final field in ['name', 'query']) {
+        test(
+          'saved filter $mutation refuses changed $field without retry',
+          () async {
+            await login();
+            var requests = 0;
+            handler = (request) async {
+              requests++;
+              final response = savedRecord(
+                version: mutation == 'create' ? 1 : 2,
+              );
+              response[field] = field == 'name'
+                  ? 'Different view'
+                  : {...savedQuery(), 'q': 'different'};
+              json(request, response);
+            };
+            final original = AssetSavedFilter.fromJson(savedRecord());
+            await expectLater(
+              mutation == 'create'
+                  ? api.createSavedFilter('Saved view', original.query)
+                  : api.updateSavedFilter(
+                      original,
+                      'Saved view',
+                      original.query,
+                    ),
+              throwsA(isA<AssetFailure>()),
+            );
+            expect(requests, 1);
+          },
+        );
+      }
+    }
+    test('saved filter late list cannot survive sign-out', () async {
+      await login();
+      final entered = Completer<void>(), release = Completer<void>();
+      handler = (request) async {
+        entered.complete();
+        await release.future;
+        json(request, {
+          'items': [savedRecord()],
+        });
+      };
+      final pending = api.listSavedFilters();
+      final assertion = expectLater(pending, throwsA(isA<AssetFailure>()));
+      await entered.future;
+      api.signOut();
+      release.complete();
+      await assertion;
+      expect(api.account, isNull);
+    });
+    test('saved filter requests require sign-in', () async {
+      await expectLater(api.listSavedFilters(), throwsA(isA<AssetFailure>()));
+      expect(calls, isEmpty);
+    });
 
     for (final kind in ['base', 'warranty', 'location']) {
       test(

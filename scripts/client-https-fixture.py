@@ -169,6 +169,14 @@ CHECK_FILES = LOCATION_FILES + (
 )
 
 
+def saved_filters_mode(args):
+    """Require an explicit saved-definition profile alongside fixed check capabilities."""
+    value = getattr(args, 'saved_filters_mode', False)
+    if type(value) is not bool or (value and not check_mode(args)):
+        raise Refusal('Invalid saved filters fixture profile')
+    return value
+
+
 def check_mode(args):
     """A check-date fixture is exclusive; never inherit another profile's flags."""
     value = getattr(args, 'check_mode', False)
@@ -204,6 +212,13 @@ def import_v4_mode(args):
 
 def fixture_files(args):
     """Return a fixed source/artifact set for the selected fixture profile."""
+    if saved_filters_mode(args):
+        return FILES + CHECK_FILES + (
+            'backend/migrations/007-asset-saved-filters.sql',
+            'flutter/tool/saved_filters_https_acceptance.dart',
+            'flutter/lib/api/asset_saved_filter.dart',
+        ) + tuple('backend/dist/domains/assets/asset-saved-filter' + suffix + '.js'
+                  for suffix in ('', '.config', '.module', '.controller', '.repository'))
     if import_v4_mode(args):
         return tuple(dict.fromkeys(FILES + IMPORT_V3_FILES + CHECK_FILES + tuple(
             'backend/dist/domains/assets/asset-import-v4' + suffix + '.js'
@@ -276,6 +291,7 @@ class Runtime:
     def __init__(self, seconds=300):
         self.deadline = time.monotonic() + seconds
         self.children = []
+        self.launches = {}
         self.env = {key: value for key, value in os.environ.items()
                     if key.upper() in ('PATH', 'SYSTEMROOT', 'WINDIR', 'COMSPEC', 'PATHEXT', 'TEMP', 'TMP', 'HOME', 'USERPROFILE', 'LOCALAPPDATA')}
 
@@ -303,7 +319,34 @@ class Runtime:
         except OSError:
             raise Refusal('Fixture child failed to start') from None
         self.children.append(child)
+        self.launches[child] = (list(command), cwd, dict(env or self.env))
         return child
+
+    def restart_backend(self, folder, identity, port, child):
+        """Restart only the exact owned backend handle with its original in-memory environment."""
+        launch = self.launches.get(child)
+        if child not in self.children or launch is None or child.poll() is not None:
+            raise Refusal('Owned backend handle unavailable')
+        command, cwd, env = launch
+        if (cwd != folder or len(command) != 4 or command[:2] != ['node', '--require'] or
+                not command[2].endswith('client-https-backend.cjs') or
+                env.get('ASSET_DESK_FIXTURE_ID') != identity or
+                env.get('BACKEND_HTTP_PORT') != str(port)):
+            raise Refusal('Backend launch identity mismatch')
+        marker = folder / 'backend-ready.json'
+        if marker.is_symlink() or marker.stat().st_size > 1024:
+            raise Refusal('Backend readiness marker invalid')
+        if json.loads(marker.read_text(encoding='utf-8')) != {'fixtureId': identity, 'port': port, 'pid': child.pid}:
+            raise Refusal('Backend readiness ownership mismatch')
+        child.terminate()
+        try:
+            child.wait(timeout=min(10, self.remaining()))
+        except subprocess.TimeoutExpired:
+            raise Refusal('Owned backend failed to stop') from None
+        marker.unlink()
+        restarted = self.start(command, cwd, env)
+        self.wait_backend(folder, identity, port, restarted)
+        return restarted
 
     def wait_port(self, port, child):
         until = min(self.deadline, time.monotonic() + 30)
@@ -382,6 +425,7 @@ def record_progress(folder, identity, stage):
 
 def execute(root, args, runtime, acceptance=None):
     """Run once, retain evidence/volume, and stop only resources created here."""
+    saved_filters = saved_filters_mode(args)
     selection_v2 = selection_export_v2_mode(args)
     v4 = import_v4_mode(args)
     export_v4 = export_v4_mode(args) or v4
@@ -463,6 +507,8 @@ def execute(root, args, runtime, acceptance=None):
             migrations = FILES[1:3] + IMPORT_FILES[:1] + DATES_FILES[:1] + ('backend/migrations/005-asset-location.sql',)
         if manual_check:
             migrations += ('backend/migrations/006-asset-check.sql',)
+        if saved_filters:
+            migrations += ('backend/migrations/007-asset-saved-filters.sql',)
         for migration in migrations:
             runtime.run(['docker', 'exec', '-i', name, 'psql', '-v', 'ON_ERROR_STOP=1', '-U', 'fixture', '-d', 'fixture'], data=(root / migration).read_bytes())
         env = dict(runtime.env, NODE_ENV='production', BACKEND_HTTP_PORT=str(args.backend_port),
@@ -478,6 +524,7 @@ def execute(root, args, runtime, acceptance=None):
         env['ASSET_DATES_ENABLED'] = 'true' if dates else 'false'
         env['ASSET_EXPORT_V4_ENABLED'] = 'true' if export_v4 else 'false'
         env['ASSET_EXPORT_V3_ENABLED'] = 'true' if export_v3 else 'false'
+        env['ASSET_SAVED_FILTERS_ENABLED'] = 'true' if saved_filters else 'false'
         env['ASSET_CHECK_ENABLED'] = 'true' if manual_check else 'false'
         env['ASSET_LOCATION_ENABLED'] = 'true' if location else 'false'
         env['ASSET_IMPORT_V2_ENABLED'] = 'true' if v2 and not disabled_v2 else 'false'
@@ -488,7 +535,7 @@ def execute(root, args, runtime, acceptance=None):
         report['stage'] = 'proxy-readiness'
         record_progress(folder, identity, 'proxy-readiness')
         proxy = runtime.start(['node', str(root / 'scripts/client-https-proxy-cli.mjs'), '--synthetic-only',
-                               str(args.backend_port), str(args.tls_port), identity, args.cert, args.key] + (['--import-v4-enabled'] if v4 else ['--export-v4-enabled'] if export_v4 else ['--selection-export-v2-enabled'] if selection_v2 else ['--check-enabled'] if manual_check else ['--selection-export-enabled'] if selection else ['--import-v3-enabled'] if v3 else ['--export-v3-enabled'] if export_v3 else ['--location-enabled'] if location else ['--import-v2-enabled'] if v2 else ['--import-enabled'] if enabled else ['--dates-enabled'] if dates else []), folder)
+                               str(args.backend_port), str(args.tls_port), identity, args.cert, args.key] + (['--saved-filters-enabled'] if saved_filters else ['--import-v4-enabled'] if v4 else ['--export-v4-enabled'] if export_v4 else ['--selection-export-v2-enabled'] if selection_v2 else ['--check-enabled'] if manual_check else ['--selection-export-enabled'] if selection else ['--import-v3-enabled'] if v3 else ['--export-v3-enabled'] if export_v3 else ['--location-enabled'] if location else ['--import-v2-enabled'] if v2 else ['--import-enabled'] if enabled else ['--dates-enabled'] if dates else []), folder)
         runtime.wait_port(args.tls_port, proxy)
         if acceptance is None:
             report['stage'] = 'dart-client'

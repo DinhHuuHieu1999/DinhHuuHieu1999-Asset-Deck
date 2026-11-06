@@ -1,3 +1,5 @@
+import { AssetSavedFilterModule } from './domains/assets/asset-saved-filter.module';
+import { isAssetSavedFilterEnabled } from './domains/assets/asset-saved-filter.config';
 import { AssetImportV4Module } from './domains/assets/asset-import-v4.module';
 import { isAssetImportV4Enabled } from './domains/assets/asset-import-v4.config';
 import { createAssetImportV4Parser } from './domains/assets/asset-import-v4-parser';
@@ -38,6 +40,7 @@ import { createAssetImportParser } from './domains/assets/asset-import-parser';
 export async function bootstrap(): Promise<void> {
   loadEnvFiles();
   const port = validateStartup();
+  const savedFiltersEnabled = isAssetSavedFilterEnabled();
   const selectionExportV2Enabled = isAssetSelectionExportV2Enabled();
   const selectionExportEnabled = isAssetSelectionExportEnabled();
   const exportV4Enabled = isAssetExportV4Enabled();
@@ -53,6 +56,7 @@ export async function bootstrap(): Promise<void> {
     {
       module: AppModule,
       imports: [
+        ...(savedFiltersEnabled ? [AssetSavedFilterModule] : []),
         ...(selectionExportV2Enabled ? [AssetSelectionExportV2Module] : []),
         ...(selectionExportEnabled ? [AssetSelectionExportModule] : []),
         ...(exportV4Enabled ? [AssetExportV4Module] : []),

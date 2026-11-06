@@ -1,3 +1,5 @@
+import 'api/asset_saved_filter.dart';
+import 'saved_filters_page.dart';
 import 'api/asset_export_v4.dart';
 import 'api/asset_selection_export_v2.dart';
 import 'inventory_selection_export_v2_page.dart';
@@ -55,6 +57,7 @@ class AssetsPage extends StatefulWidget {
     this.enableInventoryImportV2 = false,
     this.enableInventoryImportV4 = false,
     this.enableInventoryImportV3 = false,
+    this.enableSavedFilters = false,
     this.enableAssetDates = false,
     this.enableAssetLocation = false,
     this.enableAssetCheck = false,
@@ -64,6 +67,7 @@ class AssetsPage extends StatefulWidget {
     this.enableSelectionExportV2 = false,
     this.importApiBase = '',
   });
+  final bool enableSavedFilters;
   final String importApiBase;
   final AssetStore store;
   final bool enableInventoryImport;
@@ -107,6 +111,7 @@ class _AssetsPageState extends State<AssetsPage> {
   String _warranty = '', _loadedWarranty = '';
   AssetWarrantyPage? _warrantyPage;
   String? _pinnedWarrantyAsOf;
+  String? _savedWarrantyReference;
   String _status = '', _loadedQuery = '', _loadedStatus = '';
   String _sort = 'updated_desc', _loadedSort = 'updated_desc';
   String? _error;
@@ -126,6 +131,69 @@ class _AssetsPageState extends State<AssetsPage> {
     _category.dispose();
     _location.dispose();
     super.dispose();
+  }
+
+  Future<void> _openSavedFilters() async {
+    final store = widget.store;
+    if (_busy || store is! AssetSavedFilterSource) return;
+    final revision = store is AssetSession ? store.sessionRevision : null;
+    AssetSavedFilterQuery? applied;
+    if (_page != null) {
+      applied = AssetSavedFilterQuery.fromJson({
+        'q': _loadedQuery,
+        'status': _loadedStatus,
+        'category': _loadedCategory,
+        'sort': _loadedSort,
+        'locationMode': _loadedLocationMode,
+        'location': _loadedLocationMode == 'exact'
+            ? (_loadedLocation ?? '')
+            : '',
+        'warranty': _loadedWarranty.isEmpty ? 'all' : _loadedWarranty,
+        'asOf': _loadedWarranty.isEmpty ? '' : (_warrantyPage?.asOf ?? ''),
+        'checkMode': _loadedCheckBefore.isNotEmpty
+            ? (_loadedOnOrAfterCheck ? 'on_or_after' : 'before')
+            : (_loadedUnchecked ? 'unchecked' : 'all'),
+        'checkBefore': _loadedOnOrAfterCheck ? '' : _loadedCheckBefore,
+        'checkOnOrAfter': _loadedOnOrAfterCheck ? _loadedCheckBefore : '',
+      });
+    }
+    final selected = await Navigator.of(context).push<AssetSavedFilterQuery>(
+      MaterialPageRoute(
+        builder: (_) => SavedFiltersPage(
+          source: store as AssetSavedFilterSource,
+          applied: applied,
+          location: _hasLocation,
+          warranty: widget.enableAssetDates && store is AssetWarrantySource,
+          check: _hasCheck,
+          checkBefore: _hasCheckBefore,
+          checkOnOrAfter: _hasCheckBefore && store is AssetCheckOnOrAfterSource,
+        ),
+      ),
+    );
+    if (!mounted ||
+        selected == null ||
+        (store is AssetSession && store.sessionRevision != revision))
+      return;
+    final v = selected.values;
+    setState(() {
+      _query.text = v['q']!;
+      _category.text = v['category']!;
+      _status = v['status']!;
+      _sort = v['sort']!;
+      _locationMode = v['locationMode']!;
+      _location.text = v['location']!;
+      _warranty = v['warranty'] == 'all' ? '' : v['warranty']!;
+      _savedWarrantyReference = v['asOf']!.isEmpty ? null : v['asOf'];
+      _unchecked = v['checkMode'] == 'unchecked';
+      _beforeCheck =
+          v['checkMode'] == 'before' || v['checkMode'] == 'on_or_after';
+      _onOrAfterCheck = v['checkMode'] == 'on_or_after';
+      _checkBefore.text = _onOrAfterCheck
+          ? v['checkOnOrAfter']!
+          : v['checkBefore']!;
+      _locationError = null;
+      _checkBeforeError = null;
+    });
   }
 
   Future<void> _openSelectionExport() async {
@@ -306,6 +374,7 @@ class _AssetsPageState extends State<AssetsPage> {
     final warranty = resetFilters ? '' : (apply ? _warranty : _loadedWarranty);
     final reference =
         warrantyReference ??
+        (apply && !resetFilters ? _savedWarrantyReference : null) ??
         (!apply && _pinnedWarrantyAsOf != null
             ? _pinnedWarrantyAsOf!
             : (offset > 0 || preserveWarrantyDate
@@ -458,7 +527,9 @@ class _AssetsPageState extends State<AssetsPage> {
         _loadedWarranty = warranty;
         _pinnedWarrantyAsOf = warranty.isEmpty
             ? null
-            : (apply ? warrantyReference : _pinnedWarrantyAsOf);
+            : (apply
+                  ? (warrantyReference ?? _savedWarrantyReference)
+                  : _pinnedWarrantyAsOf);
         _offset = offset;
         _loadedQuery = query;
         _loadedStatus = status;
@@ -478,6 +549,7 @@ class _AssetsPageState extends State<AssetsPage> {
           _location.clear();
           _status = '';
           _warranty = '';
+          _savedWarrantyReference = null;
           _locationMode = 'all';
           _locationError = null;
           _sort = sort;
@@ -1091,6 +1163,7 @@ class _AssetsPageState extends State<AssetsPage> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
+              key: ValueKey('saved-draft-_status-${_status}'),
               initialValue: _status,
               isExpanded: true,
               itemHeight: null,
@@ -1244,6 +1317,7 @@ class _AssetsPageState extends State<AssetsPage> {
             if (widget.enableAssetDates &&
                 widget.store is AssetWarrantySource) ...[
               DropdownButtonFormField<String>(
+                key: ValueKey('saved-draft-_warranty-${_warranty}'),
                 initialValue: _warranty,
                 isExpanded: true,
                 itemHeight: null,
@@ -1277,12 +1351,16 @@ class _AssetsPageState extends State<AssetsPage> {
                 ],
                 onChanged: _busy
                     ? null
-                    : (value) => setState(() => _warranty = value ?? ''),
+                    : (value) => setState(() {
+                        _warranty = value ?? '';
+                        _savedWarrantyReference = null;
+                      }),
               ),
               const SizedBox(height: 12),
             ],
             if (_hasLocation) ...[
               DropdownButtonFormField<String>(
+                key: ValueKey('saved-draft-_locationMode-${_locationMode}'),
                 initialValue: _locationMode,
                 isExpanded: true,
                 decoration: const InputDecoration(
@@ -1329,6 +1407,14 @@ class _AssetsPageState extends State<AssetsPage> {
                 ),
               const SizedBox(height: 12),
             ],
+            if (widget.enableSavedFilters &&
+                widget.store is AssetSavedFilterSource)
+              OutlinedButton(
+                onPressed: _busy ? null : _openSavedFilters,
+                child: const Text('Saved filters'),
+              ),
+            if (_savedWarrantyReference != null)
+              Text('Draft fixed warranty reference: $_savedWarrantyReference'),
             FilledButton(
               onPressed: _busy ? null : () => _load(apply: true),
               child: const Text('Apply filters'),
