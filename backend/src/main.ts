@@ -1,3 +1,6 @@
+import { AssetImportV4Module } from './domains/assets/asset-import-v4.module';
+import { isAssetImportV4Enabled } from './domains/assets/asset-import-v4.config';
+import { createAssetImportV4Parser } from './domains/assets/asset-import-v4-parser';
 import { AssetExportV4Module } from './domains/assets/asset-export-v4.module';
 import { isAssetExportV4Enabled } from './domains/assets/asset-export-v4.config';
 import { AssetSelectionExportV2Module } from './domains/assets/asset-selection-export-v2.module';
@@ -44,6 +47,7 @@ export async function bootstrap(): Promise<void> {
   const importEnabled = isAssetImportEnabled();
   const datesEnabled = isAssetDatesEnabled();
   const importV3Enabled = isAssetImportV3Enabled();
+  const importV4Enabled = isAssetImportV4Enabled();
   const importV2Enabled = isAssetImportV2Enabled();
   const app = await NestFactory.create<NestExpressApplication>(
     {
@@ -57,6 +61,7 @@ export async function bootstrap(): Promise<void> {
         ...(datesEnabled ? [AssetDatesModule] : []),
         ...(importV2Enabled ? [AssetImportV2Module] : []),
         ...(importV3Enabled ? [AssetImportV3Module] : []),
+        ...(importV4Enabled ? [AssetImportV4Module] : []),
         ...(locationEnabled ? [AssetLocationModule] : []),
         ...(checkEnabled ? [AssetCheckModule] : []),
       ],
@@ -71,6 +76,7 @@ export async function bootstrap(): Promise<void> {
     if (importEnabled) app.use(createAssetImportParser());
     if (importV2Enabled) app.use(createAssetImportV2Parser());
     if (importV3Enabled) app.use(createAssetImportV3Parser());
+    if (importV4Enabled) app.use(createAssetImportV4Parser());
     app.set('trust proxy', false);
     app.use(helmet());
     app.use(cookieParser());

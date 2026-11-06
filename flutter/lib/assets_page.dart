@@ -12,6 +12,8 @@ import 'api/asset_sort.dart';
 import 'asset_details_page.dart';
 import 'api/asset_location_overview.dart';
 import 'location_overview_page.dart';
+import 'api/asset_import_v4.dart';
+import 'inventory_import_v4_page.dart';
 import 'api/asset_import_v3.dart';
 import 'inventory_import_v3_page.dart';
 import 'api/asset_location.dart';
@@ -51,6 +53,7 @@ class AssetsPage extends StatefulWidget {
     this.inspectionFiles,
     this.enableInventoryImport = false,
     this.enableInventoryImportV2 = false,
+    this.enableInventoryImportV4 = false,
     this.enableInventoryImportV3 = false,
     this.enableAssetDates = false,
     this.enableAssetLocation = false,
@@ -65,6 +68,7 @@ class AssetsPage extends StatefulWidget {
   final AssetStore store;
   final bool enableInventoryImport;
   final bool enableInventoryImportV2;
+  final bool enableInventoryImportV4;
   final bool enableInventoryImportV3;
   final bool enableAssetDates;
   final bool enableAssetLocation;
@@ -947,6 +951,33 @@ class _AssetsPageState extends State<AssetsPage> {
                     ),
               child: const Text('Inspect local JSON (no import)'),
             ),
+            if (widget.enableInventoryImportV4 &&
+                widget.enableInventoryImport &&
+                widget.enableAssetDates &&
+                widget.enableAssetLocation &&
+                widget.enableAssetCheck &&
+                widget.store is AssetSession &&
+                (widget.store as AssetSession).account != null &&
+                widget.store is AssetImportV4Source)
+              OutlinedButton(
+                onPressed: _busy
+                    ? null
+                    : () => Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => InventoryImportV4Page(
+                            apiBase: widget.importApiBase,
+                            session: widget.store as AssetSession,
+                            source: widget.store as AssetImportV4Source,
+                            files:
+                                widget.inspectionFiles ??
+                                WindowsInventoryInspectionFiles(),
+                          ),
+                        ),
+                      ),
+                child: const Text(
+                  'Import inventory JSON v4 (add-only, with check dates)',
+                ),
+              ),
             if (widget.enableInventoryImportV3 &&
                 widget.enableInventoryImport &&
                 widget.enableAssetDates &&

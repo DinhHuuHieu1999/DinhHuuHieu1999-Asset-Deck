@@ -29,8 +29,40 @@ export function validateConfig({
   selectionExportEnabled = false,
   checkEnabled = false,
   exportV4Enabled = false,
+  importV4Enabled = false,
   recoveryRequestId,
 }) {
+  if (typeof importV4Enabled !== "boolean")
+    throw new Error("Invalid v4 profile");
+  if (importV4Enabled) {
+    if (
+      importEnabled !== true ||
+      exportV4Enabled !== true ||
+      importV2Enabled ||
+      importV3Enabled ||
+      selectionExportEnabled ||
+      selectionExportV2Enabled
+    )
+      throw new Error("Invalid v4 profile");
+    validateConfig({
+      upstreamPort,
+      fixtureId,
+      timeoutMs,
+      datesEnabled,
+      locationEnabled,
+      exportV3Enabled,
+      checkEnabled,
+      exportV4Enabled,
+    });
+    if (recoveryRequestId !== undefined)
+      createRecoveryFault({
+        syntheticOnly: true,
+        importEnabled,
+        requestId: recoveryRequestId,
+        schemaVersion: 4,
+      });
+    return;
+  }
   if (
     typeof importEnabled !== "boolean" ||
     typeof datesEnabled !== "boolean" ||
@@ -124,6 +156,7 @@ export function parseProxyArgs(args) {
         "--selection-export-enabled",
         "--check-enabled",
         "--export-v4-enabled",
+        "--import-v4-enabled",
       ].includes(args[6]))
   )
     throw new Error("Explicit fixture opt-in required");
@@ -131,13 +164,16 @@ export function parseProxyArgs(args) {
   const config = {
     upstreamPort: Number(upstream),
     fixtureId,
+    importV4Enabled: args[6] === "--import-v4-enabled",
     importEnabled: [
+      "--import-v4-enabled",
       "--import-enabled",
       "--import-v2-enabled",
       "--import-v3-enabled",
     ].includes(args[6]),
     datesEnabled: [
       "--export-v4-enabled",
+      "--import-v4-enabled",
       "--check-enabled",
       "--selection-export-v2-enabled",
       "--selection-export-enabled",
@@ -150,6 +186,7 @@ export function parseProxyArgs(args) {
     importV2Enabled: args[6] === "--import-v2-enabled",
     locationEnabled: [
       "--export-v4-enabled",
+      "--import-v4-enabled",
       "--check-enabled",
       "--selection-export-v2-enabled",
       "--selection-export-enabled",
@@ -159,6 +196,7 @@ export function parseProxyArgs(args) {
     ].includes(args[6]),
     exportV3Enabled: [
       "--export-v4-enabled",
+      "--import-v4-enabled",
       "--selection-export-v2-enabled",
       "--selection-export-enabled",
       "--export-v3-enabled",
@@ -170,9 +208,12 @@ export function parseProxyArgs(args) {
       "--selection-export-v2-enabled",
       "--selection-export-enabled",
     ].includes(args[6]),
-    exportV4Enabled: args[6] === "--export-v4-enabled",
+    exportV4Enabled: ["--export-v4-enabled", "--import-v4-enabled"].includes(
+      args[6],
+    ),
     checkEnabled: [
       "--export-v4-enabled",
+      "--import-v4-enabled",
       "--check-enabled",
       "--selection-export-v2-enabled",
     ].includes(args[6]),
@@ -205,6 +246,7 @@ export function allowed(
   checkEnabled = false,
   selectionExportV2Enabled = false,
   exportV4Enabled = false,
+  importV4Enabled = false,
 ) {
   if (typeof raw !== "string" || !raw.startsWith("/") || raw.startsWith("//"))
     return false;
@@ -226,6 +268,17 @@ export function allowed(
     return selectionExportV2Enabled === true && method === "GET";
   if (raw.split("?")[0] === "/api/v1/assets/export/selection")
     return selectionExportEnabled === true && method === "GET";
+  if (raw === "/api/v1/assets/import/v4")
+    return (
+      method === "POST" &&
+      importV4Enabled === true &&
+      importEnabled === true &&
+      datesEnabled === true &&
+      locationEnabled === true &&
+      checkEnabled === true
+    );
+  if (importV4Enabled === true && raw.startsWith("/api/v1/assets/import"))
+    return false;
   if (raw === "/api/v1/assets/import/v3")
     return (
       method === "POST" &&
@@ -322,11 +375,13 @@ export function createHandler(config, request = http.request) {
           syntheticOnly: true,
           importEnabled: config.importEnabled,
           requestId: config.recoveryRequestId,
-          schemaVersion: config.importV3Enabled
-            ? 3
-            : config.importV2Enabled
-              ? 2
-              : 1,
+          schemaVersion: config.importV4Enabled
+            ? 4
+            : config.importV3Enabled
+              ? 3
+              : config.importV2Enabled
+                ? 2
+                : 1,
         });
   return async (req, res) => {
     const fail = (code) => {
@@ -379,6 +434,7 @@ export function createHandler(config, request = http.request) {
         config.checkEnabled,
         config.selectionExportV2Enabled,
         config.exportV4Enabled,
+        config.importV4Enabled,
       )
     ) {
       fail(404);

@@ -100,7 +100,7 @@ test("legacy selector never claims v2 and rejects unknown schema selectors", () 
     createRecoveryFault(config).claim("POST", "/api/v1/assets/import/v2", body),
     false,
   );
-  for (const schemaVersion of [0, 4, "2", "3", null, true])
+  for (const schemaVersion of [0, 5, "2", "3", "4", null, true])
     assert.throws(() => createRecoveryFault({ ...config, schemaVersion }));
 });
 
@@ -167,4 +167,22 @@ test("only dedicated recovery CLI binds a v3 key; ordinary CLI cannot accept ext
   assert.equal(selected.importV3Enabled, true);
   assert.equal(selected.importV2Enabled, false);
   assert.equal(selected.recoveryRequestId, requestId);
+});
+
+test("v4 fault matches only the exact selected route/key once", () => {
+  const fault = createRecoveryFault({ ...config, schemaVersion: 4 });
+  for (const route of [
+    "/api/v1/assets/import",
+    "/api/v1/assets/import/v2",
+    "/api/v1/assets/import/v3",
+    "/api/v1/assets/import/v4/",
+    "/api/v1/assets/import/v4?q=1",
+  ])
+    assert.equal(fault.claim("POST", route, body), false);
+  assert.equal(fault.claim("POST", "/api/v1/assets/import/v4", body), true);
+  assert.equal(fault.complete(true, 409, true), false);
+  assert.equal(fault.complete(true, 200, false), false);
+  assert.equal(fault.complete(true, 200, true), true);
+  assert.equal(fault.complete(true, 200, true), false);
+  assert.deepEqual(fault.status(), { claimed: true, suppressed: true });
 });

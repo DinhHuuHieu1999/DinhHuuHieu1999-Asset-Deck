@@ -314,3 +314,18 @@ unknown dates. Unknown includes cleared dates; it does not prove an asset was
 never checked. Existing JSON exports exclude this field; matching selection export
 is unavailable while this filter is applied. Migration and live/native acceptance
 remain separate rollout gates. See [the source plan](../docs/asset-last-checked-plan.md).
+
+## Optional inventory import v4
+
+`ASSET_DESK_ENABLE_IMPORT_V4` defaults false. Navigation requires a signed-in
+v4 import capability plus the import, dates, location and manual-check client
+flags. Import v2/v3 and export flags are not prerequisites. Backend
+`ASSET_IMPORT_V4_ENABLED` is independent and defaults false.
+
+The separate v4 page reviews nullable manual check dates as well as dates and
+location. Save private recovery JSON before explicit confirmation; an uncertain
+outcome retains the exact request/key for explicit replay. V1-v3 remain unchanged.
+See the [v4 proposal and current acceptance limits](../docs/inventory-import-v4-proposal.md).
+Synthetic HTTPS recovery fault injection passed; native Windows acceptance is
+still pending because Code Integrity blocked the candidate executable. This does
+not certify native dialogs or deployment.

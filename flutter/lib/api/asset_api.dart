@@ -1,3 +1,4 @@
+import 'asset_import_v4.dart';
 import 'asset_export_v4.dart';
 import 'asset_selection_export_v2.dart';
 import 'asset_check_overview.dart';
@@ -48,6 +49,7 @@ class AssetApi
         AssetImportSource,
         AssetImportV2Source,
         AssetImportV3Source,
+        AssetImportV4Source,
         AssetOverviewSource,
         AssetDatesSource,
         AssetLocationSource,
@@ -1195,6 +1197,38 @@ class AssetApi
     _current(epoch);
     try {
       return AssetImportV3Receipt.parse(response, draft);
+    } on FormatException {
+      throw const AssetFailure(
+        'Import receipt unavailable; retain the same request key',
+      );
+    }
+  }
+
+  /// Submit exactly one account/session-bound operation; never retries internally.
+  @override
+  Future<AssetImportV4Receipt> importInventoryV4(
+    AssetImportV4Draft draft, {
+    required int sessionRevision,
+  }) async {
+    final epoch = _requireAccount();
+    if (epoch != sessionRevision || _account!.id != draft.accountId) {
+      throw const AssetFailure(
+        'Import session changed; review the target account again',
+        definitelyNotSent: true,
+      );
+    }
+    await _csrf(epoch);
+    _current(epoch);
+    final response = await _send(
+      'POST',
+      'assets/import/v4',
+      epoch,
+      null,
+      draft.json,
+    );
+    _current(epoch);
+    try {
+      return AssetImportV4Receipt.parse(response, draft);
     } on FormatException {
       throw const AssetFailure(
         'Import receipt unavailable; retain the same request key',

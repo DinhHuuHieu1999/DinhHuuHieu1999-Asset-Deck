@@ -45,6 +45,66 @@ class NativeTests(unittest.TestCase):
             guard.start()
             self.addCleanup(guard.stop)
 
+    def enable_import_v4(self):
+        self.args.import_v4_mode = True
+        self.manifest['buildDefines'] = {
+            'ASSET_DESK_ENABLE_IMPORT': 'true',
+            'ASSET_DESK_ENABLE_IMPORT_V4': 'true',
+            'ASSET_DESK_ENABLE_ASSET_CHECK': 'true',
+            'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+            'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+        self.write_manifest()
+
+    def test_import_v4_exact_capabilities_and_exclusive_profile(self):
+        self.enable_import_v4()
+        defines = dict(self.manifest['buildDefines'])
+        for key in defines:
+            self.manifest['buildDefines'] = {k: v for k, v in defines.items() if k != key}
+            self.write_manifest()
+            with self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+        self.manifest['buildDefines'] = defines
+        self.write_manifest()
+        native.verify_candidate(self.root, self.args)
+        for profile in ('import_v3_mode', 'export_v4_mode', 'check_mode'):
+            setattr(self.args, profile, True)
+            with self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+            setattr(self.args, profile, False)
+        self.args.import_v4_mode = 'true'
+        with self.assertRaises(native.client.Refusal):
+            native.verify_candidate(self.root, self.args)
+
+    def test_import_v4_file_integrity_dates_and_no_overwrite(self):
+        path = native.prepare_import_file(self.root, v4=True)
+        envelope = json.loads(path.read_text(encoding='utf-8'))
+        self.assertEqual(envelope['schemaVersion'], 4)
+        self.assertEqual(envelope['sha256'], hashlib.sha256(envelope['payload'].encode('utf-8')).hexdigest())
+        record = json.loads(envelope['payload'])['records'][0]
+        self.assertEqual(record['lastCheckedDate'], '2024-03-01')
+        self.assertEqual(record['purchasedOn'], '2024-02-29')
+        self.assertEqual(record['warrantyExpiresOn'], '2027-02-28')
+        self.assertEqual(record['location'], 'Synthetic room %_1')
+        before = path.read_bytes()
+        with self.assertRaises(FileExistsError):
+            native.prepare_import_file(self.root, v4=True)
+        self.assertEqual(path.read_bytes(), before)
+        for values in ({'v4': 'true'}, {'v4': True, 'v3': True}):
+            with self.assertRaises(native.client.Refusal):
+                native.prepare_import_file(self.root, **values)
+
+    def test_import_v4_handoff_keeps_acceptance_pending(self):
+        self.enable_import_v4()
+        result = self.run_session(self.runtime())
+        handoff = json.loads((self.root / 'evidence/operator-handoff.json').read_text())
+        self.assertEqual(handoff['importSchemaVersion'], 4)
+        self.assertEqual(handoff['expectedBefore'], 1)
+        self.assertEqual(handoff['expectedAfter'], 2)
+        self.assertEqual(handoff['lastCheckedDate'], '2024-03-01')
+        self.assertTrue(handoff['importFile'].endswith('inventory-import-v4-synthetic.json'))
+        self.assertIn('explicitly replay: still two', handoff['instructions'])
+        self.assertEqual(result['nativeAcceptance'], 'pending')
+
     def test_export_v4_requires_exact_flags_and_excludes_other_profiles(self):
         self.args.export_v4_mode = True
         defines = {'ASSET_DESK_ENABLE_EXPORT_V4': 'true',

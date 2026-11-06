@@ -521,5 +521,45 @@ class FixtureTests(unittest.TestCase):
     def test_v3_five_migrations_and_fixed_child_flags(self): self.check_v3_flags()
     def test_disabled_v3_keeps_proxy_but_not_backend_module(self): self.check_v3_flags(True)
 
+    def check_v4_flags(self, disabled=False):
+        for name in fixture.FILES[1:3]:
+            (self.root/name).write_text(name, encoding='utf-8')
+        self.args.import_v4_mode = True
+        self.args.disabled_v4_route = disabled
+        for name in fixture.fixture_files(self.args):
+            path = self.root/name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(name, encoding='utf-8')
+        runtime = FakeRuntime()
+        runtime.env['ASSET_IMPORT_V4_ENABLED'] = 'inherited-must-not-win'
+        original_run, original_start = runtime.run, runtime.start
+        migrations, environments = [], []
+        def run(command, **kwargs):
+            if 'psql' in command and '-i' in command:
+                migrations.append(kwargs['data'])
+            return original_run(command, **kwargs)
+        def start(command, cwd, env=None):
+            environments.append(env)
+            return original_start(command, cwd, env)
+        runtime.run, runtime.start = run, start
+        report = fixture.execute(self.root, self.args, runtime, MagicMock(return_value={}))
+        for flag in ('ASSET_IMPORT_ENABLED', 'ASSET_DATES_ENABLED', 'ASSET_LOCATION_ENABLED', 'ASSET_EXPORT_V3_ENABLED', 'ASSET_EXPORT_V4_ENABLED', 'ASSET_CHECK_ENABLED'):
+            self.assertEqual(environments[0][flag], 'true')
+        self.assertEqual(environments[0]['ASSET_IMPORT_V2_ENABLED'], 'false')
+        self.assertEqual(environments[0]['ASSET_IMPORT_V3_ENABLED'], 'false')
+        self.assertEqual(environments[0]['ASSET_IMPORT_V4_ENABLED'], 'false' if disabled else 'true')
+        proxy = next(command for command in runtime.calls if '--synthetic-only' in command)
+        self.assertEqual(proxy[-1], '--import-v4-enabled')
+        self.assertEqual(migrations, [name.encode() for name in (
+            'backend/migrations/001-auth-accounts.sql', 'backend/migrations/002-assets.sql',
+            'backend/migrations/003-asset-import.sql', 'backend/migrations/004-asset-dates.sql',
+            'backend/migrations/005-asset-location.sql', 'backend/migrations/006-asset-check.sql')])
+        self.assertEqual(report['cleanup'], 'stopped')
+        self.assertEqual(sum(command[:2] == ['docker', 'stop'] for command in runtime.calls), 1)
+
+    def test_v4_six_migrations_and_fixed_child_flags(self): self.check_v4_flags()
+    def test_disabled_v4_keeps_proxy_but_not_backend_module(self): self.check_v4_flags(True)
+
+
 if __name__ == '__main__':
     unittest.main()

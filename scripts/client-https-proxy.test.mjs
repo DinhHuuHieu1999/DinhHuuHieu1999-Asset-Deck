@@ -695,40 +695,147 @@ test("explicit v3 recovery suppresses only a complete successful selected reply"
   assert.equal(incomplete.res.code, 502);
 });
 
-
-test('serial advisory route permits only GET and never adjacent paths', () => {
-  assert.equal(allowed('GET', '/api/v1/assets/serial-duplicates?serial=AbC%25_1'), true);
-  for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
-    assert.equal(allowed(method, '/api/v1/assets/serial-duplicates'), false);
+test("serial advisory route permits only GET and never adjacent paths", () => {
+  assert.equal(
+    allowed("GET", "/api/v1/assets/serial-duplicates?serial=AbC%25_1"),
+    true,
+  );
+  for (const method of ["POST", "PUT", "PATCH", "DELETE"]) {
+    assert.equal(allowed(method, "/api/v1/assets/serial-duplicates"), false);
   }
-  for (const path of ['/api/v1/assets/serial-duplicates/extra',
-    '/api/v1/assets/serial-duplicates%2fextra']) {
-    assert.equal(allowed('GET', path), false);
+  for (const path of [
+    "/api/v1/assets/serial-duplicates/extra",
+    "/api/v1/assets/serial-duplicates%2fextra",
+  ]) {
+    assert.equal(allowed("GET", path), false);
   }
 });
 
-
-test('details read route accepts only an exact UUID path', () => {
-  const path = '/api/v1/assets/12345678-1234-4234-8234-123456789abc';
-  assert.equal(allowed('GET', path), true);
-  for (const suffix of ['?owner=foreign', '/extra', '/', '%2f', '#fragment'])
-    assert.equal(allowed('GET', path + suffix), false);
-  for (const method of ['DELETE', 'POST', 'PATCH'])
+test("details read route accepts only an exact UUID path", () => {
+  const path = "/api/v1/assets/12345678-1234-4234-8234-123456789abc";
+  assert.equal(allowed("GET", path), true);
+  for (const suffix of ["?owner=foreign", "/extra", "/", "%2f", "#fragment"])
+    assert.equal(allowed("GET", path + suffix), false);
+  for (const method of ["DELETE", "POST", "PATCH"])
     assert.equal(allowed(method, path), false);
-  for (const id of ['invalid', '12345678-1234-4234-8234-123456789abz'])
-    assert.equal(allowed('GET', '/api/v1/assets/' + id), false);
+  for (const id of ["invalid", "12345678-1234-4234-8234-123456789abz"])
+    assert.equal(allowed("GET", "/api/v1/assets/" + id), false);
 });
 
-test('check-date handler forwards explicit capability and preserves auth failures', async () => {
-  const url = '/api/v1/assets/00000000-0000-4000-8000-000000000000/check-date';
-  for (const method of ['GET', 'PUT']) {
+test("check-date handler forwards explicit capability and preserves auth failures", async () => {
+  const url = "/api/v1/assets/00000000-0000-4000-8000-000000000000/check-date";
+  for (const method of ["GET", "PUT"]) {
     const denied = await simulate({ method, url });
     assert.equal(denied.calls, 0);
     assert.equal(denied.res.code, 404);
-    const status = method === 'GET' ? 401 : 403;
-    const result = await simulate({ method, url, status,
-      capabilities: { checkEnabled: true, datesEnabled: true, locationEnabled: true } });
+    const status = method === "GET" ? 401 : 403;
+    const result = await simulate({
+      method,
+      url,
+      status,
+      capabilities: {
+        checkEnabled: true,
+        datesEnabled: true,
+        locationEnabled: true,
+      },
+    });
     assert.equal(result.calls, 1);
     assert.equal(result.res.code, status);
   }
+});
+
+test("v4 fixed CLI requires all prerequisites and rejects mixed profiles", () => {
+  const args = [
+    "--synthetic-only",
+    "19001",
+    "19002",
+    "a".repeat(32),
+    "cert",
+    "key",
+    "--import-v4-enabled",
+  ];
+  const selected = parseProxyArgs(args).config;
+  for (const field of [
+    "importEnabled",
+    "datesEnabled",
+    "locationEnabled",
+    "checkEnabled",
+    "exportV3Enabled",
+    "exportV4Enabled",
+    "importV4Enabled",
+  ]) {
+    assert.equal(selected[field], true);
+    assert.throws(() => validateConfig({ ...selected, [field]: false }));
+  }
+  for (const field of [
+    "importV2Enabled",
+    "importV3Enabled",
+    "selectionExportEnabled",
+    "selectionExportV2Enabled",
+  ])
+    assert.throws(() => validateConfig({ ...selected, [field]: true }));
+  assert.throws(() => validateConfig({ ...selected, importV4Enabled: "true" }));
+  assert.throws(() =>
+    validateConfig({
+      ...selected,
+      recoveryRequestId: "invalid-key",
+    }),
+  );
+});
+test("v4 import allowlist is exact POST-only and default closed", () => {
+  const call = (method, path, enabled = true) =>
+    allowed(
+      method,
+      path,
+      true,
+      true,
+      false,
+      true,
+      true,
+      false,
+      false,
+      true,
+      false,
+      true,
+      enabled,
+    );
+  assert.equal(call("POST", "/api/v1/assets/import/v4"), true);
+  for (const path of [
+    "/api/v1/assets/import/v4/",
+    "/api/v1/assets/import/v4?q=x",
+    "/api/v1/assets/import/v40",
+    "/api/v1/assets/import/v3",
+    "/api/v1/assets/import/v2",
+    "/api/v1/assets/import",
+  ])
+    assert.equal(call("POST", path), false);
+  assert.equal(call("GET", "/api/v1/assets/import/v4"), false);
+  assert.equal(call("POST", "/api/v1/assets/import/v4", false), false);
+});
+
+test("v4 stream forwarding retains exact bytes and refuses unselected route", async () => {
+  const capabilities = parseProxyArgs([
+    "--synthetic-only",
+    "19001",
+    "19002",
+    "a".repeat(32),
+    "cert",
+    "key",
+    "--import-v4-enabled",
+  ]).config;
+  const bytes = Buffer.from(
+    '{"requestId":"synthetic","records":[{"location":"Room %_1"}]}',
+  );
+  const result = await simulate({
+    url: "/api/v1/assets/import/v4",
+    chunks: [bytes],
+    capabilities,
+  });
+  assert.equal(result.calls, 1);
+  assert.equal(result.options.hostname, "127.0.0.1");
+  assert.equal(result.options.path, "/api/v1/assets/import/v4");
+  assert.equal(result.sent.toString(), bytes.toString());
+  const denied = await simulate({ url: "/api/v1/assets/import/v4" });
+  assert.equal(denied.calls, 0);
+  assert.equal(denied.res.code, 404);
 });

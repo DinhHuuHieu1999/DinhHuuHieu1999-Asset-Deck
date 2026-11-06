@@ -97,6 +97,16 @@ IMPORT_V3_FILES = IMPORT_V2_FILES[:2] + (
 
 
 
+
+IMPORT_V4_FILES = IMPORT_V3_FILES[:2] + (
+    'backend/src/domains/assets/asset-import-v4.postgres.spec.ts',
+    'backend/src/domains/assets/asset-import-v4.repository.ts',
+    'backend/src/domains/assets/asset-import-v4.ts',
+) + IMPORT_V3_FILES[3:-1] + (
+    'backend/migrations/006-asset-check.sql', FILES[-1],
+)
+
+
 LOCATION_FILES = (FILES[0], FILES[1],
     'backend/src/domains/assets/asset-location.postgres.spec.ts',
     FILES[3], 'backend/src/domains/assets/asset-location.repository.ts',
@@ -189,6 +199,8 @@ def profile_settings(profile):
         return LOCATION_OVERVIEW_FILES, 'asset-location-overview-', 'asset_location_overview_fixture_', 'ASSET_LOCATION_OVERVIEW', 'isolated-location-overview-v1', 'asset_location_overview_fixture_identity'
     if profile == 'location':
         return LOCATION_FILES, 'asset-location-', 'asset_location_fixture_', 'ASSET_LOCATION', 'isolated-location-v1', 'asset_location_fixture_identity'
+    if profile == 'import-v4':
+        return IMPORT_V4_FILES, 'asset-import-v4-', 'asset_import_v4_fixture_', 'ASSET_IMPORT_V4', 'isolated-import-v4-v1', 'asset_import_v4_fixture_identity'
     if profile == 'import-v3':
         return IMPORT_V3_FILES, 'asset-import-v3-', 'asset_import_v3_fixture_', 'ASSET_IMPORT_V3', 'isolated-import-v3-v1', 'asset_import_v3_fixture_identity'
     if profile == 'import-v2':
@@ -280,7 +292,7 @@ def execute(root, args, runtime, profile='category', verification=None):
             migrations += ('backend/migrations/003-asset-import.sql', 'backend/migrations/004-asset-dates.sql')
         if profile == 'import-v3':
             migrations += ('backend/migrations/003-asset-import.sql', 'backend/migrations/004-asset-dates.sql', 'backend/migrations/005-asset-location.sql')
-        if profile in ('check', 'check-overview', 'selection-export-v2', 'export-v4'):
+        if profile in ('check', 'check-overview', 'selection-export-v2', 'export-v4', 'import-v4'):
             migrations += ('backend/migrations/003-asset-import.sql', 'backend/migrations/004-asset-dates.sql',
                            'backend/migrations/005-asset-location.sql', 'backend/migrations/006-asset-check.sql')
         for migration in migrations:
@@ -307,7 +319,7 @@ def execute(root, args, runtime, profile='category', verification=None):
                     cwd=root / 'backend', env=test_env)
         if result_file.stat().st_size > 1024 * 1024:
             raise client.Refusal('Oversized test result')
-        expected = 6 if profile == 'check' else 8 if profile in ('import-v2', 'import-v3', 'selection-export-v2') else 7 if profile in ('warranty-overview', 'selection-export') else 4
+        expected = 6 if profile == 'check' else 8 if profile in ('import-v2', 'import-v3', 'import-v4', 'selection-export-v2') else 7 if profile in ('warranty-overview', 'selection-export') else 4
         validate_result(json.loads(result_file.read_text(encoding='utf-8')), expected)
         if verification is not None:
             verification(runtime, name, database, identity, folder)

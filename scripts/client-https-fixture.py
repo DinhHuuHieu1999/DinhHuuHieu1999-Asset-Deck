@@ -191,8 +191,27 @@ def export_v4_mode(args):
     return value
 
 
+def import_v4_mode(args):
+    """Select only the independent, exclusive import-v4 fixture profile."""
+    value = getattr(args, 'import_v4_mode', False)
+    profiles = ('import_mode', 'dates_mode', 'import_v2_mode', 'location_mode',
+                'export_v3_mode', 'import_v3_mode', 'selection_export_mode',
+                'selection_export_v2_mode', 'check_mode', 'export_v4_mode')
+    if type(value) is not bool or (value and any(getattr(args, key, False) is not False for key in profiles)):
+        raise Refusal('Invalid import v4 fixture profile')
+    return value
+
+
 def fixture_files(args):
     """Return a fixed source/artifact set for the selected fixture profile."""
+    if import_v4_mode(args):
+        return tuple(dict.fromkeys(FILES + IMPORT_V3_FILES + CHECK_FILES + tuple(
+            'backend/dist/domains/assets/asset-import-v4' + suffix + '.js'
+            for suffix in ('', '.config', '.module', '.controller', '.repository', '-parser')) + tuple(
+            'backend/dist/domains/assets/asset-export-v4' + suffix + '.js'
+            for suffix in ('', '.config', '.module', '.controller', '.repository')) + (
+            'flutter/lib/api/asset_export_v4.dart', 'flutter/lib/api/asset_import_v4.dart',
+            'flutter/tool/import_v4_https_acceptance.dart')))
     if export_v4_mode(args):
         return FILES + EXPORT_V3_FILES + CHECK_FILES + tuple(
             'backend/dist/domains/assets/asset-export-v4' + suffix + '.js'
@@ -364,14 +383,15 @@ def record_progress(folder, identity, stage):
 def execute(root, args, runtime, acceptance=None):
     """Run once, retain evidence/volume, and stop only resources created here."""
     selection_v2 = selection_export_v2_mode(args)
-    export_v4 = export_v4_mode(args)
+    v4 = import_v4_mode(args)
+    export_v4 = export_v4_mode(args) or v4
     manual_check = check_mode(args) or selection_v2 or export_v4
     selection = selection_export_mode(args)
     v3 = import_v3_mode(args)
     export_v3 = export_v3_mode(args) or v3 or selection or export_v4
     location = location_mode(args) or export_v3 or manual_check
     v2 = import_v2_mode(args)
-    enabled = import_mode(args) or v2 or v3
+    enabled = import_mode(args) or v2 or v3 or v4
     dates = dates_mode(args) or v2 or location
     if (enabled or dates) and acceptance is None:
         raise Refusal('Import fixture requires its dedicated acceptance driver')
@@ -381,6 +401,11 @@ def execute(root, args, runtime, acceptance=None):
         raise Refusal('Import v2 fixture source is missing')
     if v3 and any(not (root / name).is_file() for name in IMPORT_V3_FILES):
         raise Refusal('Import v3 fixture source is missing')
+    if v4 and any(not (root / name).is_file() for name in fixture_files(args)):
+        raise Refusal('Import v4 fixture source is missing')
+    disabled_v4 = getattr(args, 'disabled_v4_route', False)
+    if type(disabled_v4) is not bool or (disabled_v4 and not v4):
+        raise Refusal('Invalid disabled v4 route profile')
     disabled_v3 = getattr(args, 'disabled_v3_route', False)
     if type(disabled_v3) is not bool or (disabled_v3 and not v3):
         raise Refusal('Invalid disabled v3 route profile')
@@ -434,7 +459,7 @@ def execute(root, args, runtime, acceptance=None):
             migrations = FILES[1:3] + IMPORT_FILES[:1] + DATES_FILES[:1]
         if location:
             migrations = FILES[1:3] + DATES_FILES[:1] + ('backend/migrations/005-asset-location.sql',)
-        if v3:
+        if v3 or v4:
             migrations = FILES[1:3] + IMPORT_FILES[:1] + DATES_FILES[:1] + ('backend/migrations/005-asset-location.sql',)
         if manual_check:
             migrations += ('backend/migrations/006-asset-check.sql',)
@@ -447,6 +472,7 @@ def execute(root, args, runtime, acceptance=None):
                    REQUEST_FRESHNESS_ENABLED='true', THROTTLE_LIMIT='1000', ASSET_DESK_FIXTURE_ID=identity)
         env['ASSET_SELECTION_EXPORT_V2_ENABLED'] = 'true' if selection_v2 else 'false'
         env['ASSET_SELECTION_EXPORT_ENABLED'] = 'true' if selection else 'false'
+        env['ASSET_IMPORT_V4_ENABLED'] = 'true' if v4 and not disabled_v4 else 'false'
         env['ASSET_IMPORT_V3_ENABLED'] = 'true' if v3 and not disabled_v3 else 'false'
         env['ASSET_IMPORT_ENABLED'] = 'true' if enabled else 'false'
         env['ASSET_DATES_ENABLED'] = 'true' if dates else 'false'
@@ -462,7 +488,7 @@ def execute(root, args, runtime, acceptance=None):
         report['stage'] = 'proxy-readiness'
         record_progress(folder, identity, 'proxy-readiness')
         proxy = runtime.start(['node', str(root / 'scripts/client-https-proxy-cli.mjs'), '--synthetic-only',
-                               str(args.backend_port), str(args.tls_port), identity, args.cert, args.key] + (['--export-v4-enabled'] if export_v4 else ['--selection-export-v2-enabled'] if selection_v2 else ['--check-enabled'] if manual_check else ['--selection-export-enabled'] if selection else ['--import-v3-enabled'] if v3 else ['--export-v3-enabled'] if export_v3 else ['--location-enabled'] if location else ['--import-v2-enabled'] if v2 else ['--import-enabled'] if enabled else ['--dates-enabled'] if dates else []), folder)
+                               str(args.backend_port), str(args.tls_port), identity, args.cert, args.key] + (['--import-v4-enabled'] if v4 else ['--export-v4-enabled'] if export_v4 else ['--selection-export-v2-enabled'] if selection_v2 else ['--check-enabled'] if manual_check else ['--selection-export-enabled'] if selection else ['--import-v3-enabled'] if v3 else ['--export-v3-enabled'] if export_v3 else ['--location-enabled'] if location else ['--import-v2-enabled'] if v2 else ['--import-enabled'] if enabled else ['--dates-enabled'] if dates else []), folder)
         runtime.wait_port(args.tls_port, proxy)
         if acceptance is None:
             report['stage'] = 'dart-client'
