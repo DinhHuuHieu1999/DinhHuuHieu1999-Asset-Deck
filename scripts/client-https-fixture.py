@@ -179,8 +179,25 @@ def check_mode(args):
     return value
 
 
+
+def export_v4_mode(args):
+    """Only an exclusive explicit boolean selects full export v4."""
+    value = getattr(args, 'export_v4_mode', False)
+    profiles = ('import_mode', 'dates_mode', 'import_v2_mode', 'location_mode',
+                'export_v3_mode', 'import_v3_mode', 'selection_export_mode',
+                'selection_export_v2_mode', 'check_mode')
+    if type(value) is not bool or (value and any(getattr(args, key, False) is not False for key in profiles)):
+        raise Refusal('Invalid export v4 fixture profile')
+    return value
+
+
 def fixture_files(args):
     """Return a fixed source/artifact set for the selected fixture profile."""
+    if export_v4_mode(args):
+        return FILES + EXPORT_V3_FILES + CHECK_FILES + tuple(
+            'backend/dist/domains/assets/asset-export-v4' + suffix + '.js'
+            for suffix in ('', '.config', '.module', '.controller', '.repository')) + (
+            'flutter/lib/api/asset_export_v4.dart', 'flutter/tool/export_v4_https_acceptance.dart')
     selection_v2 = selection_export_v2_mode(args)
     if check_mode(args):
         return FILES + CHECK_FILES
@@ -347,10 +364,11 @@ def record_progress(folder, identity, stage):
 def execute(root, args, runtime, acceptance=None):
     """Run once, retain evidence/volume, and stop only resources created here."""
     selection_v2 = selection_export_v2_mode(args)
-    manual_check = check_mode(args) or selection_v2
+    export_v4 = export_v4_mode(args)
+    manual_check = check_mode(args) or selection_v2 or export_v4
     selection = selection_export_mode(args)
     v3 = import_v3_mode(args)
-    export_v3 = export_v3_mode(args) or v3 or selection
+    export_v3 = export_v3_mode(args) or v3 or selection or export_v4
     location = location_mode(args) or export_v3 or manual_check
     v2 = import_v2_mode(args)
     enabled = import_mode(args) or v2 or v3
@@ -432,6 +450,7 @@ def execute(root, args, runtime, acceptance=None):
         env['ASSET_IMPORT_V3_ENABLED'] = 'true' if v3 and not disabled_v3 else 'false'
         env['ASSET_IMPORT_ENABLED'] = 'true' if enabled else 'false'
         env['ASSET_DATES_ENABLED'] = 'true' if dates else 'false'
+        env['ASSET_EXPORT_V4_ENABLED'] = 'true' if export_v4 else 'false'
         env['ASSET_EXPORT_V3_ENABLED'] = 'true' if export_v3 else 'false'
         env['ASSET_CHECK_ENABLED'] = 'true' if manual_check else 'false'
         env['ASSET_LOCATION_ENABLED'] = 'true' if location else 'false'
@@ -443,7 +462,7 @@ def execute(root, args, runtime, acceptance=None):
         report['stage'] = 'proxy-readiness'
         record_progress(folder, identity, 'proxy-readiness')
         proxy = runtime.start(['node', str(root / 'scripts/client-https-proxy-cli.mjs'), '--synthetic-only',
-                               str(args.backend_port), str(args.tls_port), identity, args.cert, args.key] + (['--selection-export-v2-enabled'] if selection_v2 else ['--check-enabled'] if manual_check else ['--selection-export-enabled'] if selection else ['--import-v3-enabled'] if v3 else ['--export-v3-enabled'] if export_v3 else ['--location-enabled'] if location else ['--import-v2-enabled'] if v2 else ['--import-enabled'] if enabled else ['--dates-enabled'] if dates else []), folder)
+                               str(args.backend_port), str(args.tls_port), identity, args.cert, args.key] + (['--export-v4-enabled'] if export_v4 else ['--selection-export-v2-enabled'] if selection_v2 else ['--check-enabled'] if manual_check else ['--selection-export-enabled'] if selection else ['--import-v3-enabled'] if v3 else ['--export-v3-enabled'] if export_v3 else ['--location-enabled'] if location else ['--import-v2-enabled'] if v2 else ['--import-enabled'] if enabled else ['--dates-enabled'] if dates else []), folder)
         runtime.wait_port(args.tls_port, proxy)
         if acceptance is None:
             report['stage'] = 'dart-client'

@@ -1,3 +1,4 @@
+import 'api/asset_export_v4.dart';
 import 'api/asset_selection_export_v2.dart';
 import 'api/asset_selection_export.dart';
 
@@ -29,6 +30,12 @@ abstract interface class InventoryExportV3Files {
   Future<bool> saveV3(AssetExportV3 snapshot);
 }
 
+/// Separate full v4 save capability; old adapters remain compatible.
+abstract interface class InventoryExportV4Files {
+  Future<String> digest(Uint8List bytes);
+  Future<bool> saveV4(AssetExportV4 snapshot);
+}
+
 /// Selection-only save boundary; never converts to a full inventory envelope.
 abstract interface class InventorySelectionExportFiles {
   Future<String> digest(Uint8List bytes);
@@ -47,6 +54,7 @@ class WindowsInventoryExportFiles
         InventoryExportFiles,
         InventoryExportV2Files,
         InventoryExportV3Files,
+        InventoryExportV4Files,
         InventorySelectionExportFiles,
         InventorySelectionExportV2Files {
   static const _channel = MethodChannel('asset_desk/inventory_export');
@@ -83,6 +91,9 @@ class WindowsInventoryExportFiles
 
   @override
   Future<bool> saveV3(AssetExportV3 snapshot) => _saveJson(snapshot.json);
+
+  @override
+  Future<bool> saveV4(AssetExportV4 snapshot) => _saveJson(snapshot.json);
 
   @override
   Future<bool> saveSelection(AssetSelectionExport snapshot) =>

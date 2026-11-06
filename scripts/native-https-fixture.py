@@ -16,6 +16,7 @@ _spec.loader.exec_module(client)
 
 def verify_candidate(root, args):
     """Require a complete hashed deployment, pinned to the intended TLS endpoint."""
+    export_v4 = client.export_v4_mode(args)
     selection_v2 = client.selection_export_v2_mode(args)
     manual_check = client.check_mode(args)
     selection = client.selection_export_mode(args)
@@ -77,7 +78,12 @@ def verify_candidate(root, args):
     if selection_v2:
         defines.update(ASSET_DESK_ENABLE_SELECTION_EXPORT_V2='true',
                        ASSET_DESK_ENABLE_ASSET_CHECK='true')
-    if (manual_check or enabled or location or export_v3 or selection) and value.get('buildDefines') != defines:
+    if export_v4:
+        defines = {'ASSET_DESK_ENABLE_EXPORT_V4': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_CHECK': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+    if (export_v4 or manual_check or enabled or location or export_v3 or selection) and value.get('buildDefines') != defines:
         raise client.Refusal('Candidate feature build contract missing')
     files = value['files']
     if not {'asset_desk.exe', 'flutter_windows.dll', 'data/icudtl.dat'} <= set(files):
@@ -99,6 +105,8 @@ def verify_candidate(root, args):
 
 def seed_source(args):
     """Select a fixed source path without accepting arbitrary seed programs."""
+    if client.export_v4_mode(args):
+        return 'flutter/tool/native_export_v4_seed.dart'
     return 'flutter/tool/native_export_v3_seed.dart' if (client.export_v3_mode(args) or client.selection_export_mode(args)) else 'flutter/tool/native_https_seed.dart'
 
 
@@ -178,6 +186,11 @@ def native_session(root, args, runtime, folder, identity, backend, proxy):
     if client.selection_export_v2_mode(args):
         handoff.update(selectionExportV2Mode=True,
             instructions='Sign in; apply Search Synthetic. Open Export matching assets JSON v2 with check dates, Prepare and save a new private file. Inspect selection JSON v2: checksum, one asset and Unknown check date. Cancel retains preview and checksum; invalid JSON clears both. No import or real data.')
+    if client.export_v4_mode(args):
+        handoff.update(exportV4Mode=True, expectedAssets=1,
+            purchasedOn='2024-02-29', warrantyExpiresOn='2027-02-28',
+            locationLabel='Synthetic room %_1', lastCheckedDate='2024-03-01',
+            instructions='Sign in; Export JSON v4 with manual check dates, Prepare and save a new private file. Inspect JSON v4: checksum, one asset, purchase 2024-02-29, warranty 2027-02-28, location Synthetic room %_1 and last checked 2024-03-01. Cancel must keep preview and checksum; invalid JSON must clear both. No import or real data.')
     # Credentials are private local fixture evidence, never stdout or tracked source.
     with (folder / 'operator-handoff.json').open('x', encoding='utf-8') as stream:
         stream.write(json.dumps(handoff, indent=2) + '\n')
@@ -208,6 +221,7 @@ def main():
     parser.add_argument('--selection-export-mode', action='store_true')
     parser.add_argument('--selection-export-v2-mode', action='store_true')
     parser.add_argument('--export-v3-mode', action='store_true')
+    parser.add_argument('--export-v4-mode', action='store_true')
     parser.add_argument('--location-mode', action='store_true')
     parser.add_argument('--import-mode', action='store_true')
     parser.add_argument('--import-v2-mode', action='store_true')

@@ -1,3 +1,4 @@
+import 'asset_export_v4_test.dart' show exportV4Fixture;
 import 'asset_selection_export_v2_test.dart' show selectionV2Fixture;
 
 import 'package:asset_desk/api/asset_selection_export_v2.dart';
@@ -1562,6 +1563,29 @@ void main() {
         expect(calls.length, before + 1);
       },
     );
+    test(
+      'v4 export uses authenticated dedicated endpoint, not list filters',
+      () async {
+        await login();
+        handler = (request) async {
+          expect(request.method, 'GET');
+          expect(request.uri.path, '/api/v1/assets/export/v4');
+          expect(request.uri.hasQuery, isFalse);
+          expect(
+            request.headers.value('authorization'),
+            'Bearer synthetic-token',
+          );
+          json(request, exportV4Fixture());
+        };
+        final before = calls.length;
+        final snapshot = await api.exportInventoryV4(
+          digest: (_) async => 'a' * 64,
+        );
+        expect(snapshot.count, 1);
+        expect(snapshot.records.single.dates.purchasedOn, '2024-02-29');
+        expect(calls.length, before + 1);
+      },
+    );
     test('selection export sends literal applied scope and rejects mismatched response', () async {
       await api.login('synthetic@example.test', ' synthetic-pass ');
       final value = selectionFixture();
@@ -1669,6 +1693,33 @@ void main() {
       final entered = Completer<void>();
       final release = Completer<String>();
       final result = api.exportInventoryV3(
+        digest: (_) {
+          entered.complete();
+          return release.future;
+        },
+      );
+      final assertion = expectLater(result, throwsA(isA<AssetFailure>()));
+      await entered.future;
+      api.signOut();
+      release.complete('a' * 64);
+      await assertion;
+      expect(api.account, isNull);
+    });
+    test('anonymous v4 export never requests data or digest', () async {
+      await expectLater(
+        api.exportInventoryV4(
+          digest: (_) async => throw StateError('must not run'),
+        ),
+        throwsA(isA<AssetFailure>()),
+      );
+      expect(calls, isEmpty);
+    });
+    test('sign-out during v4 digest rejects late private data', () async {
+      await login();
+      handler = (request) async => json(request, exportV4Fixture());
+      final entered = Completer<void>();
+      final release = Completer<String>();
+      final result = api.exportInventoryV4(
         digest: (_) {
           entered.complete();
           return release.future;

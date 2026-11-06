@@ -46,6 +46,16 @@ EXPORT_V3_FILES = EXPORT_V2_FILES[:2] + (
 )
 
 
+EXPORT_V4_FILES = EXPORT_V3_FILES[:2] + (
+    'backend/src/domains/assets/assets-export-v4.postgres.spec.ts',
+) + EXPORT_V3_FILES[3:-1] + (
+    'backend/src/domains/assets/asset-export-v4.repository.ts',
+    'backend/src/domains/assets/asset-export-v4.ts',
+    'backend/migrations/003-asset-import.sql',
+    'backend/migrations/006-asset-check.sql', FILES[-1],
+)
+
+
 WARRANTY_FILES = (FILES[0], FILES[1],
                   'backend/src/domains/assets/assets-warranty.postgres.spec.ts',
                   FILES[3], 'backend/src/domains/assets/asset-dates.repository.ts',
@@ -157,6 +167,8 @@ SELECTION_EXPORT_V2_FILES = SELECTION_EXPORT_FILES[:2] + (
 
 def profile_settings(profile):
     """Only fixed source-owned profiles may choose a suite or fixture identity."""
+    if profile == 'export-v4':
+        return EXPORT_V4_FILES, 'asset-export-v4-', 'asset_export_v4_fixture_', 'ASSET_EXPORT_V4', 'isolated-export-v4-v1', 'asset_export_v4_fixture_identity'
     if profile == 'selection-export-v2':
         return SELECTION_EXPORT_V2_FILES, 'asset-selection-v2-', 'asset_selection_v2_fixture_', 'ASSET_SELECTION_V2', 'isolated-selection-v2', 'asset_selection_v2_fixture_identity'
     if profile == 'check-overview':
@@ -268,7 +280,7 @@ def execute(root, args, runtime, profile='category', verification=None):
             migrations += ('backend/migrations/003-asset-import.sql', 'backend/migrations/004-asset-dates.sql')
         if profile == 'import-v3':
             migrations += ('backend/migrations/003-asset-import.sql', 'backend/migrations/004-asset-dates.sql', 'backend/migrations/005-asset-location.sql')
-        if profile in ('check', 'check-overview', 'selection-export-v2'):
+        if profile in ('check', 'check-overview', 'selection-export-v2', 'export-v4'):
             migrations += ('backend/migrations/003-asset-import.sql', 'backend/migrations/004-asset-dates.sql',
                            'backend/migrations/005-asset-location.sql', 'backend/migrations/006-asset-check.sql')
         for migration in migrations:

@@ -45,6 +45,50 @@ class NativeTests(unittest.TestCase):
             guard.start()
             self.addCleanup(guard.stop)
 
+    def test_export_v4_requires_exact_flags_and_excludes_other_profiles(self):
+        self.args.export_v4_mode = True
+        defines = {'ASSET_DESK_ENABLE_EXPORT_V4': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_CHECK': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+        for key in defines:
+            self.manifest['buildDefines'] = {k: v for k, v in defines.items() if k != key}
+            self.write_manifest()
+            with self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+        self.manifest['buildDefines'] = defines
+        self.write_manifest()
+        native.verify_candidate(self.root, self.args)
+        for profile in ('check_mode', 'export_v3_mode', 'import_mode', 'selection_export_mode'):
+            setattr(self.args, profile, True)
+            with self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+            setattr(self.args, profile, False)
+        self.args.export_v4_mode = 'true'
+        with self.assertRaises(native.client.Refusal):
+            native.verify_candidate(self.root, self.args)
+
+    def test_export_v4_seed_and_handoff_do_not_claim_manual_acceptance(self):
+        self.args.export_v4_mode = True
+        self.manifest['buildDefines'] = {
+            'ASSET_DESK_ENABLE_EXPORT_V4': 'true',
+            'ASSET_DESK_ENABLE_ASSET_CHECK': 'true',
+            'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+            'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+        self.write_manifest()
+        self.assertEqual(native.seed_source(self.args), 'flutter/tool/native_export_v4_seed.dart')
+        (self.root / native.seed_source(self.args)).write_text('synthetic seed', encoding='utf-8')
+        runtime = self.runtime()
+        result = self.run_session(runtime)
+        handoff = json.loads((self.root/'evidence/operator-handoff.json').read_text())
+        self.assertTrue(handoff['exportV4Mode'])
+        self.assertEqual(handoff['lastCheckedDate'], '2024-03-01')
+        self.assertEqual(handoff['expectedAssets'], 1)
+        self.assertNotIn('importFile', handoff)
+        self.assertIn('Cancel must keep preview and checksum', handoff['instructions'])
+        self.assertEqual(result['nativeAcceptance'], 'pending')
+        runtime.start.assert_called_once()
+
     def test_selection_v2_requires_exact_capabilities(self):
         self.args.selection_export_mode = True
         self.args.selection_export_v2_mode = True

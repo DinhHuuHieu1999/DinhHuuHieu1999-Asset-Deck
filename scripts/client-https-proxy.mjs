@@ -28,6 +28,7 @@ export function validateConfig({
   selectionExportV2Enabled = false,
   selectionExportEnabled = false,
   checkEnabled = false,
+  exportV4Enabled = false,
   recoveryRequestId,
 }) {
   if (
@@ -36,6 +37,17 @@ export function validateConfig({
     typeof importV2Enabled !== "boolean" ||
     typeof locationEnabled !== "boolean" ||
     typeof exportV3Enabled !== "boolean" ||
+    typeof exportV4Enabled !== "boolean" ||
+    (exportV4Enabled &&
+      (!checkEnabled ||
+        !exportV3Enabled ||
+        !datesEnabled ||
+        !locationEnabled ||
+        importEnabled ||
+        importV2Enabled ||
+        importV3Enabled ||
+        selectionExportEnabled ||
+        selectionExportV2Enabled)) ||
     typeof checkEnabled !== "boolean" ||
     (checkEnabled &&
       (!datesEnabled ||
@@ -44,6 +56,7 @@ export function validateConfig({
         importV2Enabled ||
         importV3Enabled ||
         (!selectionExportV2Enabled &&
+          !exportV4Enabled &&
           (exportV3Enabled || selectionExportEnabled)))) ||
     typeof selectionExportV2Enabled !== "boolean" ||
     (selectionExportV2Enabled && (!selectionExportEnabled || !checkEnabled)) ||
@@ -110,6 +123,7 @@ export function parseProxyArgs(args) {
         "--selection-export-v2-enabled",
         "--selection-export-enabled",
         "--check-enabled",
+        "--export-v4-enabled",
       ].includes(args[6]))
   )
     throw new Error("Explicit fixture opt-in required");
@@ -123,6 +137,7 @@ export function parseProxyArgs(args) {
       "--import-v3-enabled",
     ].includes(args[6]),
     datesEnabled: [
+      "--export-v4-enabled",
       "--check-enabled",
       "--selection-export-v2-enabled",
       "--selection-export-enabled",
@@ -134,6 +149,7 @@ export function parseProxyArgs(args) {
     ].includes(args[6]),
     importV2Enabled: args[6] === "--import-v2-enabled",
     locationEnabled: [
+      "--export-v4-enabled",
       "--check-enabled",
       "--selection-export-v2-enabled",
       "--selection-export-enabled",
@@ -142,6 +158,7 @@ export function parseProxyArgs(args) {
       "--import-v3-enabled",
     ].includes(args[6]),
     exportV3Enabled: [
+      "--export-v4-enabled",
       "--selection-export-v2-enabled",
       "--selection-export-enabled",
       "--export-v3-enabled",
@@ -153,9 +170,12 @@ export function parseProxyArgs(args) {
       "--selection-export-v2-enabled",
       "--selection-export-enabled",
     ].includes(args[6]),
-    checkEnabled: ["--check-enabled", "--selection-export-v2-enabled"].includes(
-      args[6],
-    ),
+    exportV4Enabled: args[6] === "--export-v4-enabled",
+    checkEnabled: [
+      "--export-v4-enabled",
+      "--check-enabled",
+      "--selection-export-v2-enabled",
+    ].includes(args[6]),
   };
   validateConfig(config);
   const port = Number(listen);
@@ -184,6 +204,7 @@ export function allowed(
   selectionExportEnabled = false,
   checkEnabled = false,
   selectionExportV2Enabled = false,
+  exportV4Enabled = false,
 ) {
   if (typeof raw !== "string" || !raw.startsWith("/") || raw.startsWith("//"))
     return false;
@@ -213,6 +234,8 @@ export function allowed(
       datesEnabled === true &&
       locationEnabled === true
     );
+  if (raw.split("?")[0] === "/api/v1/assets/export/v4")
+    return exportV4Enabled === true && method === "GET";
   if (raw.split("?")[0] === "/api/v1/assets/export/v3")
     return exportV3Enabled === true && method === "GET";
   if (raw.split("?")[0] === "/api/v1/assets/locations/overview")
@@ -355,6 +378,7 @@ export function createHandler(config, request = http.request) {
         config.selectionExportEnabled,
         config.checkEnabled,
         config.selectionExportV2Enabled,
+        config.exportV4Enabled,
       )
     ) {
       fail(404);

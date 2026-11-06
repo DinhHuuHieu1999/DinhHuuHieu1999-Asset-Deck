@@ -31,6 +31,9 @@ void main() {
         enableSelectionExport: const bool.fromEnvironment(
           'ASSET_DESK_ENABLE_SELECTION_EXPORT',
         ),
+        enableInventoryExportV4: const bool.fromEnvironment(
+          'ASSET_DESK_ENABLE_EXPORT_V4',
+        ),
         enableInventoryExportV3: const bool.fromEnvironment(
           'ASSET_DESK_ENABLE_EXPORT_V3',
         ),

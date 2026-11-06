@@ -1,3 +1,4 @@
+import 'asset_export_v4.dart';
 import 'asset_selection_export_v2.dart';
 import 'asset_check_overview.dart';
 import 'asset_check.dart';
@@ -41,6 +42,7 @@ class AssetApi
         AssetExportSource,
         AssetExportV2Source,
         AssetExportV3Source,
+        AssetExportV4Source,
         AssetSelectionExportSource,
         AssetSelectionExportV2Source,
         AssetImportSource,
@@ -989,6 +991,23 @@ class AssetApi
       return result;
     } on FormatException {
       throw const AssetFailure('Invalid inventory v3 export or checksum');
+    }
+  }
+
+  /// Fetch a check-date-aware snapshot without accepting a stale account's result.
+  @override
+  Future<AssetExportV4> exportInventoryV4({
+    required AssetExportDigest digest,
+  }) async {
+    final epoch = _requireAccount();
+    final value = await _request('GET', 'assets/export/v4', epoch);
+    _current(epoch);
+    try {
+      final result = await AssetExportV4.parse(value, digest: digest);
+      _current(epoch);
+      return result;
+    } on FormatException {
+      throw const AssetFailure('Invalid inventory v4 export or checksum');
     }
   }
 

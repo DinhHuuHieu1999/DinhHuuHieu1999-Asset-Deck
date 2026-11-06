@@ -1,3 +1,4 @@
+import 'asset_export_v4.dart';
 import 'asset_selection_export_v2.dart';
 
 import 'dart:convert';
@@ -65,3 +66,9 @@ Map<String, Object?> _decodeInspectionBytes(Uint8List bytes) {
   }
   return value;
 }
+
+/// Read-only full v4 inspection; never imports or accesses the network.
+Future<AssetExportV4> inspectAssetV4Bytes(
+  Uint8List bytes, {
+  required AssetExportDigest digest,
+}) => AssetExportV4.parse(_decodeInspectionBytes(bytes), digest: digest);

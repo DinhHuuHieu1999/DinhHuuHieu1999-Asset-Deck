@@ -1,3 +1,4 @@
+import 'api/asset_export_v4.dart';
 import 'api/asset_selection_export_v2.dart';
 import 'inventory_selection_export_v2_page.dart';
 import 'api/asset_check_overview.dart';
@@ -55,6 +56,7 @@ class AssetsPage extends StatefulWidget {
     this.enableAssetLocation = false,
     this.enableAssetCheck = false,
     this.enableInventoryExportV3 = false,
+    this.enableInventoryExportV4 = false,
     this.enableSelectionExport = false,
     this.enableSelectionExportV2 = false,
     this.importApiBase = '',
@@ -68,6 +70,7 @@ class AssetsPage extends StatefulWidget {
   final bool enableAssetLocation;
   final bool enableAssetCheck;
   final bool enableInventoryExportV3;
+  final bool enableInventoryExportV4;
   final bool enableSelectionExport;
   final bool enableSelectionExportV2;
   final InventoryExportFiles? exportFiles;
@@ -868,6 +871,50 @@ class _AssetsPageState extends State<AssetsPage> {
                         ),
                       ),
                 child: const Text('Inspect JSON v3 with location (no import)'),
+              ),
+            if (widget.enableInventoryExportV4 &&
+                widget.enableAssetDates &&
+                widget.enableAssetLocation &&
+                widget.enableAssetCheck)
+              if (widget.store case final AssetExportV4Source source) ...[
+                const SizedBox(height: 8),
+                OutlinedButton(
+                  onPressed: _busy
+                      ? null
+                      : () => Navigator.of(context).push<void>(
+                          MaterialPageRoute(
+                            builder: (_) => InventoryExportPage.v4(
+                              source: source,
+                              files:
+                                  widget.exportFiles is InventoryExportV4Files
+                                  ? widget.exportFiles!
+                                        as InventoryExportV4Files
+                                  : WindowsInventoryExportFiles(),
+                            ),
+                          ),
+                        ),
+                  child: const Text('Export JSON v4 with manual check dates'),
+                ),
+              ],
+            if (widget.enableInventoryExportV4 &&
+                widget.enableAssetDates &&
+                widget.enableAssetLocation &&
+                widget.enableAssetCheck)
+              OutlinedButton(
+                onPressed: _busy
+                    ? null
+                    : () => Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => InventoryInspectionPage.v4(
+                            files:
+                                widget.inspectionFiles ??
+                                WindowsInventoryInspectionFiles(),
+                          ),
+                        ),
+                      ),
+                child: const Text(
+                  'Inspect JSON v4 with check dates (no import)',
+                ),
               ),
             if (widget.enableSelectionExport &&
                 widget.enableAssetDates &&

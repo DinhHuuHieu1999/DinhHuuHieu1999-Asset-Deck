@@ -1,3 +1,4 @@
+import 'api/asset_export_v4.dart';
 import 'api/asset_selection_export_v2.dart';
 
 import 'package:flutter/material.dart';
@@ -15,19 +16,30 @@ class InventoryInspectionPage extends StatefulWidget {
     required this.files,
     this.v3 = false,
   }) : selection = false,
-       selectionV2 = false;
+       selectionV2 = false,
+       v4 = false;
 
   /// A distinct local selection inspector, never a full-export fallback.
   const InventoryInspectionPage.selection({super.key, required this.files})
     : v3 = false,
       selection = true,
-      selectionV2 = false;
+      selectionV2 = false,
+      v4 = false;
 
   /// Read-only v2 selection, never inferred from a full inventory file.
   const InventoryInspectionPage.selectionV2({super.key, required this.files})
     : v3 = false,
       selection = true,
-      selectionV2 = true;
+      selectionV2 = true,
+      v4 = false;
+
+  /// Explicit full v4 parser, never a permissive version fallback.
+  const InventoryInspectionPage.v4({super.key, required this.files})
+    : v4 = true,
+      v3 = false,
+      selection = false,
+      selectionV2 = false;
+  final bool v4;
   final bool selectionV2;
   final InventoryInspectionFiles files;
   final bool v3;
@@ -42,6 +54,7 @@ class _InventoryInspectionPageState extends State<InventoryInspectionPage> {
   AssetSelectionExportV2? _selectionV2Preview;
   AssetExport? _preview;
   AssetExportV3? _v3Preview;
+  AssetExportV4? _v4Preview;
   bool _busy = false;
   String? _message;
 
@@ -66,7 +79,20 @@ class _InventoryInspectionPageState extends State<InventoryInspectionPage> {
         _selectionV2Preview = null;
         _preview = null;
         _v3Preview = null;
+        _v4Preview = null;
       });
+      if (widget.v4) {
+        final preview = await inspectAssetV4Bytes(
+          bytes,
+          digest: widget.files.digest,
+        );
+        if (!mounted) return;
+        setState(() {
+          _v4Preview = preview;
+          _message = 'Checksum matches';
+        });
+        return;
+      }
       if (widget.selectionV2) {
         final preview = await inspectAssetSelectionV2Bytes(
           bytes,
@@ -119,6 +145,7 @@ class _InventoryInspectionPageState extends State<InventoryInspectionPage> {
         _selectionV2Preview = null;
         _preview = null;
         _v3Preview = null;
+        _v4Preview = null;
         _message =
             'Unable to inspect JSON. Check the format, size and checksum.';
       });
@@ -131,15 +158,18 @@ class _InventoryInspectionPageState extends State<InventoryInspectionPage> {
   Widget build(BuildContext context) {
     final preview = _preview;
     final v3Preview = _v3Preview;
+    final v4Preview = _v4Preview;
     final selection = _selectionPreview;
     final selectionV2 = _selectionV2Preview;
     final count =
+        v4Preview?.count ??
         selectionV2?.count ??
         selection?.count ??
         v3Preview?.count ??
         preview?.count ??
         0;
     final exportedAt =
+        v4Preview?.exportedAt ??
         selectionV2?.exportedAt ??
         selection?.exportedAt ??
         v3Preview?.exportedAt ??
@@ -147,7 +177,9 @@ class _InventoryInspectionPageState extends State<InventoryInspectionPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          widget.selectionV2
+          widget.v4
+              ? 'Inspect inventory JSON v4'
+              : widget.selectionV2
               ? 'Inspect selection JSON v2'
               : widget.selection
               ? 'Inspect selection JSON'
@@ -172,7 +204,7 @@ class _InventoryInspectionPageState extends State<InventoryInspectionPage> {
                       'Local file preview only. Nothing is imported or sent to the server.',
                     ),
                     Text(
-                      widget.v3 || widget.selection
+                      widget.v4 || widget.v3 || widget.selection
                           ? 'Files may contain sensitive serial numbers, notes, dates and locations. A matching checksum does not prove authenticity.'
                           : 'Files may contain sensitive serial numbers and notes. A matching checksum does not prove authenticity.',
                     ),
@@ -189,7 +221,9 @@ class _InventoryInspectionPageState extends State<InventoryInspectionPage> {
                       const LinearProgressIndicator(
                         semanticsLabel: 'Inspecting local JSON',
                       ),
-                    if ((selection != null || selectionV2 != null) &&
+                    if ((v4Preview != null ||
+                            selection != null ||
+                            selectionV2 != null) &&
                         !_busy &&
                         _message != 'Checksum matches')
                       const Text('Checksum matches'),
@@ -216,10 +250,18 @@ class _InventoryInspectionPageState extends State<InventoryInspectionPage> {
                     const SizedBox(height: 12),
                   ],
                 );
+              final v4Record = v4Preview?.records[index - 1];
               final v3Record =
                   selectionV2?.records[index - 1].record ??
                   selection?.records[index - 1] ??
-                  v3Preview?.records[index - 1];
+                  v3Preview?.records[index - 1] ??
+                  (v4Record == null
+                      ? null
+                      : AssetExportV3Record(
+                          asset: v4Record.asset,
+                          dates: v4Record.dates,
+                          location: v4Record.location,
+                        ));
               final record = v3Record?.asset ?? preview!.records[index - 1];
               return Card(
                 child: Padding(
@@ -231,6 +273,10 @@ class _InventoryInspectionPageState extends State<InventoryInspectionPage> {
                         record.input.name,
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
+                      if (v4Record != null)
+                        Text(
+                          'Last checked: ${v4Record.lastCheckedDate ?? '(unknown)'}',
+                        ),
                       if (selectionV2 != null)
                         Text(
                           'Last checked: ${selectionV2.records[index - 1].lastCheckedDate ?? '(unknown)'}',

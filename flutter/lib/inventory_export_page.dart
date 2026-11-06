@@ -1,3 +1,5 @@
+import 'api/asset_export_v4.dart';
+
 import 'package:flutter/material.dart';
 
 import 'api/asset_export.dart';
@@ -17,7 +19,9 @@ class InventoryExportPage extends StatefulWidget {
        v2Source = null,
        v2Files = null,
        v3Source = null,
-       v3Files = null;
+       v3Files = null,
+       v4Source = null,
+       v4Files = null;
 
   const InventoryExportPage.v2({
     super.key,
@@ -28,7 +32,9 @@ class InventoryExportPage extends StatefulWidget {
        source = null,
        files = null,
        v3Source = null,
-       v3Files = null;
+       v3Files = null,
+       v4Source = null,
+       v4Files = null;
 
   const InventoryExportPage.v3({
     super.key,
@@ -39,7 +45,25 @@ class InventoryExportPage extends StatefulWidget {
        source = null,
        files = null,
        v2Source = null,
-       v2Files = null;
+       v2Files = null,
+       v4Source = null,
+       v4Files = null;
+
+  /// Explicit full v4 export, without converting older envelopes.
+  const InventoryExportPage.v4({
+    super.key,
+    required AssetExportV4Source source,
+    required InventoryExportV4Files files,
+  }) : v4Source = source,
+       v4Files = files,
+       source = null,
+       files = null,
+       v2Source = null,
+       v2Files = null,
+       v3Source = null,
+       v3Files = null;
+  final AssetExportV4Source? v4Source;
+  final InventoryExportV4Files? v4Files;
 
   final AssetExportV3Source? v3Source;
   final InventoryExportV3Files? v3Files;
@@ -73,7 +97,15 @@ class _InventoryExportPageState extends State<InventoryExportPage> {
     });
     try {
       final _PreparedExport prepared;
-      if (widget.v3Source case final source?) {
+      if (widget.v4Source case final source?) {
+        final files = widget.v4Files!;
+        final result = await source.exportInventoryV4(digest: files.digest);
+        prepared = _PreparedExport(
+          result.count,
+          result.exportedAt,
+          () => files.saveV4(result),
+        );
+      } else if (widget.v3Source case final source?) {
         final files = widget.v3Files!;
         final result = await source.exportInventoryV3(digest: files.digest);
         prepared = _PreparedExport(
@@ -145,7 +177,9 @@ class _InventoryExportPageState extends State<InventoryExportPage> {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       title: Text(
-        widget.v3Source != null
+        widget.v4Source != null
+            ? 'Export inventory v4'
+            : widget.v3Source != null
             ? 'Export inventory v3'
             : widget.v2Source == null
             ? 'Export inventory JSON'
@@ -165,7 +199,9 @@ class _InventoryExportPageState extends State<InventoryExportPage> {
             ),
             const SizedBox(height: 12),
             Text(
-              widget.v3Source != null
+              widget.v4Source != null
+                  ? 'Sensitive plaintext includes serials, notes, purchase/warranty dates, locations and manual check dates. Save privately; not an encrypted database backup.'
+                  : widget.v3Source != null
                   ? 'Sensitive plaintext includes serials, notes, dates and locations. Save privately; not an encrypted database backup.'
                   : widget.v2Source == null
                   ? 'Sensitive plaintext: serial numbers and notes are included. '
@@ -174,6 +210,10 @@ class _InventoryExportPageState extends State<InventoryExportPage> {
                   : 'Sensitive plaintext: serial numbers, notes and dates are included. '
                         'Save privately. JSON v2 is not an encrypted database backup.',
             ),
+            if (widget.v4Source != null)
+              const Text(
+                'JSON v4 includes purchase/warranty dates, location and manual check dates. No v4 import or restore is available.',
+              ),
             if (widget.v3Source != null) ...[
               const SizedBox(height: 12),
               const Text(
