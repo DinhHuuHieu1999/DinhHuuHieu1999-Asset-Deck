@@ -4,6 +4,9 @@
 #include <string>
 #include <vector>
 enum class InventorySaveResult { saved, exists, invalid, failed };
+// CSV-only 1 MiB UTF-8 writer; retains CREATE_NEW and local-path restrictions.
+InventorySaveResult WriteNewInventoryCsv(const std::wstring& path,
+                                        const std::vector<uint8_t>& bytes);
 // Bounded Windows CNG SHA-256; empty string indicates failure.
 std::string InventorySha256(const std::vector<uint8_t>& bytes);
 // Create a new local .json only, never overwrite; cleanup only our own failed write.

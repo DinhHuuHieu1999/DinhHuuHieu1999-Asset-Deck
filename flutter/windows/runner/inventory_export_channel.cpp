@@ -8,7 +8,7 @@
 namespace {
 using flutter::EncodableValue;
 using Microsoft::WRL::ComPtr;
-HRESULT ChooseDestination(HWND owner, std::wstring* path, bool recovery, bool selection) {
+HRESULT ChooseDestination(HWND owner, std::wstring* path, bool recovery, bool selection, bool csv = false) {
   ComPtr<IFileSaveDialog> dialog;
   HRESULT hr = CoCreateInstance(CLSID_FileSaveDialog, nullptr,
       CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog));
@@ -21,14 +21,14 @@ HRESULT ChooseDestination(HWND owner, std::wstring* path, bool recovery, bool se
   options &= ~FOS_OVERWRITEPROMPT;
   hr = dialog->SetOptions(options);
   if (FAILED(hr)) return hr;
-  const COMDLG_FILTERSPEC filter{L"Asset Desk inventory JSON", L"*.json"};
+  const COMDLG_FILTERSPEC filter{csv ? L"Asset Desk selection CSV" : L"Asset Desk inventory JSON", csv ? L"*.csv" : L"*.json"};
   hr = dialog->SetFileTypes(1, &filter);
   if (FAILED(hr)) return hr;
-  hr = dialog->SetDefaultExtension(L"json");
+  hr = dialog->SetDefaultExtension(csv ? L"csv" : L"json");
   if (FAILED(hr)) return hr;
-  hr = dialog->SetFileName(recovery ? L"asset-desk-import-recovery.json" : (selection ? L"asset-desk-inventory-selection.json" : L"asset-desk-inventory.json"));
+  hr = dialog->SetFileName(csv ? L"asset-desk-inventory-selection.csv" : (recovery ? L"asset-desk-import-recovery.json" : (selection ? L"asset-desk-inventory-selection.json" : L"asset-desk-inventory.json")));
   if (FAILED(hr)) return hr;
-  hr = dialog->SetTitle(recovery ? L"Save private import recovery JSON (no overwrite)" : (selection ? L"Save private inventory selection JSON (no overwrite)" : L"Save inventory JSON (new file, no overwrite)"));
+  hr = dialog->SetTitle(csv ? L"Save private inventory selection CSV (no overwrite)" : (recovery ? L"Save private import recovery JSON (no overwrite)" : (selection ? L"Save private inventory selection JSON (no overwrite)" : L"Save inventory JSON (new file, no overwrite)")));
   if (FAILED(hr)) return hr;
   hr = dialog->Show(owner);
   if (FAILED(hr)) return hr;
@@ -96,7 +96,8 @@ CreateInventoryExportChannel(flutter::BinaryMessenger* messenger, HWND owner) {
       result->Success(EncodableValue(bytes)); return;
     }
     const bool hashing = call.method_name() == "sha256" || call.method_name() == "sha256Recovery";
-    if (!hashing && call.method_name() != "saveJson" && call.method_name() != "saveRecoveryJson" && call.method_name() != "saveSelectionJson") {
+    const bool csv = call.method_name() == "saveSelectionCsv";
+    if (!hashing && !csv && call.method_name() != "saveJson" && call.method_name() != "saveRecoveryJson" && call.method_name() != "saveSelectionJson") {
       result->NotImplemented(); return;
     }
     const auto* bytes = call.arguments()
@@ -111,13 +112,14 @@ CreateInventoryExportChannel(flutter::BinaryMessenger* messenger, HWND owner) {
       result->Success(EncodableValue(digest)); return;
     }
     std::wstring path;
-    const HRESULT hr = ChooseDestination(owner, &path, recovery, call.method_name() == "saveSelectionJson");
+    const HRESULT hr = ChooseDestination(owner, &path, recovery, call.method_name() == "saveSelectionJson", csv);
     if (hr == HRESULT_FROM_WIN32(ERROR_CANCELLED)) { result->Success(); return; }
     if (FAILED(hr)) { result->Error("dialog_failed", "Unable to open save dialog."); return; }
-    const auto outcome = recovery ? WriteNewRecoveryJson(path, *bytes) : WriteNewInventoryJson(path, *bytes);
+    const auto outcome = csv ? WriteNewInventoryCsv(path, *bytes) :
+        (recovery ? WriteNewRecoveryJson(path, *bytes) : WriteNewInventoryJson(path, *bytes));
     if (outcome != InventorySaveResult::saved) {
       result->Error(outcome == InventorySaveResult::exists ? "file_exists" : "save_failed",
-          "Unable to save. Choose a new local .json filename."); return;
+          csv ? "Unable to save. Choose a new local .csv filename." : "Unable to save. Choose a new local .json filename."); return;
     }
     // Do not expose or log the chosen private path.
     result->Success(EncodableValue(true));

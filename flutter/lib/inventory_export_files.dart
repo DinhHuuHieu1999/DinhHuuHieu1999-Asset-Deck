@@ -1,4 +1,5 @@
 import 'api/asset_export_v4.dart';
+import 'api/asset_selection_csv.dart';
 import 'api/asset_selection_export_v2.dart';
 import 'api/asset_selection_export.dart';
 
@@ -48,6 +49,11 @@ abstract interface class InventorySelectionExportV2Files {
   Future<bool> saveSelectionV2(AssetSelectionExportV2 snapshot);
 }
 
+/// Separate CSV save capability; JSON-only adapters remain compatible.
+abstract interface class InventorySelectionCsvFiles {
+  Future<bool> saveSelectionCsv(AssetSelectionCsv snapshot);
+}
+
 /// Windows CNG and native Save As; no paths, credentials or implicit disk writes.
 class WindowsInventoryExportFiles
     implements
@@ -56,7 +62,8 @@ class WindowsInventoryExportFiles
         InventoryExportV3Files,
         InventoryExportV4Files,
         InventorySelectionExportFiles,
-        InventorySelectionExportV2Files {
+        InventorySelectionExportV2Files,
+        InventorySelectionCsvFiles {
   static const _channel = MethodChannel('asset_desk/inventory_export');
 
   @override
@@ -102,6 +109,33 @@ class WindowsInventoryExportFiles
   @override
   Future<bool> saveSelectionV2(AssetSelectionExportV2 snapshot) =>
       _saveJson(snapshot.json, selection: true);
+
+  @override
+  Future<bool> saveSelectionCsv(AssetSelectionCsv snapshot) async {
+    final bytes = snapshot.bytes;
+    if (bytes.isEmpty || bytes.length > 1024 * 1024) {
+      throw const AssetFailure('Selection CSV size is invalid');
+    }
+    try {
+      final result = await _channel.invokeMethod<Object?>(
+        'saveSelectionCsv',
+        bytes,
+      );
+      if (result == null) return false;
+      if (result == true) return true;
+      throw const AssetFailure(
+        'Native CSV save result is invalid; inspect the destination',
+      );
+    } on MissingPluginException {
+      throw const AssetFailure('Saving CSV requires the Windows candidate');
+    } on PlatformException catch (error) {
+      throw AssetFailure(
+        error.code == 'file_exists'
+            ? 'File already exists. Choose a new filename; nothing was overwritten.'
+            : 'Unable to save CSV; inspect the destination before trying again.',
+      );
+    }
+  }
 
   Future<bool> _saveJson(String json, {bool selection = false}) async {
     final bytes = Uint8List.fromList(utf8.encode(json));

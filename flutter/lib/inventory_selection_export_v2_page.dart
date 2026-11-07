@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'api/asset_selection_export_v2.dart';
+import 'api/asset_selection_csv.dart';
 import 'api/asset_store.dart';
 import 'inventory_export_files.dart';
 
@@ -81,6 +82,35 @@ class _InventorySelectionExportV2PageState
     }
   }
 
+  Future<void> _saveCsv() async {
+    final snapshot = _snapshot;
+    final files = widget.files;
+    if (_busy || snapshot == null || files is! InventorySelectionCsvFiles)
+      return;
+    setState(() {
+      _busy = true;
+      _message = null;
+    });
+    try {
+      final csv = AssetSelectionCsv.fromSelection(snapshot);
+      final saved = await (files as InventorySelectionCsvFiles)
+          .saveSelectionCsv(csv);
+      if (mounted)
+        setState(
+          () => _message = saved
+              ? 'CSV saved: ${csv.count} assets; ${csv.protectedCells} formula-like cells prefixed.'
+              : 'Save canceled. Prepared selection retained.',
+        );
+    } catch (error) {
+      if (mounted)
+        setState(
+          () => _message = error is AssetFailure ? error.message : 'Unable to save CSV; inspect the destination before trying again.',
+        );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Export matching assets v2')),
@@ -136,6 +166,16 @@ class _InventorySelectionExportV2PageState
                 onPressed: _busy ? null : _save,
                 child: const Text('Save selection JSON as... (Windows)'),
               ),
+              if (widget.files is InventorySelectionCsvFiles) ...[
+                const SizedBox(height: 12),
+                const Text(
+                  'CSV uses this same selection, not a backup. Formula-like cells get an apostrophe prefix. Import as UTF-8/text in spreadsheets to preserve serials and dates.',
+                ),
+                OutlinedButton(
+                  onPressed: _busy ? null : _saveCsv,
+                  child: const Text('Save selection CSV as... (Windows)'),
+                ),
+              ],
             ],
             if (_message case final message?) ...[
               const SizedBox(height: 12),

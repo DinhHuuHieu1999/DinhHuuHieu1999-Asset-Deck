@@ -122,6 +122,18 @@ static bool ReadBoundedJson(const std::wstring& path, std::vector<uint8_t>* byte
 }
 
 // Explicit wrappers prevent recovery's larger envelope from widening inventory limits.
+InventorySaveResult WriteNewInventoryCsv(const std::wstring& path,
+                                        const std::vector<uint8_t>& bytes) {
+  if (!ValidDestination(path, L".CSV") || bytes.size() < 2 ||
+      bytes.size() > 1024 * 1024 ||
+      std::find(bytes.begin(), bytes.end(), 0) != bytes.end() ||
+      MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS,
+          reinterpret_cast<const char*>(bytes.data()),
+          static_cast<int>(bytes.size()), nullptr, 0) == 0)
+    return InventorySaveResult::invalid;
+  return WriteNewResult(path, bytes);
+}
+
 std::string InventorySha256(const std::vector<uint8_t>& bytes) {
   return BoundedSha256(bytes, 1024 * 1024);
 }

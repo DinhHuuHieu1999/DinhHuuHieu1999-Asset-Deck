@@ -1,3 +1,6 @@
+import 'package:asset_desk/api/asset_store.dart';
+import 'package:asset_desk/api/asset_selection_csv.dart';
+
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -27,8 +30,18 @@ class Source implements AssetSelectionExportV2Source {
   }
 }
 
-class Files implements InventorySelectionExportV2Files {
+class Files
+    implements InventorySelectionExportV2Files, InventorySelectionCsvFiles {
   int saves = 0;
+  int csvSaves = 0;
+  AssetSelectionCsv? csv;
+  @override
+  Future<bool> saveSelectionCsv(AssetSelectionCsv snapshot) async {
+    csvSaves++;
+    csv = snapshot;
+    return false;
+  }
+
   @override
   Future<String> digest(Uint8List bytes) async => 'a' * 64;
   @override
@@ -38,7 +51,58 @@ class Files implements InventorySelectionExportV2Files {
   }
 }
 
+class CsvOutcomeFiles extends Files {
+  CsvOutcomeFiles(this.fail);
+  final bool fail;
+  @override
+  Future<bool> saveSelectionCsv(AssetSelectionCsv snapshot) async {
+    csvSaves++;
+    if (fail) throw const AssetFailure('Synthetic CSV write failure');
+    return true;
+  }
+}
+
 void main() {
+  for (final fail in [false, true]) {
+    testWidgets('CSV save outcome fail=$fail preserves prepared selection', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1100, 2000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final snapshot = await AssetSelectionExportV2.parse(
+        selectionV2Fixture(),
+        digest: (_) async => 'a' * 64,
+      );
+      final files = CsvOutcomeFiles(fail);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: InventorySelectionExportV2Page(
+            source: Source(snapshot),
+            files: files,
+            scope: snapshot.scope,
+          ),
+        ),
+      );
+      await tester.tap(find.text('Prepare selection JSON'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.text('Save selection CSV as... (Windows)'),
+      );
+      await tester.tap(find.text('Save selection CSV as... (Windows)'));
+      await tester.pumpAndSettle();
+      expect(files.csvSaves, 1);
+      expect(find.text('Matching selection: 1 asset'), findsOneWidget);
+      expect(find.text('Save selection JSON as... (Windows)'), findsOneWidget);
+      expect(
+        find.textContaining(
+          fail ? 'Synthetic CSV write failure' : 'CSV saved:',
+        ),
+        findsOneWidget,
+      );
+    });
+  }
   testWidgets(
     'explicit Prepare and save Cancel retain v2; failed prepare clears evidence',
     (tester) async {
@@ -98,6 +162,47 @@ void main() {
     },
   );
 
+  testWidgets(
+    'CSV uses prepared verified selection; Cancel keeps JSON and count',
+    (tester) async {
+      tester.view.physicalSize = const Size(1100, 2000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final snapshot = await AssetSelectionExportV2.parse(
+        selectionV2Fixture(),
+        digest: (_) async => 'a' * 64,
+      );
+      final source = Source(snapshot), files = Files();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: InventorySelectionExportV2Page(
+            source: source,
+            files: files,
+            scope: snapshot.scope,
+          ),
+        ),
+      );
+      expect(find.text('Save selection CSV as... (Windows)'), findsNothing);
+      await tester.tap(find.text('Prepare selection JSON'));
+      await tester.pumpAndSettle();
+      source.fail = true;
+      await tester.ensureVisible(
+        find.text('Save selection CSV as... (Windows)'),
+      );
+      await tester.tap(find.text('Save selection CSV as... (Windows)'));
+      await tester.pumpAndSettle();
+      expect(files.csvSaves, 1);
+      expect(files.csv!.count, 1);
+      expect(files.saves, 0);
+      expect(find.text('Matching selection: 1 asset'), findsOneWidget);
+      expect(
+        find.text('Save canceled. Prepared selection retained.'),
+        findsOneWidget,
+      );
+      expect(find.text('Save selection JSON as... (Windows)'), findsOneWidget);
+    },
+  );
   for (final width in [390.0, 768.0, 1440.0]) {
     testWidgets('selection render $width at 200 percent', (tester) async {
       tester.view.physicalSize = Size(width, 1600);

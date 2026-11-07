@@ -6,6 +6,19 @@ ROOT = Path(__file__).resolve().parent.parent / 'flutter/windows/runner'
 
 
 class InventoryExportNativeTests(unittest.TestCase):
+    def test_csv_is_separate_bounded_utf8_no_overwrite_wrapper(self):
+        source = (ROOT / 'inventory_export_file.cpp').read_text(encoding='utf-8')
+        body = source.split('InventorySaveResult WriteNewInventoryCsv(', 1)[1].split('\nstd::string InventorySha256', 1)[0]
+        for token in ('ValidDestination(path, L".CSV")', '1024 * 1024',
+                      'MB_ERR_INVALID_CHARS', 'std::find(bytes.begin(), bytes.end(), 0)',
+                      'WriteNewResult(path, bytes)'):
+            self.assertIn(token, body)
+        channel = (ROOT / 'inventory_export_channel.cpp').read_text(encoding='utf-8')
+        for token in ('saveSelectionCsv', 'asset-desk-inventory-selection.csv',
+                      'L"*.csv"', 'csv ? L"csv" : L"json"',
+                      'csv ? WriteNewInventoryCsv(path, *bytes)', 'ERROR_CANCELLED'):
+            self.assertIn(token, channel)
+
     def test_digest_is_bounded_and_closes_provider(self):
         source = (ROOT / 'inventory_export_file.cpp').read_text(encoding='utf-8')
         for token in ('BCRYPT_SHA256_ALGORITHM', 'BCryptHash(',

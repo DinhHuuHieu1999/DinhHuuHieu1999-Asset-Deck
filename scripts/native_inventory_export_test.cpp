@@ -84,6 +84,21 @@ int wmain(int argc, wchar_t** argv) {
   if (!check(ReadRecoveryJson((directory/L"recovery-limit.json").wstring(), &inspected) && inspected.size() == 2*1024*1024)) return 1;
   if (!check(!ReadRecoveryJson((directory/L"recovery-large.json").wstring(), &inspected) && inspected.empty())) return 1;
   if (!check(WriteNewRecoveryJson((directory/L"bad-recovery.txt").wstring(), json) == InventorySaveResult::invalid)) return 1;
+  const std::vector<uint8_t> csv{'"','n','a','m','e','"','\r','\n','"',0xc3,0xa9,'"','\r','\n'};
+  const auto csv_target = directory / L"synthetic.csv";
+  if (!check(WriteNewInventoryCsv(csv_target.wstring(), csv) == InventorySaveResult::saved)) return 1;
+  if (!check(WriteNewInventoryCsv(csv_target.wstring(), abc) == InventorySaveResult::exists)) return 1;
+  std::ifstream csv_input(csv_target, std::ios::binary);
+  const std::vector<uint8_t> csv_contents((std::istreambuf_iterator<char>(csv_input)), std::istreambuf_iterator<char>());
+  if (!check(csv_contents == csv)) return 1;
+  for (const auto* name : {L"csv.json", L"CON.csv", L"bad.csv:stream"}) {
+    if (!check(WriteNewInventoryCsv((directory/name).wstring(), csv) == InventorySaveResult::invalid)) return 1;
+  }
+  if (!check(WriteNewInventoryCsv(L"relative.csv", csv) == InventorySaveResult::invalid)) return 1;
+  if (!check(WriteNewInventoryCsv((directory/L"invalid-utf8.csv").wstring(), std::vector<uint8_t>{'a',0xff}) == InventorySaveResult::invalid)) return 1;
+  if (!check(WriteNewInventoryCsv((directory/L"nul.csv").wstring(), std::vector<uint8_t>{'a',0}) == InventorySaveResult::invalid)) return 1;
+  if (!check(WriteNewInventoryCsv((directory/L"empty.csv").wstring(), empty) == InventorySaveResult::invalid)) return 1;
+  if (!check(WriteNewInventoryCsv((directory/L"too-large.csv").wstring(), std::vector<uint8_t>(1024*1024+1, 'a')) == InventorySaveResult::invalid)) return 1;
   std::cout << count << " native assertions passed; synthetic output retained\n";
   return 0;
 }
