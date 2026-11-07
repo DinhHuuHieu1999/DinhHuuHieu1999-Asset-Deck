@@ -10,9 +10,17 @@ class AssetCheckEditor extends StatefulWidget {
     super.key,
     required this.source,
     required this.original,
+    this.useToday = false,
+    this.clock,
   });
   final AssetCheckSource source;
   final AssetCheck original;
+
+  /// Prefill the current UTC day for explicit review; opening never writes.
+  final bool useToday;
+
+  /// Optional clock for deterministic calendar-boundary verification.
+  final DateTime Function()? clock;
   @override
   State<AssetCheckEditor> createState() => _AssetCheckEditorState();
 }
@@ -25,9 +33,15 @@ class _AssetCheckEditorState extends State<AssetCheckEditor> {
   @override
   void initState() {
     super.initState();
-    _date = TextEditingController(text: widget.original.lastCheckedOn ?? '')
-      ..addListener(_changed);
+    _date = TextEditingController(
+      text: widget.useToday ? _today() : widget.original.lastCheckedOn ?? '',
+    )..addListener(_changed);
   }
+
+  String _today() => (widget.clock?.call() ?? DateTime.now())
+      .toUtc()
+      .toIso8601String()
+      .substring(0, 10);
 
   void _changed() => setState(() {});
   @override
@@ -73,7 +87,7 @@ class _AssetCheckEditorState extends State<AssetCheckEditor> {
   Future<void> _save() async {
     if (_busy || _uncertain) return;
     final date = _date.text.isEmpty ? null : _date.text;
-    final today = DateTime.now().toUtc().toIso8601String().substring(0, 10);
+    final today = _today();
     if (date != null &&
         (!isAssetCalendarDate(date) || date.compareTo(today) > 0)) {
       setState(
@@ -125,7 +139,9 @@ class _AssetCheckEditorState extends State<AssetCheckEditor> {
     },
     child: Scaffold(
       appBar: AppBar(
-        title: const Text('Last inventory check'),
+        title: Text(
+          widget.useToday ? 'Review check date' : 'Last inventory check',
+        ),
         leading: IconButton(
           tooltip: 'Back',
           onPressed: _busy ? null : _back,
@@ -142,6 +158,12 @@ class _AssetCheckEditorState extends State<AssetCheckEditor> {
               const Text(
                 'Use YYYY-MM-DD. Manual date only, not proof of inspection. Dates use the UTC calendar day; future dates are rejected. Blank clears the date.',
               ),
+              if (widget.useToday) ...[
+                const SizedBox(height: 12),
+                const Text(
+                  'Today (UTC) is prefilled. Review the date below, then Save check date to confirm. Nothing is saved yet.',
+                ),
+              ],
               const SizedBox(height: 12),
               TextField(
                 controller: _date,

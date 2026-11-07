@@ -320,6 +320,15 @@ class _AssetsPageState extends State<AssetsPage> {
           checkSource: widget.enableAssetCheck && store is AssetCheckSource
               ? store as AssetCheckSource
               : null,
+          onCheckToday: widget.enableAssetCheck && store is AssetCheckSource
+              ? (original) => openEditor(
+                  AssetCheckEditor(
+                    source: store as AssetCheckSource,
+                    original: original,
+                    useToday: true,
+                  ),
+                )
+              : null,
           onEditCheck: widget.enableAssetCheck && store is AssetCheckSource
               ? (original) => openEditor(
                   AssetCheckEditor(

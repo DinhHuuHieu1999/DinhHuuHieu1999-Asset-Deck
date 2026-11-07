@@ -21,6 +21,7 @@ class AssetDetailsPage extends StatefulWidget {
     this.locationSource,
     this.checkSource,
     this.onEditCheck,
+    this.onCheckToday,
     this.session,
     this.onEdit,
     this.onDuplicate,
@@ -35,6 +36,9 @@ class AssetDetailsPage extends StatefulWidget {
 
   /// Edits only the check date verified against this snapshot version.
   final Future<bool> Function(AssetCheck check)? onEditCheck;
+
+  /// Opens a review draft prefilled with the current UTC day; never auto-saves.
+  final Future<bool> Function(AssetCheck check)? onCheckToday;
   final AssetSession? session;
 
   /// Opens editing for this exact snapshot; true means a confirmed save.
@@ -254,7 +258,8 @@ class _AssetDetailsPageState extends State<AssetDetailsPage> {
                     : widget.onEdit == null &&
                           widget.onEditDates == null &&
                           widget.onEditLocation == null &&
-                          widget.onEditCheck == null
+                          widget.onEditCheck == null &&
+                          widget.onCheckToday == null
                     ? 'Read-only inventory snapshot, not a live record. To update it, return to inventory, refresh and reopen.'
                     : 'Inventory snapshot, not a live record. Edit uses this version; a successful save returns to inventory.',
               ),
@@ -377,6 +382,17 @@ class _AssetDetailsPageState extends State<AssetDetailsPage> {
                 const Text(
                   'Manual date, not proof of inspection. Existing JSON exports exclude check dates.',
                 ),
+                if (widget.onCheckToday != null)
+                  OutlinedButton(
+                    onPressed:
+                        _busy ||
+                            _editing ||
+                            _error != null ||
+                            _details?.checkDate == null
+                        ? null
+                        : () => _edit(_details?.checkDate, widget.onCheckToday),
+                    child: const Text('Mark checked today (UTC)'),
+                  ),
                 if (widget.onEditCheck != null)
                   OutlinedButton(
                     onPressed:
