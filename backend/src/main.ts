@@ -37,7 +37,7 @@ import { isAssetImportEnabled } from './domains/assets/asset-import.config';
 import { createAssetImportParser } from './domains/assets/asset-import-parser';
 
 /** Start a loopback-only API; release clients require an external HTTPS endpoint. */
-export async function bootstrap(): Promise<void> {
+export async function bootstrap(): Promise<NestExpressApplication> {
   loadEnvFiles();
   const port = validateStartup();
   const savedFiltersEnabled = isAssetSavedFilterEnabled();
@@ -94,6 +94,7 @@ export async function bootstrap(): Promise<void> {
     );
     app.enableShutdownHooks();
     await app.listen(port, '127.0.0.1');
+    return app;
   } catch (error) {
     try {
       await app.close();

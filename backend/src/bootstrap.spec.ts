@@ -92,6 +92,14 @@ describe('opt-in import bootstrap', () => {
     );
     expect(app.use).toHaveBeenCalledTimes(2);
   });
+  it('returns the owned application for explicit graceful shutdown after listen', async () => {
+    const owned = await bootstrap();
+    expect(owned).toBe(app);
+    expect(app.listen).toHaveBeenCalledWith(8180, '127.0.0.1');
+    expect(app.close).not.toHaveBeenCalled();
+    await owned.close();
+    expect(app.close).toHaveBeenCalledTimes(1);
+  });
   it.each(['dates', 'location'])(
     'refuses selection export without %s before app construction',
     async (missing) => {
