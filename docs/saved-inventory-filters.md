@@ -146,3 +146,19 @@ passed Prepare, exact-handle backend restart and fresh Dart-client verification
 for two owners. Definitions and public asset fields matched; owned processes
 and container stopped, with retained fixture data and no retry. Tokens are not persisted and the
 fresh-client check does not prove survival of an existing authenticated session.
+
+## Replace a saved definition
+
+Replace with applied filters previews the stored and replacement definitions.
+Confirm replacement keeps the name and ID, submits the original version, and
+uses only the last successfully applied inventory query, never unsent controls.
+Cancel makes no request. Identical or unsupported applied queries cannot replace
+a definition. A conflict or uncertain response retains the visible definition
+and requires Reload before another write; no automatic retry is made.
+
+Offline widget tests and synthetic renders cover this UI extension. Operator
+Windows checks on an isolated HTTPS fixture confirmed Cancel keeps the stored
+definition; Confirm/Reload retains the name and changes the query; Use as draft
+followed by explicit Apply/Refresh uses that query; Reset/Refresh restores one
+unchanged asset. The fixture stopped safely. Preview values were not separately
+confirmed by the operator. Codacy review and commit remain pending.

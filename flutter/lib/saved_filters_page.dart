@@ -168,6 +168,86 @@ class _SavedFiltersPageState extends State<SavedFiltersPage> {
     });
   }
 
+  bool _matchesApplied(AssetSavedFilter item) =>
+      widget.applied != null &&
+      item.query.values.entries.every(
+        (entry) => widget.applied!.values[entry.key] == entry.value,
+      );
+
+  String _replacementSummary(AssetSavedFilterQuery query) => [
+    'Search: ${query.values['q']!.isEmpty ? '(none)' : query.values['q']}',
+    'Status: ${query.values['status']!.isEmpty ? 'All' : query.values['status']}',
+    'Category: ${query.values['category']!.isEmpty ? 'All' : query.values['category']}',
+    if (query.values['locationMode'] == 'all') 'Location: All',
+    if (query.values['warranty'] == 'all') 'Warranty: All',
+    if (query.values['checkMode'] == 'all') 'Check date: All',
+    ..._summary(query)
+        .split('\n')
+        .where(
+          (line) =>
+              !line.startsWith('Search:') &&
+              !line.startsWith('Status:') &&
+              !line.startsWith('Category:'),
+        ),
+  ].join('\n');
+
+  Future<void> _replace(AssetSavedFilter item) async {
+    final query = widget.applied;
+    if (_busy ||
+        _needsReload ||
+        query == null ||
+        _unsupported(query) != null ||
+        _matchesApplied(item))
+      return;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Replace saved filter contents?'),
+        scrollable: true,
+        content: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Keep the name "${item.name}". Replace only its query with the last successfully applied filters, not unsent draft controls. Assets are not changed.',
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Currently saved',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            Text(_replacementSummary(item.query)),
+            const SizedBox(height: 16),
+            Text(
+              'Applied replacement',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            Text(_replacementSummary(query)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirm replacement'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirm != true || _needsReload) return;
+    await _run(() async {
+      await widget.source.updateSavedFilter(item, item.name, query);
+      final items = await widget.source.listSavedFilters();
+      if (mounted)
+        setState(() {
+          _items = items;
+          _needsReload = false;
+        });
+    });
+  }
+
   String _summary(AssetSavedFilterQuery query) {
     final v = query.values;
     final parts = <String>[
@@ -248,6 +328,17 @@ class _SavedFiltersPageState extends State<SavedFiltersPage> {
                               ? null
                               : () => Navigator.pop(context, item.query),
                           child: const Text('Use as draft'),
+                        ),
+                        OutlinedButton(
+                          onPressed:
+                              _busy ||
+                                  _needsReload ||
+                                  widget.applied == null ||
+                                  _unsupported(widget.applied!) != null ||
+                                  _matchesApplied(item)
+                              ? null
+                              : () => _replace(item),
+                          child: const Text('Replace with applied filters'),
                         ),
                         OutlinedButton(
                           onPressed:
