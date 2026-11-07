@@ -23,6 +23,7 @@ class AssetDetailsPage extends StatefulWidget {
     this.onEditCheck,
     this.session,
     this.onEdit,
+    this.onDuplicate,
     this.onEditDates,
     this.onEditLocation,
   });
@@ -38,6 +39,9 @@ class AssetDetailsPage extends StatefulWidget {
 
   /// Opens editing for this exact snapshot; true means a confirmed save.
   final Future<bool> Function(AssetRecord record)? onEdit;
+
+  /// Opens a create-only draft; true means a new asset was explicitly saved.
+  final Future<bool> Function(AssetRecord record)? onDuplicate;
 
   /// Edits only the dates already verified against this snapshot's version.
   final Future<bool> Function(AssetDates dates)? onEditDates;
@@ -268,6 +272,14 @@ class _AssetDetailsPageState extends State<AssetDetailsPage> {
                       ? null
                       : () => _edit(_record, widget.onEdit),
                   child: const Text('Edit asset'),
+                ),
+              if (widget.onDuplicate != null)
+                OutlinedButton(
+                  onPressed:
+                      _busy || _editing || _details == null || _error != null
+                      ? null
+                      : () => _edit(_record, widget.onDuplicate),
+                  child: const Text('Duplicate as draft'),
                 ),
               if (_busy) const LinearProgressIndicator(),
               if (_error != null)

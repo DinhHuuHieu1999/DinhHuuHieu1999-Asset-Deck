@@ -7,7 +7,23 @@ import 'api/asset_session.dart';
 
 /// Manual create/edit form. Failed writes are never automatically retried.
 class AssetEditor extends StatefulWidget {
-  const AssetEditor({super.key, required this.store, this.original});
+  const AssetEditor({super.key, required this.store, this.original})
+    : draft = null;
+
+  /// Create-only draft: deliberately excludes identity, serial and optional data.
+  AssetEditor.duplicate({
+    super.key,
+    required this.store,
+    required AssetRecord source,
+  }) : original = null,
+       draft = AssetInput(
+         name: source.input.name,
+         category: source.input.category,
+         serial: '',
+         status: source.input.status,
+         notes: source.input.notes,
+       );
+  final AssetInput? draft;
   final AssetStore store;
   final AssetRecord? original;
   @override
@@ -46,7 +62,7 @@ class _AssetEditorState extends State<AssetEditor> {
   @override
   void initState() {
     super.initState();
-    final i = widget.original?.input;
+    final i = widget.original?.input ?? widget.draft;
     _name = TextEditingController(text: i?.name ?? '');
     _category = TextEditingController(text: i?.category ?? '');
     _serial = TextEditingController(text: i?.serial ?? '');
@@ -278,7 +294,13 @@ class _AssetEditorState extends State<AssetEditor> {
     },
     child: Scaffold(
       appBar: AppBar(
-        title: Text(widget.original == null ? 'Add asset' : 'Edit asset'),
+        title: Text(
+          widget.draft != null
+              ? 'Duplicate asset draft'
+              : widget.original == null
+              ? 'Add asset'
+              : 'Edit asset',
+        ),
         leading: IconButton(
           tooltip: 'Back',
           onPressed: _busy ? null : _back,
@@ -292,6 +314,13 @@ class _AssetEditorState extends State<AssetEditor> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              if (widget.draft != null)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    'New unsaved asset. Serial is blank; dates, location and check date are not copied. Review before Save.',
+                  ),
+                ),
               _field('Name (required)', _name, 120),
               _field('Category (required)', _category, 64),
               _field('Serial (optional)', _serial, 120),

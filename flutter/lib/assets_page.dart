@@ -295,6 +295,8 @@ class _AssetsPageState extends State<AssetsPage> {
               : null,
           onEdit: (original) =>
               openEditor(AssetEditor(store: store, original: original)),
+          onDuplicate: (source) =>
+              openEditor(AssetEditor.duplicate(store: store, source: source)),
           onEditDates: widget.enableAssetDates && store is AssetDatesSource
               ? (original) => openEditor(
                   AssetDatesEditor(

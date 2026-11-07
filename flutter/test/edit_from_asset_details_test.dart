@@ -311,6 +311,7 @@ void main() {
               record: AssetRecord.fromJson(record()),
               datesSource: Dates(),
               onEdit: (_) async => false,
+              onDuplicate: (_) async => false,
             ),
           ),
         ),
