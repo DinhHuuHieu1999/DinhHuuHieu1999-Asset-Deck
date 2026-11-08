@@ -7,6 +7,8 @@ from daily_local_environment import backend_environment
 from daily_local_fixture_client import SyntheticClient
 from daily_local_lifecycle import Launcher
 from daily_local_session import SessionLock
+from daily_local_profile import BASE, EXTENDED, profile_contract, profile_environment
+from daily_local_extended_client import ExtendedClient
 
 
 class RecoverySessions:
@@ -17,23 +19,29 @@ class RecoverySessions:
     client is shared only to retain synthetic credentials across restore.
     """
     def __init__(self, config, runtime, client=None, adapter_factory=DailyAdapter,
-                 launcher_factory=Launcher, lock_factory=SessionLock):
+                 launcher_factory=Launcher, lock_factory=SessionLock, profile=BASE):
+        self.profile = profile_contract(profile)['name']
         self.config = validate_config(config)
         if self.config['app'] != self.config['python']:
             raise ValueError('Recovery accepts only the inert Python app substitute')
         self.runtime = runtime
-        self.client = client or SyntheticClient(config['https_port'], runtime.remaining)
+        client_type = ExtendedClient if self.profile == EXTENDED else SyntheticClient
+        self.client = client or client_type(config['https_port'], runtime.remaining)
         self.adapter_factory, self.launcher_factory = adapter_factory, launcher_factory
         self.lock_factory = lock_factory
         self.retained = []
 
     def open(self, database):
         """Start against the explicitly owned synthetic database, never a daily DB."""
+        if self.profile != BASE and database.profile['name'] != self.profile:
+            raise ValueError('Recovery database profile mismatch')
         database.assert_owned()
         private = dict(AUTH_POSTGRES_URL='postgresql://fixture:{}@127.0.0.1:{}/fixture'.format(
             database.password, database.port), JWT_ACCESS_SECRET=secrets.token_hex(32),
             CSRF_SECRET=secrets.token_hex(32))
-        adapter = self.adapter_factory(self.config, backend_environment(private, self.runtime.env))
+        environment = (backend_environment(private, self.runtime.env) if self.profile == BASE
+                       else profile_environment(self.profile, private, self.runtime.env))
+        adapter = self.adapter_factory(self.config, environment)
         launcher = self.launcher_factory(adapter)
         session = RecoverySession(adapter, launcher,
             self.lock_factory(self.config['state_dir']), self.client, self.runtime.remaining)

@@ -90,3 +90,28 @@ class RecoveryTests(unittest.TestCase):
         with self.assertRaises(RuntimeError): self.verify()
         self.assertTrue((self.folder/'daily-base.dump').exists())
         self.assertFalse((self.folder/'daily-base-manifest.json').exists())
+
+
+class CheckpointTests(unittest.TestCase):
+    setUp = RecoveryTests.setUp
+    def test_restore_failure_checkpoint_has_no_private_exception_or_rows(self):
+        stages=[]
+        original=self.target.runtime.run
+        def run(command,**kwargs):
+            if 'pg_restore' in command:raise RuntimeError('private-exception-never-report')
+            return original(command,**kwargs)
+        self.target.runtime.run=run
+        with self.assertRaises(RuntimeError):
+            verify_base_restore(self.source,self.target,self.folder,lambda:120,
+                                lambda db:True,checkpoint=stages.append)
+        self.assertEqual(stages[-1],'dump-restore')
+        self.assertNotIn('private',json.dumps(stages))
+        self.assertNotIn('never-in-report',json.dumps(stages))
+
+    def test_success_checkpoint_sequence(self):
+        stages=[]
+        verify_base_restore(self.source,self.target,self.folder,lambda:120,
+                            lambda db:True,checkpoint=stages.append)
+        self.assertEqual(stages,['restore-preflight','source-snapshot','dump-create',
+                                'dump-restore','restore-compare','restored-login',
+                                'success-manifest'])

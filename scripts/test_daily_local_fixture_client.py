@@ -3,7 +3,7 @@
 import io
 import json
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from daily_local_fixture_client import SyntheticClient
 
 
@@ -72,3 +72,84 @@ class ClientTests(unittest.TestCase):
             client.assert_invalid_requests_rejected()
         self.assertEqual([len(c.headers) for c in instances], [0, 1, 2])
         self.assertTrue(all(c.closed for c in instances))
+
+
+class MethodTests(unittest.TestCase):
+    def test_put_uses_same_fixed_https_transport_and_csrf(self):
+        opener = Opener()
+        client = SyntheticClient(29443, lambda: 3, opener)
+        client.csrf = 'synthetic-csrf'
+        client.request('/api/v1/assets/synthetic/location', {'location': None}, method='PUT')
+        request, _ = opener.calls[0]
+        self.assertEqual(request.get_method(), 'PUT')
+        self.assertEqual(request.get_header('X-csrf-token'), 'synthetic-csrf')
+        self.assertEqual(json.loads(request.data), {'location': None})
+
+    def test_arbitrary_method_refused_before_transport(self):
+        opener = Opener()
+        client = SyntheticClient(29443, lambda: 3, opener)
+        with self.assertRaises(ValueError):
+            client.request('/api/v1/assets', method='CONNECT')
+        self.assertEqual(opener.calls, [])
+
+
+class TimingTests(unittest.TestCase):
+    def test_timing_is_redacted_and_bounded(self):
+        client = SyntheticClient(29443, lambda: 3, Opener())
+        with patch('daily_local_fixture_client.time.monotonic', side_effect=[1, 3]):
+            client.request('/api/v1/assets/private-id')
+        self.assertEqual(client.request_timings,
+                         [dict(elapsedSeconds=2, outcome='completed')])
+        client.request_timings = [{}] * 256
+        client.request('/api/v1/assets')
+        self.assertEqual(len(client.request_timings), 256)
+
+    def test_transport_failure_retains_timing_without_error_text(self):
+        opener = Opener()
+        opener.open = lambda *args, **kwargs: (_ for _ in ()).throw(OSError('private'))
+        client = SyntheticClient(29443, lambda: 3, opener)
+        with self.assertRaises(OSError): client.request('/api/v1/assets')
+        self.assertEqual(client.request_timings[0]['outcome'], 'transport-error')
+        self.assertNotIn('private', repr(client.request_timings))
+
+    def test_response_failure_is_not_completed(self):
+        client = SyntheticClient(29443, lambda: 3, Opener())
+        with self.assertRaises(RuntimeError):
+            client.request('/api/v1/assets', expected=201)
+        self.assertEqual(client.request_timings[0]['outcome'], 'response-mismatch')
+
+
+class LoopbackTransportTests(unittest.TestCase):
+    def test_ipv4_socket_retains_localhost_sni_and_verification(self):
+        import ssl
+        from daily_local_fixture_client import LoopbackHTTPSConnection
+        context = ssl.create_default_context()
+        self.assertTrue(context.check_hostname)
+        self.assertEqual(context.verify_mode, ssl.CERT_REQUIRED)
+        connection = LoopbackHTTPSConnection('localhost', 29443, timeout=3, context=context)
+        raw_socket = Mock()
+        with patch('daily_local_fixture_client.socket.create_connection', return_value=raw_socket) as create, \
+             patch.object(context, 'wrap_socket', return_value=object()) as wrap:
+            connection.connect()
+        create.assert_called_once_with(('127.0.0.1', 29443), 3, None)
+        wrap.assert_called_once_with(raw_socket, server_hostname='localhost')
+        self.assertTrue(context.check_hostname)
+        self.assertEqual(context.verify_mode, ssl.CERT_REQUIRED)
+
+    def test_non_localhost_refused_without_socket(self):
+        from daily_local_fixture_client import LoopbackHTTPSConnection
+        with patch('daily_local_fixture_client.socket.create_connection') as create:
+            with self.assertRaises(ValueError): LoopbackHTTPSConnection('foreign.invalid', 29443)
+            with self.assertRaises(ValueError):
+                LoopbackHTTPSConnection._connect_ipv4(('foreign.invalid', 29443), 3)
+        create.assert_not_called()
+
+    def test_handler_uses_scoped_connection_and_existing_context(self):
+        from daily_local_fixture_client import LoopbackHTTPSConnection, LoopbackHTTPSHandler
+        import ssl
+        context = ssl.create_default_context()
+        handler = LoopbackHTTPSHandler(context=context)
+        request = object()
+        with patch.object(handler, 'do_open', return_value='response') as open_request:
+            self.assertEqual(handler.https_open(request), 'response')
+        open_request.assert_called_once_with(LoopbackHTTPSConnection, request, context=context)

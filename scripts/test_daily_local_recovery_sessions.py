@@ -70,3 +70,27 @@ class SessionTests(unittest.TestCase):
              patch('daily_local_recovery_sessions.SyntheticClient') as client:
             with self.assertRaises(ValueError):RecoverySessions(cfg,None)
             client.assert_not_called()
+
+
+class ExtendedSessionTests(unittest.TestCase):
+    def test_selected_flags_reach_adapter_and_profile_mismatch_starts_nothing(self):
+        from daily_local_profile import EXTENDED
+        cfg={'app':Path('python'),'python':Path('python'),'https_port':29443,
+             'state_dir':Path('state')}
+        lock=SimpleNamespace(held=False,acquire=lambda:None)
+        launcher=SimpleNamespace(timeout=30,start=lambda:None)
+        environments=[]
+        db=SimpleNamespace(profile={'name':EXTENDED},assert_owned=lambda:None,
+                           password='synthetic',port=29444)
+        with patch('daily_local_recovery_sessions.validate_config',return_value=cfg):
+            factory=RecoverySessions(cfg,SimpleNamespace(env={},remaining=lambda:120),
+                client=object(),profile=EXTENDED,
+                adapter_factory=lambda config,env:environments.append(env),
+                launcher_factory=lambda adapter:launcher,lock_factory=lambda path:lock)
+            factory.open(db)
+            self.assertEqual(environments[0]['ASSET_SAVED_FILTERS_ENABLED'],'true')
+            self.assertEqual(environments[0]['ASSET_IMPORT_ENABLED'],'false')
+            self.assertEqual(environments[0]['CSRF_ENABLED'],'true')
+            db.profile={'name':'base'}
+            with self.assertRaisesRegex(ValueError,'profile mismatch'):factory.open(db)
+            self.assertEqual(len(environments),1)

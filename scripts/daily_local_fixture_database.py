@@ -5,6 +5,8 @@ import re
 import secrets
 import time
 
+from daily_local_profile import BASE, profile_contract
+
 
 LABEL = 'asset-desk.daily-runtime'
 MIGRATIONS = ('001-auth-accounts.sql', '002-assets.sql')
@@ -13,11 +15,12 @@ MIGRATIONS = ('001-auth-accounts.sql', '002-assets.sql')
 class SyntheticDatabase:
     """Create fresh labeled resources only; retain storage after verified stop."""
 
-    def __init__(self, runtime, image, port, identity, clock=time.monotonic, sleep=time.sleep):
+    def __init__(self, runtime, image, port, identity, clock=time.monotonic, sleep=time.sleep, profile=BASE):
         if (not re.fullmatch(r'sha256:[0-9a-f]{64}', image)
                 or not re.fullmatch(r'[0-9a-f]{32}', identity)
                 or type(port) is not int or not 1024 <= port <= 65535):
             raise ValueError('Invalid synthetic database identity')
+        self.profile = profile_contract(profile)
         self.runtime, self.image, self.port = runtime, image, port
         self.identity, self.clock, self.sleep = identity, clock, sleep
         self.name = 'asset-daily-' + identity
@@ -71,10 +74,14 @@ class SyntheticDatabase:
         raise RuntimeError('Synthetic database readiness deadline exceeded')
 
     def migrate(self, root):
-        """Apply only the fixed base schema; never accept arbitrary SQL paths."""
+        """Apply a fixed named synthetic schema, preloading before any SQL."""
+        sql_files = [(root / 'backend' / 'migrations' / name).read_bytes()
+                     for name in self.profile['migrations']]
+        if any(not sql or len(sql) > 1024 * 1024 for sql in sql_files):
+            raise ValueError('Invalid synthetic migration artifact')
         self.assert_owned()
-        for name in MIGRATIONS:
-            sql = (root / 'backend' / 'migrations' / name).read_bytes()
+        for sql in sql_files:
+            self.assert_owned()
             self.runtime.run(['docker', 'exec', '-i', self.name, 'psql',
                               '-v', 'ON_ERROR_STOP=1', '-U', 'fixture', '-d', 'fixture'], data=sql)
 

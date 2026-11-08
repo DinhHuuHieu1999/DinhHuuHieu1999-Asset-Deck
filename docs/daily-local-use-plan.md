@@ -137,7 +137,8 @@ certificate trust change, data migration, or remote upload is implied.
 
 ## Source implementation status
 
-The daily runtime source is experimental and has not started a real service.
+The daily runtime source is experimental. Synthetic HTTPS restart and base-profile
+recovery have passed; daily deployment and real Flutter acceptance remain pending.
 
 | Area          | Current implementation                                                    | Remaining acceptance                                          |
 | ------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------- |
@@ -164,13 +165,14 @@ python -B -m unittest discover -s scripts -p "test_daily_local*.py" -v
 node --test scripts/daily-local-backend.test.cjs
 ```
 
-Current results: 81 Python tests, four Node supervisor tests, 1,025 backend tests
+Historical committed-base results: 110 Python tests, four Node supervisor tests, 1,025 backend tests
 (119 opt-in tests skipped), and backend typecheck pass. Python tests use fake transports/processes,
 in-memory HTTP requests, and temporary synthetic lock files; they do not open real
 sockets or read TLS material. These counts do not certify live deployment.
 Gateway shutdown now waits up to 26 seconds for handlers to drain after closing
 the listener; actual Windows/TLS draining remains unverified. Codacy tools are
-unavailable in the current client, not a passing scan.
+visible again, but the latest one-file call returned an empty result without
+analyzer or file-count evidence; this is not a verified passing scan.
 
 ### Configuration and command boundary
 
@@ -194,12 +196,35 @@ approved recovery. Do not delete locks or terminate processes automatically.
 
 Synthetic HTTPS and same-record persistence after backend/gateway restart have
 passed through the new launcher. Flutter shutdown, release-profile matching,
-private-directory access, and backup/restore remain unverified. Existing fixture results demonstrate
+and private-directory access remain unverified. Extended-profile synthetic
+backup/restore has now passed with two owners; this does not certify native UI
+or ordinary daily deployment. Recovery is documented in
+[the recovery harness](daily-local-recovery-plan.md). Existing fixture results demonstrate
 scoped behavior, not deployment readiness. New Windows artifacts may still be
 blocked by application control; do not bypass it. Historical Codacy coverage
 exceptions are not a security pass for this runtime. No real credentials, services,
-or databases have been used by this source phase; no commit is implied.
+or databases have been used by this source phase. Runtime/recovery source is
+committed; no deployment approval is implied.
 
 See [backend runtime notes](../backend/README.md),
 [Windows client notes](../flutter/README.md), and the
 [HTTPS acceptance boundary](client-https-acceptance-plan.md).
+
+## Named profile source contract (not deployed)
+
+`scripts/daily_local_profile.py` defines explicit `base` and
+`inventory-with-saved-filters` contracts. Base keeps all optional flags disabled.
+The extended proposal enables dates, location, check date, saved filters and their
+full/selection exports; every import version stays disabled. Its schema list is
+001 through 007 in order, including the unused import-receipt table to preserve
+normal migration ordering. A table existing does not enable its API.
+
+The helper returns fresh metadata and rejects contradictory feature overrides
+before constructing the security-preserving backend environment. It neither
+executes migrations nor changes launcher defaults. Eight new offline tests bring
+the worktree daily group to 118; the committed-source result above remains 110.
+The latest worktree result is 152 guarded offline tests plus a separately
+approved extended HTTPS recovery fixture: populated/null fields and saved filters
+survived restore and reauthentication for two owners. Imports remained disabled.
+Client/profile matching and operator profile selection for ordinary daily use
+remain pending. Do not start an extended daily session based on this helper alone.
