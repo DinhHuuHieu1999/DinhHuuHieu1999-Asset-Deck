@@ -11,6 +11,7 @@ from daily_local_config import validate_config
 from daily_local_environment import backend_environment, SETTINGS, FEATURES
 from daily_local_lifecycle import Launcher
 from daily_local_session import SessionLock
+from daily_local_profile import BASE, EXTENDED, profile_environment
 
 
 def command_loop(launcher, input_stream, notify):
@@ -45,6 +46,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config', required=True)
     parser.add_argument('--execute-approved-local', action='store_true')
+    parser.add_argument('--profile', choices=(BASE, EXTENDED), default=None)
     args = parser.parse_args(argv)
     try:
         path = Path(args.config)
@@ -56,7 +58,8 @@ def main(argv=None):
             print('Configuration paths validated; no processes started')
             return 0
         private = {name: os.environ[name] for name in SETTINGS + FEATURES if name in os.environ}
-        environment = backend_environment(private, os.environ)
+        environment = (backend_environment(private, os.environ) if args.profile is None
+                       else profile_environment(args.profile, private, os.environ))
         lock = SessionLock(config['state_dir'])
         lock.acquire()
         launcher = Launcher(DailyAdapter(config, environment))

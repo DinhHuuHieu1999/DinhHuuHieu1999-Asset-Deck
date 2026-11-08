@@ -65,8 +65,8 @@ def profile_contract(name):
 def profile_environment(name, private, system):
     """Build secure environment, rejecting feature overrides outside the contract.
 
-    This helper is not wired into the launcher. Callers must separately verify
-    schema, client flags, release identity and private storage before startup.
+    The launcher uses this helper only with an explicit named profile. Callers
+    must separately verify schema, client flags, release identity and storage.
     """
     contract = profile_contract(name)
     if type(private) is not dict:

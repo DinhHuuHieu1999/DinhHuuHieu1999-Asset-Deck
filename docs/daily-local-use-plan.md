@@ -241,4 +241,10 @@ mapping. Returned dictionaries are independent.
 This helper does not build or launch anything. It does not choose an API endpoint,
 inspect a compiled executable, or prove that a release used these flags. Review the
 HTTPS endpoint and record actual build arguments and artifact hashes separately.
-Launcher integration, native acceptance and ordinary deployment remain pending.
+The manual launcher accepts optional `--profile base` or
+`--profile inventory-with-saved-filters`. In execute mode it applies that contract
+before acquiring a session lock or creating an adapter; conflicting environment
+flags fail closed. Omitting the option preserves the existing explicit environment
+behavior. Dry-run still validates paths only, not private environment or schema.
+This source integration does not verify the client artifact or apply migrations.
+Native acceptance and ordinary deployment remain pending.
