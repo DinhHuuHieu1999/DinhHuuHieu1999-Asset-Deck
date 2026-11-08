@@ -1,9 +1,13 @@
 """Offline profile contracts; no subprocess, network, private files or database."""
 
+import re
+from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 from daily_local_environment import FEATURES
-from daily_local_profile import BASE, EXTENDED, profile_contract, profile_environment
+from daily_local_profile import (BASE, EXTENDED, client_profile_flags,
+                                 profile_contract, profile_environment)
 
 
 class ProfileTests(unittest.TestCase):
@@ -74,6 +78,45 @@ class ProfileTests(unittest.TestCase):
         for value in (None, [], 'private'):
             with self.assertRaisesRegex(ValueError, '^Invalid private environment$'):
                 profile_environment(BASE, value, {})
+
+
+class ClientProfileTests(unittest.TestCase):
+    def test_flags_cover_actual_flutter_entrypoint(self):
+        source = (Path(__file__).resolve().parents[1] / 'flutter' / 'lib' /
+                  'main.dart').read_text(encoding='utf-8')
+        actual = set(re.findall(r"bool\.fromEnvironment\(\s*'([^']+)'", source))
+        self.assertEqual(set(client_profile_flags(EXTENDED)), actual)
+
+    def test_extended_enables_fields_exports_saved_filters_not_import_or_http(self):
+        flags = client_profile_flags(EXTENDED)
+        self.assertEqual(len(flags), 13)
+        for name, value in flags.items():
+            self.assertEqual(value, 'false' if 'IMPORT' in name or
+                             name == 'ASSET_DESK_ALLOW_LOCAL_HTTP' else 'true')
+        self.assertNotIn('ASSET_DESK_API_URL', flags)
+
+    def test_base_all_off_and_result_is_fresh(self):
+        self.assertTrue(all(value == 'false' for value in client_profile_flags(BASE).values()))
+        first = client_profile_flags(EXTENDED)
+        first.clear()
+        self.assertEqual(len(client_profile_flags(EXTENDED)), 13)
+
+    def test_unknown_profile_rejected(self):
+        with self.assertRaises(ValueError):
+            client_profile_flags('unknown')
+
+    def test_future_backend_feature_without_mapping_fails_closed(self):
+        with patch('daily_local_profile.FEATURES', ('UNMAPPED_ENABLED',)):
+            with self.assertRaisesRegex(ValueError, 'mapping is incomplete'):
+                client_profile_flags(EXTENDED)
+
+    def test_duplicate_client_mapping_fails_closed(self):
+        from daily_local_profile import _CLIENT_FLAGS
+        mapping = dict(_CLIENT_FLAGS)
+        mapping['ASSET_DATES_ENABLED'] = mapping['ASSET_LOCATION_ENABLED']
+        with patch('daily_local_profile._CLIENT_FLAGS', mapping):
+            with self.assertRaisesRegex(ValueError, 'mapping is incomplete'):
+                client_profile_flags(EXTENDED)
 
 
 if __name__ == '__main__':
