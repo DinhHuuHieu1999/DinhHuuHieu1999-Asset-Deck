@@ -223,3 +223,20 @@ prevent ownership disclosure. The client verifies enabled optional values agains
 the returned version before publishing a refreshed details snapshot. Source and
 mock tests are implemented; live acceptance is pending. See the
 [refresh plan](../docs/asset-details-refresh-plan.md).
+
+## Multer security override
+
+The backend-owned `pnpm-workspace.yaml` pins only
+`@nestjs/platform-express@12.0.3>multer` to `2.5.0` for
+[CVE-2026-113872](https://github.com/expressjs/multer/security/advisories/GHSA-q7qp-rjg7-q26m).
+NestJS remains unchanged. The source currently has no multipart upload
+interceptor; this does not make the affected dependency safe.
+
+Use pnpm 11 and run installation from `backend/` with
+`pnpm install --frozen-lockfile --ignore-scripts`. Resolution settings belong in
+the YAML configuration, not the ignored pnpm 11 `package.json#pnpm` field.
+Remove this scoped override only after the parent dependency ships a reviewed
+patched Multer version and the lockfile and backend checks pass.
+
+Verify the lockfile contract from the repository root with
+`node --test scripts/multer-override.test.mjs`. This is not a vulnerability scan.
