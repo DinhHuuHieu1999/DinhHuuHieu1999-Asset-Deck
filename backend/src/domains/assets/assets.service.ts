@@ -2,10 +2,12 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  NotFoundException,
   UnprocessableEntityException,
   type OnModuleInit,
 } from '@nestjs/common';
 import { AssetsRepository } from './assets.repository';
+import { buildAssetExport } from './asset-export';
 import type {
   AssetInputDto,
   AssetQueryDto,
@@ -53,6 +55,37 @@ export class AssetsService implements OnModuleInit {
       );
     }
     return result;
+  }
+
+  /** Return one owned asset, with the same missing response for foreign IDs. */
+  public async findOne(owner: string, id: string) {
+    const record = await this.repository.findOne(owner, id);
+    if (record === null) throw new NotFoundException('Asset is unavailable');
+    return record;
+  }
+
+  /** Advisory only: not a reservation or uniqueness guarantee; never blocks writes. */
+  public serialDuplicate(
+    owner: string,
+    serial: string,
+    excludeId?: string,
+  ): Promise<{ duplicate: boolean }> {
+    const normalized = serial.trim();
+    if ([...normalized].length > 120 || normalized.includes('\0'))
+      throw new BadRequestException(
+        'Use a serial within 120 characters without NUL',
+      );
+    return this.repository.serialDuplicate(owner, normalized, excludeId);
+  }
+
+  /** Return complete owner counts independently of list filters. */
+  overview(owner: string) {
+    return this.repository.overview(owner);
+  }
+
+  /** Export the full owner inventory, independently of list filters and pagination. */
+  async exportInventory(owner: string) {
+    return buildAssetExport(await this.repository.snapshot(owner));
   }
 
   /** Add one manual asset. */

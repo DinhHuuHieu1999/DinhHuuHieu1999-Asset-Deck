@@ -1,4 +1,12 @@
+import { assetCheckFilter } from './asset-check';
+import { assetListOrderBy } from './asset-sort';
+import {
+  ASSET_OVERVIEW_MAX_CATEGORIES,
+  buildAssetOverview,
+  type AssetOverviewRow,
+} from './asset-overview';
 import { randomUUID } from 'node:crypto';
+import { ASSET_EXPORT_MAX_RECORDS, type AssetSnapshot } from './asset-export';
 import { isAccountId } from '../auth/account.repository';
 import type { PostgresDatabase } from '../../infrastructure/database/postgres.database';
 import type { AssetInputDto, AssetQueryDto } from './assets.dto';
@@ -30,19 +38,90 @@ export class AssetsRepository {
 
   /** Search/filter the authenticated owner's rows before fixed-size pagination. */
   async list(owner: string, query: AssetQueryDto) {
+    const check = assetCheckFilter(
+      query.checkMode,
+      query.checkBefore,
+      6,
+      query.checkOnOrAfter,
+    );
     this.owner(owner);
     const result = await this.database.pool.query<AssetRecord>(
       `SELECT ${projection} FROM assets.assets WHERE owner_id=$1
        AND ($3='' OR strpos(lower(name),lower($3))>0
          OR strpos(lower(category),lower($3))>0 OR strpos(lower(serial),lower($3))>0)
        AND ($4='' OR status=$4)
-       ORDER BY updated_at DESC,id DESC LIMIT 51 OFFSET $2`,
-      [owner.toLowerCase(), query.offset, query.q.trim(), query.status],
+       AND ($5='' OR category=$5)
+       ${check.sql}
+       ORDER BY ${assetListOrderBy(query.sort)} LIMIT 51 OFFSET $2`,
+      [
+        owner.toLowerCase(),
+        query.offset,
+        query.q.trim(),
+        query.status,
+        (query.category ?? '').trim(),
+        ...check.values,
+      ],
     );
     return {
       items: result.rows.slice(0, 50),
       nextOffset: result.rows.length > 50 ? query.offset + 50 : null,
     };
+  }
+
+  /** Read one owned asset without revealing whether another owner's ID exists. */
+  public async findOne(owner: string, id: string): Promise<AssetRecord | null> {
+    this.owner(owner);
+    const result = await this.database.pool.query<AssetRecord>(
+      `SELECT ${projection} FROM assets.assets WHERE owner_id=$1 AND id=$2::uuid`,
+      [owner.toLowerCase(), id],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  /** Check all owned rows using literal case-sensitive equality, without returning records. */
+  public async serialDuplicate(
+    owner: string,
+    serial: string,
+    excludeId?: string,
+  ): Promise<{ duplicate: boolean }> {
+    this.owner(owner);
+    const result = await this.database.pool.query<{ duplicate: boolean }>(
+      `SELECT EXISTS(SELECT 1 FROM assets.assets
+       WHERE owner_id=$1 AND serial=$2 AND serial<>''
+       AND ($3::uuid IS NULL OR id<>$3::uuid)) AS duplicate`,
+      [owner.toLowerCase(), serial, excludeId ?? null],
+    );
+    if (typeof result.rows[0]?.duplicate !== 'boolean')
+      throw new Error('asset_serial_check_missing');
+    return { duplicate: result.rows[0].duplicate };
+  }
+
+  /** Aggregate the full owner inventory in one statement, independently of list filters. */
+  async overview(owner: string) {
+    this.owner(owner);
+    const result = await this.database.pool.query<AssetOverviewRow>(
+      `SELECT category, status, count(*)::text AS count
+       FROM assets.assets WHERE owner_id=$1
+       GROUP BY category, status ORDER BY category, status LIMIT $2`,
+      [owner.toLowerCase(), ASSET_OVERVIEW_MAX_CATEGORIES * 4 + 1],
+    );
+    return buildAssetOverview(result.rows);
+  }
+
+  /** Read the entire bounded owner inventory in one PostgreSQL statement snapshot. */
+  async snapshot(owner: string): Promise<AssetSnapshot> {
+    this.owner(owner);
+    const result = await this.database.pool.query<AssetSnapshot>(
+      `SELECT to_char(statement_timestamp() AT TIME ZONE 'UTC',
+        'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "exportedAt",
+        COALESCE((SELECT json_agg(record) FROM (
+          SELECT ${projection} FROM assets.assets WHERE owner_id=$1
+          ORDER BY updated_at DESC,id DESC LIMIT $2
+        ) record), '[]'::json) AS records`,
+      [owner.toLowerCase(), ASSET_EXPORT_MAX_RECORDS + 1],
+    );
+    if (!result.rows[0]) throw new Error('asset_snapshot_missing');
+    return result.rows[0];
   }
 
   /** Store one new asset without deduplicating user labels or serial numbers. */

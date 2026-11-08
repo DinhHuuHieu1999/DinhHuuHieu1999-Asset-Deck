@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../tool/native_https_seed.dart' as seed;
+import '../tool/native_export_v3_seed.dart' as export_v3_seed;
 
 class MarkerResponse extends Stream<List<int>> implements HttpClientResponse {
   MarkerResponse(this.statusCode, this.bytes);
@@ -116,6 +117,27 @@ void main() {
       expect(client.requested, isNull);
     } finally {
       exitCode = previousExitCode;
+    }
+  });
+  test('invalid export v3 seed args never contact the network', () async {
+    for (final args in <List<String>>[
+      [],
+      ['--synthetic-only', 'https://example.com:19003/api/v1', id],
+      ['--synthetic-only', 'http://localhost:19003/api/v1', id],
+      ['--synthetic-only', endpoint.toString(), 'invalid'],
+    ]) {
+      final client = MarkerClient(MarkerRequest(MarkerResponse(200, [])));
+      final previousExitCode = exitCode;
+      try {
+        await HttpOverrides.runZoned(
+          () => export_v3_seed.main(args),
+          createHttpClient: (_) => client,
+        );
+        expect(exitCode, 1);
+        expect(client.requested, isNull);
+      } finally {
+        exitCode = previousExitCode;
+      }
     }
   });
 }

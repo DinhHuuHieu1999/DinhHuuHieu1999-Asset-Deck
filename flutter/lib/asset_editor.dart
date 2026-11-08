@@ -2,10 +2,28 @@ import 'package:flutter/material.dart';
 
 import 'api/asset.dart';
 import 'api/asset_store.dart';
+import 'api/asset_serial_check.dart';
+import 'api/asset_session.dart';
 
 /// Manual create/edit form. Failed writes are never automatically retried.
 class AssetEditor extends StatefulWidget {
-  const AssetEditor({super.key, required this.store, this.original});
+  const AssetEditor({super.key, required this.store, this.original})
+    : draft = null;
+
+  /// Create-only draft: deliberately excludes identity, serial and optional data.
+  AssetEditor.duplicate({
+    super.key,
+    required this.store,
+    required AssetRecord source,
+  }) : original = null,
+       draft = AssetInput(
+         name: source.input.name,
+         category: source.input.category,
+         serial: '',
+         status: source.input.status,
+         notes: source.input.notes,
+       );
+  final AssetInput? draft;
   final AssetStore store;
   final AssetRecord? original;
   @override
@@ -17,6 +35,14 @@ class _AssetEditorState extends State<AssetEditor> {
   late String _status;
   bool _busy = false, _saved = false, _uncertain = false;
   String? _error;
+  int _serialRequest = 0;
+  bool _checkingSerial = false, _serialCheckFailed = false;
+  bool? _serialDuplicate;
+  String _lastSerial = '';
+  AssetSerialCheckSource? get _serialSource =>
+      widget.store is AssetSerialCheckSource
+      ? widget.store as AssetSerialCheckSource
+      : null;
   AssetInput get _input => AssetInput(
     name: _name.text,
     category: _category.text,
@@ -36,10 +62,11 @@ class _AssetEditorState extends State<AssetEditor> {
   @override
   void initState() {
     super.initState();
-    final i = widget.original?.input;
+    final i = widget.original?.input ?? widget.draft;
     _name = TextEditingController(text: i?.name ?? '');
     _category = TextEditingController(text: i?.category ?? '');
     _serial = TextEditingController(text: i?.serial ?? '');
+    _lastSerial = _serial.text;
     _notes = TextEditingController(text: i?.notes ?? '');
     _status = i?.status ?? 'in_use';
     for (final c in [_name, _category, _serial, _notes]) {
@@ -48,11 +75,111 @@ class _AssetEditorState extends State<AssetEditor> {
   }
 
   void _changed() {
+    if (_lastSerial != _serial.text) {
+      _lastSerial = _serial.text;
+      _serialRequest++;
+      _checkingSerial = false;
+      _serialDuplicate = null;
+      _serialCheckFailed = false;
+    }
     setState(() {});
+  }
+
+  Future<void> _checkSerial() async {
+    final source = _serialSource;
+    final serial = _serial.text.trim();
+    if (source == null || _busy || _checkingSerial || serial.isEmpty) return;
+    final request = ++_serialRequest;
+    final session = widget.store is AssetSession
+        ? widget.store as AssetSession
+        : null;
+    final revision = session?.sessionRevision;
+    bool current() =>
+        mounted &&
+        request == _serialRequest &&
+        identical(source, _serialSource) &&
+        revision == session?.sessionRevision;
+    setState(() {
+      _checkingSerial = true;
+      _serialDuplicate = null;
+      _serialCheckFailed = false;
+    });
+    try {
+      if (serial.runes.length > 120 || serial.contains('\u0000')) {
+        throw const FormatException('Invalid serial');
+      }
+      final duplicate = await source.serialDuplicate(
+        serial,
+        excludeId: widget.original?.id,
+      );
+      if (current()) setState(() => _serialDuplicate = duplicate);
+    } catch (_) {
+      if (current()) setState(() => _serialCheckFailed = true);
+    } finally {
+      if (mounted && request == _serialRequest) {
+        setState(() => _checkingSerial = false);
+      }
+    }
+  }
+
+  Widget _serialCheck() {
+    final scheme = Theme.of(context).colorScheme;
+    final warning = ColorScheme.fromSeed(
+      seedColor: Colors.amber,
+      brightness: scheme.brightness,
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        OutlinedButton(
+          onPressed: _busy || _checkingSerial || _serial.text.trim().isEmpty
+              ? null
+              : _checkSerial,
+          child: const Text('Check duplicate serial'),
+        ),
+        if (_checkingSerial)
+          const LinearProgressIndicator(semanticsLabel: 'Checking serial'),
+        if (_serialDuplicate != null || _serialCheckFailed)
+          Semantics(
+            liveRegion: true,
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _serialCheckFailed
+                    ? scheme.errorContainer
+                    : _serialDuplicate == true
+                    ? warning.primaryContainer
+                    : scheme.secondaryContainer,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                _serialCheckFailed
+                    ? 'Serial check unavailable. Your draft is kept; saving is still allowed.'
+                    : _serialDuplicate!
+                    ? 'Duplicate serial found in your inventory. Saving is still allowed.'
+                    : 'No other asset currently has this exact serial. This is not a uniqueness guarantee.',
+                style: TextStyle(
+                  color: _serialCheckFailed
+                      ? scheme.onErrorContainer
+                      : _serialDuplicate == true
+                      ? warning.onPrimaryContainer
+                      : scheme.onSecondaryContainer,
+                ),
+              ),
+            ),
+          ),
+        const Text(
+          'Optional exact, case-sensitive check. Other accounts are never searched.',
+        ),
+        const SizedBox(height: 12),
+      ],
+    );
   }
 
   @override
   void dispose() {
+    _serialRequest++;
     for (final c in [_name, _category, _serial, _notes]) {
       c.dispose();
     }
@@ -102,7 +229,11 @@ class _AssetEditorState extends State<AssetEditor> {
       );
       return;
     }
+    _serialRequest++;
     setState(() {
+      _checkingSerial = false;
+      _serialDuplicate = null;
+      _serialCheckFailed = false;
       _busy = true;
       _error = null;
     });
@@ -163,7 +294,13 @@ class _AssetEditorState extends State<AssetEditor> {
     },
     child: Scaffold(
       appBar: AppBar(
-        title: Text(widget.original == null ? 'Add asset' : 'Edit asset'),
+        title: Text(
+          widget.draft != null
+              ? 'Duplicate asset draft'
+              : widget.original == null
+              ? 'Add asset'
+              : 'Edit asset',
+        ),
         leading: IconButton(
           tooltip: 'Back',
           onPressed: _busy ? null : _back,
@@ -177,9 +314,17 @@ class _AssetEditorState extends State<AssetEditor> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              if (widget.draft != null)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    'New unsaved asset. Serial is blank; dates, location and check date are not copied. Review before Save.',
+                  ),
+                ),
               _field('Name (required)', _name, 120),
               _field('Category (required)', _category, 64),
               _field('Serial (optional)', _serial, 120),
+              if (_serialSource != null) _serialCheck(),
               DropdownButtonFormField<String>(
                 initialValue: _status,
                 isExpanded: true,

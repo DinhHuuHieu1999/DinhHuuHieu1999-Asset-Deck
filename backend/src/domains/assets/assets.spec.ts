@@ -95,6 +95,10 @@ describe('Asset validation boundary', () => {
       { q: ['x'] },
       { q: 'x'.repeat(121) },
       { q: '\0' },
+      { category: 'x'.repeat(65) },
+      { category: ['network'] },
+      { category: null },
+      { category: '\0' },
     ]) {
       await expect(
         pipe.transform(query, { type: 'query', metatype: AssetQueryDto }),
@@ -129,7 +133,7 @@ describe('Asset repository owner and SQL boundary', () => {
       offset: 50,
     });
     const [sql, values] = query.mock.calls[0];
-    expect(values).toEqual([owner, 50, "%_' OR true --", 'repair']);
+    expect(values).toEqual([owner, 50, "%_' OR true --", 'repair', '']);
     expect(sql).not.toContain(values[2]);
     expect(sql).toContain('WHERE owner_id=$1');
     expect(sql).toContain('strpos(lower(serial),lower($3))');
@@ -137,6 +141,21 @@ describe('Asset repository owner and SQL boundary', () => {
     expect(sql).toMatch(
       /status=\$4[\s\S]*ORDER BY updated_at DESC,id DESC LIMIT 51 OFFSET \$2/,
     );
+  });
+
+  it('binds exact category as inert data before pagination', async () => {
+    const { query, repository } = setup();
+    await repository.list(owner, {
+      q: 'router',
+      status: 'stored',
+      offset: 50,
+      category: "  %_' OR true --  ",
+    });
+    const [sql, values] = query.mock.calls[0];
+    expect(values).toEqual([owner, 50, 'router', 'stored', "%_' OR true --"]);
+    expect(sql).toContain("AND ($5='' OR category=$5)");
+    expect(sql).not.toContain(values[4]);
+    expect(sql.indexOf('category=$5')).toBeLessThan(sql.indexOf('LIMIT 51'));
   });
 
   it.each([0, 1, 50, 51])(

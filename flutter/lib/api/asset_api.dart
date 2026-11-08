@@ -1,15 +1,63 @@
+import 'asset_saved_filter.dart';
+import 'asset_import_v4.dart';
+import 'asset_export_v4.dart';
+import 'asset_selection_export_v2.dart';
+import 'asset_check_overview.dart';
+import 'asset_check.dart';
+import 'asset_read.dart';
+import 'asset_serial_check.dart';
+import 'asset_selection_export.dart';
+import 'asset_sort.dart';
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'asset.dart';
+import 'asset_location.dart';
+import 'asset_location_overview.dart';
+import 'asset_dates.dart';
+import 'asset_warranty.dart';
+import 'asset_warranty_overview.dart';
+import 'asset_overview.dart';
+import 'asset_export.dart';
+import 'asset_export_v2.dart';
+import 'asset_export_v3.dart';
+import 'asset_import.dart';
+import 'asset_import_v2.dart';
+import 'asset_import_v3.dart';
 import 'asset_session.dart';
 import 'asset_store.dart';
 
 /// Native JSON client with bounded responses and in-memory credentials only.
 /// Adapted from ToolDeck's selected auth/CSRF/session transport; no other domains.
-class AssetApi implements AssetSession {
+class AssetApi
+    implements
+        AssetSession,
+        AssetSavedFilterSource,
+        AssetReadSource,
+        AssetCheckSource,
+        AssetCheckBeforeSource,
+        AssetCheckOverviewSource,
+        AssetCheckOnOrAfterSource,
+        AssetSerialCheckSource,
+        AssetExportSource,
+        AssetExportV2Source,
+        AssetExportV3Source,
+        AssetExportV4Source,
+        AssetSelectionExportSource,
+        AssetSelectionExportV2Source,
+        AssetImportSource,
+        AssetImportV2Source,
+        AssetImportV3Source,
+        AssetImportV4Source,
+        AssetOverviewSource,
+        AssetDatesSource,
+        AssetLocationSource,
+        AssetLocationOverviewSource,
+        AssetWarrantySource,
+        AssetWarrantyOverviewSource {
   AssetApi(
     Uri endpoint, {
     bool allowLocalHttp = false,
@@ -152,12 +200,30 @@ class AssetApi implements AssetSession {
 
   @override
   Future<AssetPage> list({
+    String sort = 'updated_desc',
+    bool unchecked = false,
+    String checkBefore = '',
+    String checkOnOrAfter = '',
     required String query,
     required String status,
+    String category = '',
     required int offset,
   }) async {
+    assetCheckQuery(
+      unchecked: unchecked,
+      before: checkBefore,
+      onOrAfter: checkOnOrAfter,
+    );
     final epoch = _requireAccount();
-    if (query.length > 120 ||
+    if (!assetListSorts.contains(sort)) {
+      throw const AssetFailure(
+        'Invalid inventory sort',
+        definitelyNotSent: true,
+      );
+    }
+    if (category.runes.length > 64 ||
+        category.contains('\u0000') ||
+        query.length > 120 ||
         query.contains('\u0000') ||
         (status.isNotEmpty && !assetStatuses.contains(status)) ||
         offset < 0 ||
@@ -167,9 +233,16 @@ class AssetApi implements AssetSession {
     final path = Uri(
       path: 'assets',
       queryParameters: {
+        ...assetCheckQuery(
+          unchecked: unchecked,
+          before: checkBefore,
+          onOrAfter: checkOnOrAfter,
+        ),
         'q': query.trim(),
         'status': status,
+        if (category.trim().isNotEmpty) 'category': category.trim(),
         'offset': '$offset',
+        if (sort != 'updated_desc') 'sort': sort,
       },
     ).toString();
     final result = await _request('GET', path, epoch);
@@ -179,6 +252,921 @@ class AssetApi implements AssetSession {
     } on FormatException {
       throw const AssetFailure('Invalid inventory response');
     }
+  }
+
+  /// Read one complete check-date partition using the existing session guards.
+  @override
+  Future<AssetCheckOverview> checkOverview({required String cutoff}) async {
+    final epoch = _requireAccount();
+    if (!isAssetCalendarDate(cutoff)) {
+      throw const AssetFailure('Invalid check cutoff', definitelyNotSent: true);
+    }
+    final path = Uri(
+      path: 'assets/check-overview/counts',
+      queryParameters: {'cutoff': cutoff},
+    ).toString();
+    final result = await _request('GET', path, epoch);
+    _current(epoch);
+    try {
+      return AssetCheckOverview.fromJson(result, cutoff: cutoff);
+    } on FormatException {
+      throw const AssetFailure('Invalid check overview response');
+    }
+  }
+
+  /// Fetch complete owner counts independently of every inventory list filter.
+  @override
+  Future<AssetWarrantyOverview> warrantyOverview({String asOf = ''}) async {
+    final epoch = _requireAccount();
+    if (asOf.isNotEmpty && !isAssetCalendarDate(asOf)) {
+      throw const AssetFailure(
+        'Invalid warranty reference date',
+        definitelyNotSent: true,
+      );
+    }
+    final path = Uri(
+      path: 'assets/warranty/overview',
+      queryParameters: asOf.isEmpty ? null : {'asOf': asOf},
+    ).toString();
+    final result = await _request('GET', path, epoch);
+    _current(epoch);
+    try {
+      return AssetWarrantyOverview.fromJson(result, asOf: asOf);
+    } on FormatException {
+      throw const AssetFailure('Invalid warranty overview response');
+    }
+  }
+
+  /// Read a separate warranty page; subsequent pages preserve the UTC reference.
+  @override
+  Future<AssetWarrantyPage> listWarranty({
+    String sort = 'updated_desc',
+    bool unchecked = false,
+    String checkBefore = '',
+    String checkOnOrAfter = '',
+    required String query,
+    required String status,
+    String category = '',
+    required String warranty,
+    String asOf = '',
+    required int offset,
+  }) async {
+    assetCheckQuery(
+      unchecked: unchecked,
+      before: checkBefore,
+      onOrAfter: checkOnOrAfter,
+    );
+    final epoch = _requireAccount();
+    if (!assetListSorts.contains(sort)) {
+      throw const AssetFailure(
+        'Invalid inventory sort',
+        definitelyNotSent: true,
+      );
+    }
+    if (!assetWarrantyFilters.contains(warranty) ||
+        (asOf.isNotEmpty && !isAssetCalendarDate(asOf)) ||
+        (offset > 0 && asOf.isEmpty) ||
+        offset < 0 ||
+        offset > 100000 ||
+        query.length > 120 ||
+        query.contains('\u0000') ||
+        category.runes.length > 64 ||
+        category.contains('\u0000') ||
+        (status.isNotEmpty && !assetStatuses.contains(status))) {
+      throw const AssetFailure(
+        'Invalid warranty filters',
+        definitelyNotSent: true,
+      );
+    }
+    final path = Uri(
+      path: 'assets/warranty',
+      queryParameters: {
+        ...assetCheckQuery(
+          unchecked: unchecked,
+          before: checkBefore,
+          onOrAfter: checkOnOrAfter,
+        ),
+        'q': query.trim(),
+        'status': status,
+        if (category.trim().isNotEmpty) 'category': category.trim(),
+        'warranty': warranty,
+        if (asOf.isNotEmpty) 'asOf': asOf,
+        'offset': '$offset',
+        if (sort != 'updated_desc') 'sort': sort,
+      },
+    ).toString();
+    final result = await _request('GET', path, epoch);
+    _current(epoch);
+    try {
+      return AssetWarrantyPage.fromJson(
+        result,
+        warranty: warranty,
+        asOf: asOf,
+        offset: offset,
+      );
+    } on FormatException {
+      throw const AssetFailure('Invalid warranty inventory response');
+    }
+  }
+
+  /// Read manual location with the current authenticated session.
+  @override
+  Future<AssetLocation> readLocation(String id) async {
+    final epoch = _requireAccount();
+    _locationIdentity(id);
+    final value = await _request('GET', 'assets/$id/location', epoch);
+    _current(epoch);
+    return _location(value, id);
+  }
+
+  /// Replace location once; an unknown write outcome never triggers a retry.
+  @override
+  Future<AssetLocation> updateLocation(
+    AssetLocation original,
+    String? location,
+  ) async {
+    final epoch = _requireAccount();
+    final Map<String, Object?> body;
+    try {
+      body = original.replacement(location);
+    } on FormatException {
+      throw const AssetFailure(
+        'Invalid asset location or version',
+        definitelyNotSent: true,
+      );
+    }
+    final value = await _request(
+      'PUT',
+      'assets/${original.id}/location',
+      epoch,
+      body,
+    );
+    _current(epoch);
+    final result = _location(value, original.id);
+    if (result.version != original.version + 1 ||
+        result.location != body['location']) {
+      throw const AssetFailure(
+        'Invalid location update response; reload before another write',
+      );
+    }
+    return result;
+  }
+
+  void _locationIdentity(String id) {
+    try {
+      AssetLocation.fromJson({'id': id, 'version': 1, 'location': null});
+    } on FormatException {
+      throw const AssetFailure(
+        'Invalid asset identity',
+        definitelyNotSent: true,
+      );
+    }
+  }
+
+  AssetLocation _location(Map<String, Object?> value, String id) {
+    try {
+      final result = AssetLocation.fromJson(value);
+      if (result.id.toLowerCase() != id.toLowerCase())
+        throw const FormatException();
+      return result;
+    } on FormatException {
+      throw const AssetFailure(
+        'Invalid asset location response; reload before another write',
+      );
+    }
+  }
+
+  /// Fetch a complete owner snapshot; reject malformed or late-session results.
+  @override
+  Future<AssetLocationOverview> locationOverview() async {
+    final epoch = _requireAccount();
+    final result = await _request('GET', 'assets/locations/overview', epoch);
+    _current(epoch);
+    try {
+      return AssetLocationOverview.fromJson(result);
+    } on FormatException {
+      throw const AssetFailure('Invalid location overview response');
+    }
+  }
+
+  /// Fetch explicit location filters before paging, separate from the legacy list.
+  @override
+  Future<AssetLocationPage> listLocations({
+    String sort = 'updated_desc',
+    bool unchecked = false,
+    String checkBefore = '',
+    String checkOnOrAfter = '',
+    required String query,
+    required String status,
+    String category = '',
+    required int offset,
+    String locationMode = 'all',
+    String? location,
+    String warranty = '',
+    String asOf = '',
+  }) async {
+    assetCheckQuery(
+      unchecked: unchecked,
+      before: checkBefore,
+      onOrAfter: checkOnOrAfter,
+    );
+    final epoch = _requireAccount();
+    if (!assetListSorts.contains(sort)) {
+      throw const AssetFailure(
+        'Invalid inventory sort',
+        definitelyNotSent: true,
+      );
+    }
+    String? label;
+    try {
+      if ((warranty.isNotEmpty && !assetWarrantyFilters.contains(warranty)) ||
+          (asOf.isNotEmpty &&
+              (!isAssetCalendarDate(asOf) || warranty.isEmpty)) ||
+          (warranty.isNotEmpty && offset > 0 && asOf.isEmpty) ||
+          !['all', 'unknown', 'exact'].contains(locationMode) ||
+          (locationMode != 'exact' && location != null) ||
+          (locationMode == 'exact' && location == null) ||
+          query.length > 120 ||
+          query.contains('\u0000') ||
+          category.runes.length > 64 ||
+          category.contains('\u0000') ||
+          (status.isNotEmpty && !assetStatuses.contains(status)) ||
+          offset < 0 ||
+          offset > 100000)
+        throw const FormatException();
+      label = normalizeAssetLocation(location);
+    } on FormatException {
+      throw const AssetFailure(
+        'Invalid inventory location filters',
+        definitelyNotSent: true,
+      );
+    }
+    final path = Uri(
+      path: 'assets/locations/inventory',
+      queryParameters: {
+        ...assetCheckQuery(
+          unchecked: unchecked,
+          before: checkBefore,
+          onOrAfter: checkOnOrAfter,
+        ),
+        'q': query.trim(),
+        'status': status,
+        'category': category.trim(),
+        'offset': '$offset',
+        if (sort != 'updated_desc') 'sort': sort,
+        'locationMode': locationMode,
+        if (warranty.isNotEmpty) 'warranty': warranty,
+        if (asOf.isNotEmpty) 'asOf': asOf,
+        if (label != null) 'location': label,
+      },
+    ).toString();
+    final value = await _request('GET', path, epoch);
+    _current(epoch);
+    try {
+      return AssetLocationPage.fromJson(
+        value,
+        offset: offset,
+        warranty: warranty,
+        asOf: asOf,
+      );
+    } on FormatException {
+      throw const AssetFailure('Invalid inventory location response');
+    }
+  }
+
+  /// Reuse validated transports with an explicit server-side NULL filter.
+  @override
+  Future<AssetCheckPage> listUnchecked({
+    required String query,
+    required String status,
+    required int offset,
+    String sort = 'updated_desc',
+    String category = '',
+    bool includeLocation = false,
+    String locationMode = 'all',
+    String? location,
+    String warranty = '',
+    String asOf = '',
+  }) async {
+    if (includeLocation) {
+      final result = await listLocations(
+        unchecked: true,
+        query: query,
+        status: status,
+        offset: offset,
+        sort: sort,
+        category: category,
+        locationMode: locationMode,
+        location: location,
+        warranty: warranty,
+        asOf: asOf,
+      );
+      return AssetCheckPage(
+        AssetPage(
+          result.items.map((item) => item.asset).toList(),
+          result.nextOffset,
+        ),
+        locations: {
+          for (final item in result.items) item.asset.id: item.location,
+        },
+        warranty: result.warrantyPage,
+      );
+    }
+    if (locationMode != 'all' || location != null) {
+      throw const AssetFailure(
+        'Location filtering is unavailable',
+        definitelyNotSent: true,
+      );
+    }
+    if (warranty.isNotEmpty) {
+      final result = await listWarranty(
+        unchecked: true,
+        query: query,
+        status: status,
+        offset: offset,
+        sort: sort,
+        category: category,
+        warranty: warranty,
+        asOf: asOf,
+      );
+      return AssetCheckPage(
+        AssetPage(
+          result.items.map((item) => item.asset).toList(),
+          result.nextOffset,
+        ),
+        warranty: result,
+      );
+    }
+    if (asOf.isNotEmpty)
+      throw const AssetFailure(
+        'Reference date requires warranty filter',
+        definitelyNotSent: true,
+      );
+    return AssetCheckPage(
+      await list(
+        unchecked: true,
+        query: query,
+        status: status,
+        offset: offset,
+        sort: sort,
+        category: category,
+      ),
+    );
+  }
+
+  /// Fetch an exact check-date bucket using shared scope dispatch and validation.
+  @override
+  Future<AssetCheckPage> listCheckedBefore({
+    required String checkBefore,
+    required String query,
+    required String status,
+    required int offset,
+    String sort = 'updated_desc',
+    String category = '',
+    bool includeLocation = false,
+    String locationMode = 'all',
+    String? location,
+    String warranty = '',
+    String asOf = '',
+  }) => _listCheckCutoff(
+    cutoff: checkBefore,
+    onOrAfter: false,
+    query: query,
+    status: status,
+    offset: offset,
+    sort: sort,
+    category: category,
+    includeLocation: includeLocation,
+    locationMode: locationMode,
+    location: location,
+    warranty: warranty,
+    asOf: asOf,
+  );
+
+  /// Fetch an exact check-date bucket using shared scope dispatch and validation.
+  @override
+  Future<AssetCheckPage> listCheckedOnOrAfter({
+    required String checkOnOrAfter,
+    required String query,
+    required String status,
+    required int offset,
+    String sort = 'updated_desc',
+    String category = '',
+    bool includeLocation = false,
+    String locationMode = 'all',
+    String? location,
+    String warranty = '',
+    String asOf = '',
+  }) => _listCheckCutoff(
+    cutoff: checkOnOrAfter,
+    onOrAfter: true,
+    query: query,
+    status: status,
+    offset: offset,
+    sort: sort,
+    category: category,
+    includeLocation: includeLocation,
+    locationMode: locationMode,
+    location: location,
+    warranty: warranty,
+    asOf: asOf,
+  );
+
+  Future<AssetCheckPage> _listCheckCutoff({
+    required String cutoff,
+    required bool onOrAfter,
+    required String query,
+    required String status,
+    required int offset,
+    String sort = 'updated_desc',
+    String category = '',
+    bool includeLocation = false,
+    String locationMode = 'all',
+    String? location,
+    String warranty = '',
+    String asOf = '',
+  }) async {
+    if (!isAssetCalendarDate(cutoff))
+      throw const AssetFailure(
+        'Check cutoff is required',
+        definitelyNotSent: true,
+      );
+    if (includeLocation) {
+      final result = await listLocations(
+        checkBefore: onOrAfter ? '' : cutoff,
+        checkOnOrAfter: onOrAfter ? cutoff : '',
+        query: query,
+        status: status,
+        offset: offset,
+        sort: sort,
+        category: category,
+        locationMode: locationMode,
+        location: location,
+        warranty: warranty,
+        asOf: asOf,
+      );
+      return AssetCheckPage(
+        AssetPage(
+          result.items.map((item) => item.asset).toList(),
+          result.nextOffset,
+        ),
+        locations: {
+          for (final item in result.items) item.asset.id: item.location,
+        },
+        warranty: result.warrantyPage,
+      );
+    }
+    if (locationMode != 'all' || location != null) {
+      throw const AssetFailure(
+        'Location filtering is unavailable',
+        definitelyNotSent: true,
+      );
+    }
+    if (warranty.isNotEmpty) {
+      final result = await listWarranty(
+        checkBefore: onOrAfter ? '' : cutoff,
+        checkOnOrAfter: onOrAfter ? cutoff : '',
+        query: query,
+        status: status,
+        offset: offset,
+        sort: sort,
+        category: category,
+        warranty: warranty,
+        asOf: asOf,
+      );
+      return AssetCheckPage(
+        AssetPage(
+          result.items.map((item) => item.asset).toList(),
+          result.nextOffset,
+        ),
+        warranty: result,
+      );
+    }
+    if (asOf.isNotEmpty)
+      throw const AssetFailure(
+        'Reference date requires warranty filter',
+        definitelyNotSent: true,
+      );
+    return AssetCheckPage(
+      await list(
+        checkBefore: onOrAfter ? '' : cutoff,
+        checkOnOrAfter: onOrAfter ? cutoff : '',
+        query: query,
+        status: status,
+        offset: offset,
+        sort: sort,
+        category: category,
+      ),
+    );
+  }
+
+  /// Read the separate manual-check snapshot under the current session.
+  @override
+  Future<AssetCheck> readCheckDate(String id) async {
+    final epoch = _requireAccount();
+    _dateIdentity(id);
+    final value = await _request('GET', 'assets/$id/check-date', epoch);
+    _current(epoch);
+    return _checkDate(value, id);
+  }
+
+  /// Submit once; uncertain writes require reload rather than automatic retry.
+  @override
+  Future<AssetCheck> updateCheckDate(AssetCheck original, String? date) async {
+    final epoch = _requireAccount();
+    _dateIdentity(original.id);
+    final Map<String, Object?> body;
+    try {
+      body = original.replacement(date);
+    } on FormatException {
+      throw const AssetFailure(
+        'Invalid check date or version',
+        definitelyNotSent: true,
+      );
+    }
+    final value = await _request(
+      'PUT',
+      'assets/${original.id}/check-date',
+      epoch,
+      body,
+    );
+    _current(epoch);
+    final result = _checkDate(value, original.id);
+    if (result.version != original.version + 1 ||
+        result.lastCheckedOn != date) {
+      throw const AssetFailure(
+        'Invalid check date update response; reload before another write',
+      );
+    }
+    return result;
+  }
+
+  AssetCheck _checkDate(Map<String, Object?> value, String id) {
+    try {
+      final result = AssetCheck.fromJson(value);
+      if (result.id.toLowerCase() != id.toLowerCase())
+        throw const FormatException('Unexpected asset identity');
+      return result;
+    } on FormatException {
+      throw const AssetFailure(
+        'Invalid asset check date response; reload before another write',
+      );
+    }
+  }
+
+  /// Read dates separately without changing the legacy inventory contract.
+  @override
+  Future<AssetDates> readDates(String id) async {
+    final epoch = _requireAccount();
+    _dateIdentity(id);
+    final value = await _request('GET', 'assets/$id/dates', epoch);
+    _current(epoch);
+    return _dates(value, id);
+  }
+
+  /// Submit one explicit shared-version update; transport never retries writes.
+  @override
+  Future<AssetDates> updateDates(
+    AssetDates original,
+    AssetDatesInput input,
+  ) async {
+    final epoch = _requireAccount();
+    _dateIdentity(original.id);
+    final Map<String, Object?> body;
+    try {
+      body = input.toJson(version: original.version);
+    } on FormatException {
+      throw const AssetFailure(
+        'Invalid purchase/warranty dates or version',
+        definitelyNotSent: true,
+      );
+    }
+    final value = await _request(
+      'PUT',
+      'assets/${original.id}/dates',
+      epoch,
+      body,
+    );
+    _current(epoch);
+    final result = _dates(value, original.id);
+    if (result.version != original.version + 1 ||
+        result.input.purchasedOn != input.purchasedOn ||
+        result.input.warrantyExpiresOn != input.warrantyExpiresOn) {
+      throw const AssetFailure(
+        'Invalid dates update response; reload before another write',
+      );
+    }
+    return result;
+  }
+
+  void _dateIdentity(String id) {
+    if (!RegExp(
+      r'^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$',
+    ).hasMatch(id)) {
+      throw const AssetFailure(
+        'Reload this asset before editing dates',
+        definitelyNotSent: true,
+      );
+    }
+  }
+
+  AssetDates _dates(Map<String, Object?> value, String id) {
+    try {
+      final result = AssetDates.fromJson(value);
+      if (result.id.toLowerCase() != id.toLowerCase()) {
+        throw const FormatException('Unexpected asset identity');
+      }
+      return result;
+    } on FormatException {
+      throw const AssetFailure(
+        'Invalid asset dates response; reload before another write',
+      );
+    }
+  }
+
+  /// Check exact serials across the owner inventory, rejecting stale session results.
+  /// Read one validated ID; reject stale-session and wrong-identity responses.
+  @override
+  Future<AssetRecord> readAsset(String id) async {
+    final epoch = _requireAccount();
+    if (!RegExp(
+      r'^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$',
+    ).hasMatch(id)) {
+      throw const AssetFailure('Invalid asset ID', definitelyNotSent: true);
+    }
+    final value = await _request('GET', 'assets/$id', epoch);
+    _current(epoch);
+    final result = _record(value);
+    if (result.id.toLowerCase() != id.toLowerCase()) {
+      throw const AssetFailure('Asset response identity mismatch');
+    }
+    return result;
+  }
+
+  @override
+  Future<bool> serialDuplicate(String serial, {String? excludeId}) async {
+    final epoch = _requireAccount();
+    final normalized = serial.trim();
+    if (normalized.runes.length > 120 ||
+        normalized.contains('\u0000') ||
+        (excludeId != null &&
+            !RegExp(
+              r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+            ).hasMatch(excludeId))) {
+      throw const AssetFailure(
+        'Invalid serial check input',
+        definitelyNotSent: true,
+      );
+    }
+    final path = Uri(
+      path: 'assets/serial-duplicates',
+      queryParameters: {
+        'serial': normalized,
+        if (excludeId != null) 'excludeId': excludeId,
+      },
+    ).toString();
+    final result = await _request('GET', path, epoch);
+    _current(epoch);
+    try {
+      return parseAssetSerialCheck(result);
+    } on FormatException {
+      throw const AssetFailure('Invalid serial check response');
+    }
+  }
+
+  /// Fetch complete counts without passing list filters or accepting stale sessions.
+  @override
+  Future<AssetOverview> overview() async {
+    final epoch = _requireAccount();
+    final result = await _request('GET', 'assets/overview', epoch);
+    _current(epoch);
+    try {
+      return AssetOverview.fromJson(result);
+    } on FormatException {
+      throw const AssetFailure('Invalid inventory overview response');
+    }
+  }
+
+  /// Fetch one complete snapshot and reject results from an invalidated session.
+  @override
+  Future<AssetExport> exportInventory({
+    required AssetExportDigest digest,
+  }) async {
+    final epoch = _requireAccount();
+    final value = await _request('GET', 'assets/export', epoch);
+    _current(epoch);
+    try {
+      final result = await AssetExport.parse(value, digest: digest);
+      _current(epoch);
+      return result;
+    } on FormatException {
+      throw const AssetFailure('Invalid inventory export or checksum');
+    }
+  }
+
+  /// Fetch a date-aware snapshot without accepting a stale account's result.
+  @override
+  Future<AssetExportV2> exportInventoryV2({
+    required AssetExportDigest digest,
+  }) async {
+    final epoch = _requireAccount();
+    final value = await _request('GET', 'assets/export/v2', epoch);
+    _current(epoch);
+    try {
+      final result = await AssetExportV2.parse(value, digest: digest);
+      _current(epoch);
+      return result;
+    } on FormatException {
+      throw const AssetFailure('Invalid inventory v2 export or checksum');
+    }
+  }
+
+  /// Fetch a location-aware snapshot without accepting a stale account's result.
+  @override
+  Future<AssetExportV3> exportInventoryV3({
+    required AssetExportDigest digest,
+  }) async {
+    final epoch = _requireAccount();
+    final value = await _request('GET', 'assets/export/v3', epoch);
+    _current(epoch);
+    try {
+      final result = await AssetExportV3.parse(value, digest: digest);
+      _current(epoch);
+      return result;
+    } on FormatException {
+      throw const AssetFailure('Invalid inventory v3 export or checksum');
+    }
+  }
+
+  /// Fetch a check-date-aware snapshot without accepting a stale account's result.
+  @override
+  Future<AssetExportV4> exportInventoryV4({
+    required AssetExportDigest digest,
+  }) async {
+    final epoch = _requireAccount();
+    final value = await _request('GET', 'assets/export/v4', epoch);
+    _current(epoch);
+    try {
+      final result = await AssetExportV4.parse(value, digest: digest);
+      _current(epoch);
+      return result;
+    } on FormatException {
+      throw const AssetFailure('Invalid inventory v4 export or checksum');
+    }
+  }
+
+  /// Verify selection identity and session after transport and asynchronous digest.
+  @override
+  Future<AssetSelectionExport> exportSelection({
+    required AssetSelectionScope scope,
+    required AssetExportDigest digest,
+  }) async {
+    final epoch = _requireAccount();
+    final expected = scope.toQuery();
+    final path = Uri(
+      path: 'assets/export/selection',
+      queryParameters: expected,
+    ).toString();
+    final value = await _request('GET', path, epoch);
+    _current(epoch);
+    try {
+      final result = await AssetSelectionExport.parse(value, digest: digest);
+      _current(epoch);
+      final actual = result.scope.toQuery();
+      if (actual.length != expected.length ||
+          expected.entries.any((entry) => actual[entry.key] != entry.value)) {
+        throw const FormatException('Selection response scope mismatch');
+      }
+      return result;
+    } on FormatException {
+      throw const AssetFailure('Invalid selection export, scope or checksum');
+    }
+  }
+
+  /// Verify selection identity and session after transport and asynchronous digest.
+  @override
+  Future<AssetSelectionExportV2> exportSelectionV2({
+    required AssetSelectionScopeV2 scope,
+    required AssetExportDigest digest,
+  }) async {
+    final epoch = _requireAccount();
+    final expected = scope.toQuery();
+    final path = Uri(
+      path: 'assets/export/selection-v2',
+      queryParameters: expected,
+    ).toString();
+    final value = await _request('GET', path, epoch);
+    _current(epoch);
+    try {
+      final result = await AssetSelectionExportV2.parse(value, digest: digest);
+      _current(epoch);
+      final actual = result.scope.toQuery();
+      if (actual.length != expected.length ||
+          expected.entries.any((entry) => actual[entry.key] != entry.value)) {
+        throw const FormatException('Selection response scope mismatch');
+      }
+      return result;
+    } on FormatException {
+      throw const AssetFailure('Invalid selection export, scope or checksum');
+    }
+  }
+
+  AssetSavedFilter _savedFilter(Map<String, Object?> value) {
+    try {
+      return AssetSavedFilter.fromJson(value);
+    } on FormatException {
+      throw const AssetFailure('Invalid saved filter response');
+    }
+  }
+
+  bool _savedFilterMatches(
+    AssetSavedFilter result,
+    String name,
+    AssetSavedFilterQuery query,
+  ) =>
+      result.name == validateSavedFilterName(name) &&
+      query.values.entries.every(
+        (entry) => result.query.values[entry.key] == entry.value,
+      );
+
+  @override
+  Future<List<AssetSavedFilter>> listSavedFilters() async {
+    final epoch = _requireAccount();
+    final response = await _request('GET', 'inventory-saved-filters', epoch);
+    final items = response['items'];
+    if (response.length != 1 || items is! List || items.length > 20)
+      throw const AssetFailure('Invalid saved filter list');
+    final records = items
+        .map((item) {
+          if (item is! Map<String, Object?>)
+            throw const AssetFailure('Invalid saved filter list');
+          return _savedFilter(item);
+        })
+        .toList(growable: false);
+    if (records.map((r) => r.id.toLowerCase()).toSet().length != records.length)
+      throw const AssetFailure('Duplicate saved filter identity');
+    return List.unmodifiable(records);
+  }
+
+  @override
+  Future<AssetSavedFilter> createSavedFilter(
+    String name,
+    AssetSavedFilterQuery query,
+  ) async {
+    final epoch = _requireAccount();
+    final result = _savedFilter(
+      await _request('POST', 'inventory-saved-filters', epoch, {
+        'name': validateSavedFilterName(name),
+        'schemaVersion': 1,
+        'query': query.values,
+      }),
+    );
+    if (result.version != 1 || !_savedFilterMatches(result, name, query))
+      throw const AssetFailure(
+        'Invalid saved filter response; reload before another write',
+      );
+    return result;
+  }
+
+  @override
+  Future<AssetSavedFilter> updateSavedFilter(
+    AssetSavedFilter original,
+    String name,
+    AssetSavedFilterQuery query,
+  ) async {
+    final epoch = _requireAccount();
+    if (original.version >= 2147483647)
+      throw const AssetFailure('Reload saved filter before editing');
+    final result = _savedFilter(
+      await _request('PUT', 'inventory-saved-filters/${original.id}', epoch, {
+        'name': validateSavedFilterName(name),
+        'schemaVersion': 1,
+        'query': query.values,
+        'version': original.version,
+      }),
+    );
+    if (result.id.toLowerCase() != original.id.toLowerCase() ||
+        result.version != original.version + 1 ||
+        !_savedFilterMatches(result, name, query))
+      throw const AssetFailure(
+        'Invalid saved filter update; reload before another write',
+      );
+    return result;
+  }
+
+  @override
+  Future<void> deleteSavedFilter(AssetSavedFilter original) async {
+    final epoch = _requireAccount();
+    final result = await _request(
+      'DELETE',
+      'inventory-saved-filters/${original.id}',
+      epoch,
+      {'version': original.version},
+    );
+    if (result.length != 1 || result['id'] != original.id)
+      throw const AssetFailure(
+        'Invalid saved filter deletion; reload before another write',
+      );
   }
 
   @override
@@ -219,6 +1207,131 @@ class AssetApi implements AssetSession {
     } on FormatException {
       throw const AssetFailure(
         'Invalid asset response; refresh before another write',
+      );
+    }
+  }
+
+  /// Submit exactly one account/session-bound operation; never retries internally.
+  @override
+  Future<AssetImportReceipt> importInventory(
+    AssetImportDraft draft, {
+    required int sessionRevision,
+  }) async {
+    final epoch = _requireAccount();
+    if (epoch != sessionRevision || _account!.id != draft.accountId) {
+      throw const AssetFailure(
+        'Import session changed; review the target account again',
+        definitelyNotSent: true,
+      );
+    }
+    final response = await _request(
+      'POST',
+      'assets/import',
+      epoch,
+      jsonDecode(draft.json) as Map<String, Object?>,
+    );
+    _current(epoch);
+    try {
+      return AssetImportReceipt.parse(response, draft);
+    } on FormatException {
+      throw const AssetFailure(
+        'Import receipt unavailable; retain the same request key',
+      );
+    }
+  }
+
+  /// Submit exactly one account/session-bound operation; never retries internally.
+  @override
+  Future<AssetImportV2Receipt> importInventoryV2(
+    AssetImportV2Draft draft, {
+    required int sessionRevision,
+  }) async {
+    final epoch = _requireAccount();
+    if (epoch != sessionRevision || _account!.id != draft.accountId) {
+      throw const AssetFailure(
+        'Import session changed; review the target account again',
+        definitelyNotSent: true,
+      );
+    }
+    await _csrf(epoch);
+    _current(epoch);
+    final response = await _send(
+      'POST',
+      'assets/import/v2',
+      epoch,
+      null,
+      draft.json,
+    );
+    _current(epoch);
+    try {
+      return AssetImportV2Receipt.parse(response, draft);
+    } on FormatException {
+      throw const AssetFailure(
+        'Import receipt unavailable; retain the same request key',
+      );
+    }
+  }
+
+  /// Submit exactly one account/session-bound operation; never retries internally.
+  @override
+  Future<AssetImportV3Receipt> importInventoryV3(
+    AssetImportV3Draft draft, {
+    required int sessionRevision,
+  }) async {
+    final epoch = _requireAccount();
+    if (epoch != sessionRevision || _account!.id != draft.accountId) {
+      throw const AssetFailure(
+        'Import session changed; review the target account again',
+        definitelyNotSent: true,
+      );
+    }
+    await _csrf(epoch);
+    _current(epoch);
+    final response = await _send(
+      'POST',
+      'assets/import/v3',
+      epoch,
+      null,
+      draft.json,
+    );
+    _current(epoch);
+    try {
+      return AssetImportV3Receipt.parse(response, draft);
+    } on FormatException {
+      throw const AssetFailure(
+        'Import receipt unavailable; retain the same request key',
+      );
+    }
+  }
+
+  /// Submit exactly one account/session-bound operation; never retries internally.
+  @override
+  Future<AssetImportV4Receipt> importInventoryV4(
+    AssetImportV4Draft draft, {
+    required int sessionRevision,
+  }) async {
+    final epoch = _requireAccount();
+    if (epoch != sessionRevision || _account!.id != draft.accountId) {
+      throw const AssetFailure(
+        'Import session changed; review the target account again',
+        definitelyNotSent: true,
+      );
+    }
+    await _csrf(epoch);
+    _current(epoch);
+    final response = await _send(
+      'POST',
+      'assets/import/v4',
+      epoch,
+      null,
+      draft.json,
+    );
+    _current(epoch);
+    try {
+      return AssetImportV4Receipt.parse(response, draft);
+    } on FormatException {
+      throw const AssetFailure(
+        'Import receipt unavailable; retain the same request key',
       );
     }
   }
@@ -267,6 +1380,7 @@ class AssetApi implements AssetSession {
     String path,
     int epoch, [
     Map<String, Object?>? body,
+    String? exactJson,
   ]) async {
     _current(epoch);
     final client = HttpClient()..connectionTimeout = timeout;
@@ -295,9 +1409,9 @@ class AssetApi implements AssetSession {
                     cookie.expires!.isAfter(DateTime.now())),
           ),
         );
-        if (body != null) {
+        if (body != null || exactJson != null) {
           request.headers.contentType = ContentType.json;
-          request.write(jsonEncode(body));
+          request.write(exactJson ?? jsonEncode(body));
         }
         final response = await request.close();
         _current(epoch);
@@ -308,8 +1422,18 @@ class AssetApi implements AssetSession {
         if (response.statusCode < 200 || response.statusCode >= 300) {
           final message = switch (response.statusCode) {
             403 => 'Request rejected. Sign in again before another write.',
-            409 => 'Asset changed or is unavailable; refresh before editing.',
-            422 => 'Pagination limit reached; the list is incomplete. Narrow your filters.',
+            409 =>
+              path.startsWith('inventory-saved-filters')
+                  ? 'Saved filter changed or the 20-view limit was reached; reload saved filters.'
+                  : 'Asset changed or is unavailable; refresh before editing.',
+            422 =>
+              path == 'assets/export'
+                  ? 'Inventory exceeds export limits (500 assets / 1 MiB); no partial export was produced.'
+                  : path.split('?').first == 'assets/warranty/overview'
+                  ? 'Warranty counts exceed the safe integer limit; no partial overview was returned.'
+                  : path == 'assets/overview'
+                  ? 'Inventory exceeds the overview limit (200 categories); no partial counts were returned.'
+                  : 'Pagination limit reached; the list is incomplete. Narrow your filters.',
             429 => 'Too many requests. Wait before trying again.',
             _ => 'Request failed',
           };
