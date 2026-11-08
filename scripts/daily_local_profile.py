@@ -14,6 +14,37 @@ _ENABLED = frozenset((
     'ASSET_SELECTION_EXPORT_V2_ENABLED', 'ASSET_EXPORT_V4_ENABLED',
     'ASSET_SAVED_FILTERS_ENABLED'))
 
+# Explicit mapping: frontend feature names are not derived from backend spelling.
+_CLIENT_FLAGS = {
+    'ASSET_IMPORT_ENABLED': 'ASSET_DESK_ENABLE_IMPORT',
+    'ASSET_IMPORT_V2_ENABLED': 'ASSET_DESK_ENABLE_IMPORT_V2',
+    'ASSET_IMPORT_V3_ENABLED': 'ASSET_DESK_ENABLE_IMPORT_V3',
+    'ASSET_IMPORT_V4_ENABLED': 'ASSET_DESK_ENABLE_IMPORT_V4',
+    'ASSET_DATES_ENABLED': 'ASSET_DESK_ENABLE_ASSET_DATES',
+    'ASSET_LOCATION_ENABLED': 'ASSET_DESK_ENABLE_ASSET_LOCATION',
+    'ASSET_CHECK_ENABLED': 'ASSET_DESK_ENABLE_ASSET_CHECK',
+    'ASSET_EXPORT_V3_ENABLED': 'ASSET_DESK_ENABLE_EXPORT_V3',
+    'ASSET_EXPORT_V4_ENABLED': 'ASSET_DESK_ENABLE_EXPORT_V4',
+    'ASSET_SELECTION_EXPORT_ENABLED': 'ASSET_DESK_ENABLE_SELECTION_EXPORT',
+    'ASSET_SELECTION_EXPORT_V2_ENABLED': 'ASSET_DESK_ENABLE_SELECTION_EXPORT_V2',
+    'ASSET_SAVED_FILTERS_ENABLED': 'ASSET_DESK_ENABLE_SAVED_FILTERS',
+}
+
+
+def client_profile_flags(name):
+    """Return explicit build metadata, not proof of a compiled release's flags.
+
+    Endpoint selection, artifact provenance and native acceptance remain separate.
+    No command is executed and no environment or secret file is read.
+    """
+    contract = profile_contract(name)
+    if (set(_CLIENT_FLAGS) != set(FEATURES)
+            or len(set(_CLIENT_FLAGS.values())) != len(_CLIENT_FLAGS)):
+        raise ValueError('Daily client feature mapping is incomplete')
+    flags = {_CLIENT_FLAGS[key]: value for key, value in contract['flags'].items()}
+    flags['ASSET_DESK_ALLOW_LOCAL_HTTP'] = 'false'
+    return flags
+
 
 def profile_contract(name):
     """Return fresh flags/schema metadata; never infer or apply a profile."""

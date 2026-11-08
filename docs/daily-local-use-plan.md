@@ -228,3 +228,17 @@ approved extended HTTPS recovery fixture: populated/null fields and saved filter
 survived restore and reauthentication for two owners. Imports remained disabled.
 Client/profile matching and operator profile selection for ordinary daily use
 remain pending. Do not start an extended daily session based on this helper alone.
+
+### Client build metadata (source only)
+
+`client_profile_flags(name)` returns the explicit Flutter boolean defines matching
+one named backend profile. Both profiles disable local HTTP and every import
+version; the extended profile enables optional fields, exports and saved filters.
+An offline contract checks the complete boolean-define set against
+`flutter/lib/main.dart` and rejects an unmapped backend feature or duplicate client
+mapping. Returned dictionaries are independent.
+
+This helper does not build or launch anything. It does not choose an API endpoint,
+inspect a compiled executable, or prove that a release used these flags. Review the
+HTTPS endpoint and record actual build arguments and artifact hashes separately.
+Launcher integration, native acceptance and ordinary deployment remain pending.
