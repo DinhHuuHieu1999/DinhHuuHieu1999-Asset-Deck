@@ -1,7 +1,10 @@
+import { ASSET_LIST_SORTS, type AssetListSort } from './asset-sort';
 import { Type } from 'class-transformer';
 import {
   IsIn,
   IsInt,
+  IsOptional,
+  IsUUID,
   IsString,
   Matches,
   Max,
@@ -52,15 +55,40 @@ export class AssetUpdateDto extends AssetInputDto {
 
 /** Fixed page size and literal substring search, without owner-selected queries. */
 export class AssetQueryDto {
+  @IsIn(['all', 'unchecked', 'before', 'on_or_after'])
+  checkMode?: 'all' | 'unchecked' | 'before' | 'on_or_after' = 'all';
+  @IsString()
+  @MaxLength(10)
+  checkBefore?: string = '';
+  @IsString()
+  @MaxLength(10)
+  checkOnOrAfter?: string = '';
+  @IsIn(ASSET_LIST_SORTS)
+  sort?: AssetListSort = 'updated_desc';
   @IsString()
   @MaxLength(120)
   @Matches(/^[^\0]*$/u)
   q = '';
   @IsIn(['', ...ASSET_STATUSES])
   status: AssetStatus | '' = '';
+  @IsString()
+  @MaxLength(64)
+  @Matches(/^[^\0]*$/u)
+  category?: string = '';
   @Type(() => Number)
   @IsInt()
   @Min(0)
   @Max(100000)
   offset = 0;
+}
+
+/** Advisory exact serial lookup; identity exclusion is not an ownership assertion. */
+export class AssetSerialQueryDto {
+  @IsString()
+  @MaxLength(120)
+  @Matches(/^[^\0]*$/u)
+  serial = '';
+  @IsOptional()
+  @IsUUID()
+  excludeId?: string;
 }

@@ -17,8 +17,10 @@ class AssetFailure implements Exception {
 /// Authenticated inventory boundary; production transport is implemented separately.
 abstract interface class AssetStore {
   Future<AssetPage> list({
+    String sort = 'updated_desc',
     required String query,
     required String status,
+    String category = '',
     required int offset,
   });
   Future<AssetRecord> create(AssetInput input);

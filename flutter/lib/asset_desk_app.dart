@@ -8,8 +8,37 @@ import 'sign_in_page.dart';
 
 /// Own the account lifecycle and replace the complete private navigator on change.
 class AssetDeskApp extends StatefulWidget {
-  const AssetDeskApp({super.key, required this.session});
+  const AssetDeskApp({
+    super.key,
+    required this.session,
+    this.enableInventoryImport = false,
+    this.enableInventoryImportV2 = false,
+    this.enableInventoryImportV4 = false,
+    this.enableInventoryImportV3 = false,
+    this.enableSavedFilters = false,
+    this.enableAssetDates = false,
+    this.enableAssetLocation = false,
+    this.enableAssetCheck = false,
+    this.enableInventoryExportV3 = false,
+    this.enableInventoryExportV4 = false,
+    this.enableSelectionExport = false,
+    this.enableSelectionExportV2 = false,
+    this.importApiBase = '',
+  });
+  final bool enableSavedFilters;
+  final String importApiBase;
   final AssetSession session;
+  final bool enableInventoryImport;
+  final bool enableInventoryImportV2;
+  final bool enableInventoryImportV4;
+  final bool enableInventoryImportV3;
+  final bool enableAssetDates;
+  final bool enableAssetLocation;
+  final bool enableAssetCheck;
+  final bool enableInventoryExportV3;
+  final bool enableInventoryExportV4;
+  final bool enableSelectionExport;
+  final bool enableSelectionExportV2;
   @override
   State<AssetDeskApp> createState() => _AssetDeskAppState();
 }
@@ -94,7 +123,22 @@ class _AssetDeskAppState extends State<AssetDeskApp> {
             ),
       home: account == null
           ? SignInPage(session: widget.session)
-          : AssetsPage(store: widget.session),
+          : AssetsPage(
+              store: widget.session,
+              enableSavedFilters: widget.enableSavedFilters,
+              importApiBase: widget.importApiBase,
+              enableInventoryImport: widget.enableInventoryImport,
+              enableInventoryImportV2: widget.enableInventoryImportV2,
+              enableInventoryImportV4: widget.enableInventoryImportV4,
+              enableInventoryImportV3: widget.enableInventoryImportV3,
+              enableAssetDates: widget.enableAssetDates,
+              enableAssetLocation: widget.enableAssetLocation,
+              enableAssetCheck: widget.enableAssetCheck,
+              enableInventoryExportV3: widget.enableInventoryExportV3,
+              enableInventoryExportV4: widget.enableInventoryExportV4,
+              enableSelectionExport: widget.enableSelectionExport,
+              enableSelectionExportV2: widget.enableSelectionExportV2,
+            ),
     );
   }
 }

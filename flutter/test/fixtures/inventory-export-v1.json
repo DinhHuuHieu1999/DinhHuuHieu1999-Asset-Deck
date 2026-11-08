@@ -1,0 +1,6 @@
+{
+  "format": "asset-desk-inventory",
+  "schemaVersion": 1,
+  "payload": "{\"exportedAt\":\"2026-10-25T08:00:00Z\",\"complete\":true,\"recordCount\":1,\"records\":[{\"id\":\"00000000-0000-4000-8000-000000000001\",\"name\":\"Synthetic laptop\",\"category\":\"Laptop\",\"serial\":\"%_1\",\"status\":\"stored\",\"notes\":\"Unicode: é 中 🚀\",\"version\":1,\"createdAt\":\"2026-10-25T00:00:00Z\",\"updatedAt\":\"2026-10-25T00:00:00Z\"}]}",
+  "sha256": "dc33424aded1b6639fa70382d82159317664dd12f6b792d5657fa60a12b09077"
+}

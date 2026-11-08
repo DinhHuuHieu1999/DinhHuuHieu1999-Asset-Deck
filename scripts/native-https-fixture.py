@@ -6,6 +6,8 @@ import json
 import os
 from pathlib import Path
 import time
+import uuid
+from datetime import datetime, timezone
 
 _spec = importlib.util.spec_from_file_location('client_fixture', Path(__file__).with_name('client-https-fixture.py'))
 client = importlib.util.module_from_spec(_spec)
@@ -14,6 +16,17 @@ _spec.loader.exec_module(client)
 
 def verify_candidate(root, args):
     """Require a complete hashed deployment, pinned to the intended TLS endpoint."""
+    saved_filters = client.saved_filters_mode(args)
+    v4 = client.import_v4_mode(args)
+    export_v4 = client.export_v4_mode(args)
+    selection_v2 = client.selection_export_v2_mode(args)
+    manual_check = client.check_mode(args)
+    selection = client.selection_export_mode(args)
+    v3 = client.import_v3_mode(args)
+    export_v3 = client.export_v3_mode(args)
+    location = client.location_mode(args)
+    v2 = client.import_v2_mode(args)
+    enabled = client.import_mode(args) or v2 or v3 or v4
     if not args.execute_native or not args.execute_synthetic:
         raise client.Refusal('Explicit native and synthetic opt-in required')
     if not 1 <= args.minutes <= 30:
@@ -40,6 +53,48 @@ def verify_candidate(root, args):
             value.get('endpoint') != 'https://localhost:%s/api/v1' % args.tls_port or
             value.get('buildMode') != 'release' or not isinstance(value.get('files'), dict)):
         raise client.Refusal('Candidate endpoint or release manifest mismatch')
+    defines = {'ASSET_DESK_ENABLE_IMPORT': 'true'}
+    if v2:
+        defines.update(ASSET_DESK_ENABLE_IMPORT_V2='true', ASSET_DESK_ENABLE_ASSET_DATES='true')
+    if location:
+        defines = {'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+    if export_v3:
+        defines = {'ASSET_DESK_ENABLE_EXPORT_V3': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+    if v3:
+        defines = {'ASSET_DESK_ENABLE_IMPORT': 'true',
+                   'ASSET_DESK_ENABLE_IMPORT_V3': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_DATES': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true'}
+    if v4:
+        defines = {'ASSET_DESK_ENABLE_IMPORT': 'true',
+                   'ASSET_DESK_ENABLE_IMPORT_V4': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_DATES': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_CHECK': 'true'}
+    if selection:
+        defines = {'ASSET_DESK_ENABLE_SELECTION_EXPORT': 'true',
+                   'ASSET_DESK_ENABLE_EXPORT_V3': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+    if manual_check:
+        defines = {'ASSET_DESK_ENABLE_ASSET_CHECK': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+    if selection_v2:
+        defines.update(ASSET_DESK_ENABLE_SELECTION_EXPORT_V2='true',
+                       ASSET_DESK_ENABLE_ASSET_CHECK='true')
+    if export_v4:
+        defines = {'ASSET_DESK_ENABLE_EXPORT_V4': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_CHECK': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+    if saved_filters:
+        defines.update(ASSET_DESK_ENABLE_SAVED_FILTERS='true')
+    if (export_v4 or manual_check or enabled or location or export_v3 or selection) and value.get('buildDefines') != defines:
+        raise client.Refusal('Candidate feature build contract missing')
     files = value['files']
     if not {'asset_desk.exe', 'flutter_windows.dll', 'data/icudtl.dat'} <= set(files):
         raise client.Refusal('Required deployment files missing')
@@ -58,21 +113,53 @@ def verify_candidate(root, args):
     return executable
 
 
+def seed_source(args):
+    """Select a fixed source path without accepting arbitrary seed programs."""
+    if client.export_v4_mode(args):
+        return 'flutter/tool/native_export_v4_seed.dart'
+    return 'flutter/tool/native_export_v3_seed.dart' if (client.export_v3_mode(args) or client.selection_export_mode(args)) else 'flutter/tool/native_https_seed.dart'
+
+
 def preflight(root, args):
     """Validate all source/candidate prerequisites before creating resources."""
     verify_candidate(root, args)
     if os.name != 'nt':
         raise client.Refusal('Native session requires Windows')
-    if not (root / 'flutter/tool/native_https_seed.dart').is_file():
+    if not (root / seed_source(args)).is_file():
         raise client.Refusal('Native seed source missing')
     client.preflight(root, args)
+
+
+def prepare_import_file(folder, v2=False, v3=False, v4=False):
+    """Create one inert synthetic snapshot; never consume operator inventory."""
+    now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+    record = {'id': str(uuid.uuid4()), 'name': 'Synthetic native imported asset',
+              'category': 'fixture', 'serial': 'IMPORT-%_1', 'status': 'stored',
+              'notes': 'Synthetic import only', 'version': 1,
+              'createdAt': now, 'updatedAt': now}
+    if any(type(v) is not bool for v in (v2, v3, v4)) or sum((v2, v3, v4)) > 1:
+        raise client.Refusal('Invalid synthetic import version')
+    if v2 or v3 or v4:
+        record.update(purchasedOn='2024-02-29', warrantyExpiresOn='2027-02-28')
+    if v4:
+        record['lastCheckedDate'] = '2024-03-01'
+    if v3 or v4:
+        record['location'] = 'Synthetic room %_1'
+    payload = json.dumps({'exportedAt': now, 'complete': True, 'recordCount': 1,
+                          'records': [record]}, ensure_ascii=False, separators=(',', ':'))
+    envelope = {'format': 'asset-desk-inventory', 'schemaVersion': 4 if v4 else 3 if v3 else 2 if v2 else 1, 'payload': payload,
+                'sha256': hashlib.sha256(payload.encode('utf-8')).hexdigest()}
+    destination = folder / ('inventory-import-v4-synthetic.json' if v4 else 'inventory-import-v3-synthetic.json' if v3 else 'inventory-import-v2-synthetic.json' if v2 else 'inventory-import-synthetic.json')
+    with destination.open('x', encoding='utf-8') as stream:
+        stream.write(json.dumps(envelope, ensure_ascii=False, separators=(',', ':'))+'\n')
+    return destination
 
 
 def native_session(root, args, runtime, folder, identity, backend, proxy):
     """Seed through default TLS, then hold exact owned children for a bounded session."""
     executable = verify_candidate(root, args)
     endpoint = 'https://localhost:%s/api/v1' % args.tls_port
-    raw = runtime.run([args.dart, '--disable-dart-dev', str(root / 'flutter/tool/native_https_seed.dart'),
+    raw = runtime.run([args.dart, '--disable-dart-dev', str(root / seed_source(args)),
                        '--synthetic-only', endpoint, identity], cwd=root / 'flutter')
     seed = json.loads(raw)
     if (not isinstance(seed, dict) or set(seed) != {'username', 'password', 'assetName'} or
@@ -82,6 +169,47 @@ def native_session(root, args, runtime, folder, identity, backend, proxy):
     handoff = dict(seed, endpoint=endpoint, fixtureId=identity, syntheticOnly=True,
                    expiresAtEpoch=int(time.time() + args.minutes * 60),
                    instructions='Sign in, search, create/edit/refresh. Do not use a real account or equipment data.')
+    if client.import_mode(args) or client.import_v2_mode(args) or client.import_v3_mode(args) or client.import_v4_mode(args):
+        import_file = prepare_import_file(folder, v2=client.import_v2_mode(args), v3=client.import_v3_mode(args), v4=client.import_v4_mode(args))
+        handoff.update(importFile=str(import_file), expectedBefore=1, expectedAfter=2,
+                       importedAssetName='Synthetic native imported asset',
+                       instructions='Sign in, open Import, choose the synthetic file, review and explicitly confirm once; refresh. Never use real data.')
+    if client.import_v3_mode(args):
+        handoff.update(importSchemaVersion=3, purchasedOn='2024-02-29',
+                       warrantyExpiresOn='2027-02-28', locationLabel='Synthetic room %_1',
+                       instructions='Sign in; choose Import inventory JSON v3 and the synthetic file. Review dates/location, save private recovery to a new file, acknowledge and confirm once. Refresh: two assets. Restore the same recovery file and explicitly replay: still two. Never use real data.')
+    if client.import_v4_mode(args):
+        handoff.update(importSchemaVersion=4, purchasedOn='2024-02-29',
+                       warrantyExpiresOn='2027-02-28', locationLabel='Synthetic room %_1',
+                       lastCheckedDate='2024-03-01',
+                       instructions='Sign in; choose Import inventory JSON v4 and the synthetic file. Review dates/location/check date, save private recovery to a new file, acknowledge and confirm once. Refresh: two assets. Restore the same recovery file and explicitly replay: still two. Never use real data.')
+    if client.check_mode(args):
+        handoff.update(checkMode=True, expectedAssets=1,
+                       instructions='Sign in; open Details, edit Check date to 2024-03-01, save and refresh. Apply Only unknown check dates: zero assets. Reset, clear the date explicitly, save and refresh: one Unknown asset. Verify other fields remain unchanged. Never use real data.')
+    if client.saved_filters_mode(args):
+        handoff.update(savedFiltersMode=True, instructions='Sign in; apply a synthetic search, save the applied filter, change controls without Apply, then Use as draft. Verify explicit Apply, rename, Cancel delete and confirmed delete. Never use real data.')
+    if client.location_mode(args):
+        handoff.update(locationMode=True, expectedAssets=1,
+                       locationLabel='Synthetic room %_1',
+                       instructions='Sign in; edit the synthetic asset location to Synthetic room %_1; save and refresh. Test exact and unknown filters, clear the location and refresh. Verify base fields remain unchanged. Never use real data.')
+    if client.export_v3_mode(args):
+        handoff.update(exportV3Mode=True, expectedAssets=1,
+                       purchasedOn='2024-02-29', warrantyExpiresOn='2027-02-28',
+                       locationLabel='Synthetic room %_1',
+                       instructions='Sign in; export JSON v3, Prepare and Save to a new private file. Inspect that file: checksum, one asset, both dates and location must match. Cancel file selection must retain preview. Invalid JSON must clear preview. No import or real data.')
+    if client.selection_export_mode(args):
+        handoff.update(selectionExportMode=True, expectedAssets=1,
+                       purchasedOn='2024-02-29', warrantyExpiresOn='2027-02-28',
+                       locationLabel='Synthetic room %_1',
+                       instructions='Sign in; apply Search Synthetic and status stored. Open filtered selection export, Prepare: one match with applied scope. Save to a new private file; Cancel must retain the prepared result. Back must retain inventory filters. This file is not a full backup and cannot be imported. Never use real data.')
+    if client.selection_export_v2_mode(args):
+        handoff.update(selectionExportV2Mode=True,
+            instructions='Sign in; apply Search Synthetic. Open Export matching assets JSON v2 with check dates, Prepare and save a new private file. Inspect selection JSON v2: checksum, one asset and Unknown check date. Cancel retains preview and checksum; invalid JSON clears both. No import or real data.')
+    if client.export_v4_mode(args):
+        handoff.update(exportV4Mode=True, expectedAssets=1,
+            purchasedOn='2024-02-29', warrantyExpiresOn='2027-02-28',
+            locationLabel='Synthetic room %_1', lastCheckedDate='2024-03-01',
+            instructions='Sign in; Export JSON v4 with manual check dates, Prepare and save a new private file. Inspect JSON v4: checksum, one asset, purchase 2024-02-29, warranty 2027-02-28, location Synthetic room %_1 and last checked 2024-03-01. Cancel must keep preview and checksum; invalid JSON must clear both. No import or real data.')
     # Credentials are private local fixture evidence, never stdout or tracked source.
     with (folder / 'operator-handoff.json').open('x', encoding='utf-8') as stream:
         stream.write(json.dumps(handoff, indent=2) + '\n')
@@ -100,7 +228,7 @@ def native_session(root, args, runtime, folder, identity, backend, proxy):
     return {'status': 'session-ended', 'syntheticOnly': True, 'nativeAcceptance': 'pending',
             'sessionEnd': reason, 'candidateSha256': hashlib.sha256(executable.read_bytes()).hexdigest(),
             'candidateManifestSha256': hashlib.sha256((executable.parent / 'candidate.json').read_bytes()).hexdigest(),
-            'seedSourceSha256': hashlib.sha256((root / 'flutter/tool/native_https_seed.dart').read_bytes()).hexdigest()}
+            'seedSourceSha256': hashlib.sha256((root / seed_source(args)).read_bytes()).hexdigest()}
 
 
 def main():
@@ -108,6 +236,17 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--execute-native', action='store_true')
     parser.add_argument('--execute-synthetic', action='store_true')
+    parser.add_argument('--check-mode', action='store_true')
+    parser.add_argument('--saved-filters-mode', action='store_true')
+    parser.add_argument('--selection-export-mode', action='store_true')
+    parser.add_argument('--selection-export-v2-mode', action='store_true')
+    parser.add_argument('--export-v3-mode', action='store_true')
+    parser.add_argument('--export-v4-mode', action='store_true')
+    parser.add_argument('--location-mode', action='store_true')
+    parser.add_argument('--import-mode', action='store_true')
+    parser.add_argument('--import-v2-mode', action='store_true')
+    parser.add_argument('--import-v3-mode', action='store_true')
+    parser.add_argument('--import-v4-mode', action='store_true')
     parser.add_argument('--candidate', default='')
     parser.add_argument('--minutes', type=int, default=30)
     for name in ('image', 'cert', 'key'):

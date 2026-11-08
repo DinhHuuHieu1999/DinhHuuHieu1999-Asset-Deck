@@ -2,7 +2,7 @@
   "sdkVersion": "3.47.4",
   "frameworkRevision": "9584c6713b",
   "origin": "Flutter SDK app/windows.tmpl",
-  "changes": "Render projectName=asset_desk, organization=Asset Desk contributors, year=2026, withPlatformChannelPluginHook=false; otherwise retain template bytes. The empty icon placeholder resolves to the installed flutter_template_images 5.0.0 image, as Flutter template rendering requires.",
+  "changes": "Render projectName=asset_desk, organization=Asset Desk contributors, year=2026, withPlatformChannelPluginHook=false; otherwise retain template bytes. The empty icon placeholder resolves to the installed flutter_template_images 5.0.0 image, as Flutter template rendering requires. Application patches retain the original rendered-template hash separately.",
   "files": [
     {
       "template": ".gitignore",
@@ -29,22 +29,28 @@
       "template": "runner/CMakeLists.txt",
       "sourceSha256": "d765fdd05f63ad099e585a2cced0cbff13ec3229b7de68c8681b2107db850089",
       "destination": "flutter/windows/runner/CMakeLists.txt",
-      "destinationSha256": "34119ec122e36940235ef4bc245fcfb43b6960ed443e28af1a8d833a81209b9e",
-      "destinationHashMode": "utf8-lf"
+      "destinationSha256": "f77a522d9c23eb51450bd3c741e2e01bcaa1866a4f0f614dff3f095c5d42a167",
+      "destinationHashMode": "utf8-lf",
+      "renderedTemplateSha256": "34119ec122e36940235ef4bc245fcfb43b6960ed443e28af1a8d833a81209b9e",
+      "applicationPatch": "Register and own the export-only native channel, or compile and link its implementation."
     },
     {
       "template": "runner/flutter_window.cpp",
       "sourceSha256": "d615eedc06ae37321e59c2c00c7687d1887dcd97904eb7225fafd8dcb5b83da6",
       "destination": "flutter/windows/runner/flutter_window.cpp",
-      "destinationSha256": "dd185884c0b5301d400b58f12ebb36b1c8b326531597e531b40e44a6eeb0e943",
-      "destinationHashMode": "utf8-lf"
+      "destinationSha256": "3d9937daa71c5e43b2c1590ad38a7fddf7976364de83fe19fd6a090dd93e3c66",
+      "destinationHashMode": "utf8-lf",
+      "renderedTemplateSha256": "dd185884c0b5301d400b58f12ebb36b1c8b326531597e531b40e44a6eeb0e943",
+      "applicationPatch": "Register and own the export-only native channel, or compile and link its implementation."
     },
     {
       "template": "runner/flutter_window.h",
       "sourceSha256": "0252b804f5da380c7709cbe1daff2b8d18daf6c49d7e6dd43e5af3c99c19f56c",
       "destination": "flutter/windows/runner/flutter_window.h",
-      "destinationSha256": "38e0fcd3a0b83895852ec295cb70d90179c0dcd40d58f065eb5232a4ecd84898",
-      "destinationHashMode": "utf8-lf"
+      "destinationSha256": "0525bf48cef8e4724518b5119af0809fb583722b046aebb97ee6061eb6a34684",
+      "destinationHashMode": "utf8-lf",
+      "renderedTemplateSha256": "38e0fcd3a0b83895852ec295cb70d90179c0dcd40d58f065eb5232a4ecd84898",
+      "applicationPatch": "Register and own the export-only native channel, or compile and link its implementation."
     },
     {
       "template": "runner/main.cpp.tmpl",
@@ -131,5 +137,33 @@
         "destinationSha256": "dbc11635d7b1ba1887adf40df5b83d634e9c3ab0bee34510c71528bb4d73602a"
       }
     ]
+  },
+  "inventoryExport": {
+    "sourceCommit": "79e22d0fca9281710c782a9abe7ab151d76b6ef4",
+    "adaptedFrom": "ToolDeck catalog_digest.cpp, image_result_file.cpp and image_files_channel.cpp",
+    "changes": "Export/read-only inspection remain bounded to 1 MiB; explicit private import-recovery file/hash methods use a separate 2 MiB bound. Local new-file writes refuse overwrite; native selection does not automatically import or replay. No private path response. Known reparse parents and network drives are rejected; this is not a filesystem sandbox.",
+    "files": [
+      {
+        "destination": "flutter/windows/runner/inventory_export_file.h",
+        "destinationHashMode": "utf8-lf",
+        "destinationSha256": "af770b59f57d9b082a8bf186e40a3f8f4956c939e808edc1ed0f217e003b2bef"
+      },
+      {
+        "destination": "flutter/windows/runner/inventory_export_file.cpp",
+        "destinationHashMode": "utf8-lf",
+        "destinationSha256": "d4446cf6bb40b516e250597ae3cfe1a50eee8d15f03d1b3188bd435472e05883"
+      },
+      {
+        "destination": "flutter/windows/runner/inventory_export_channel.h",
+        "destinationHashMode": "utf8-lf",
+        "destinationSha256": "3057f9412cf59c764b5d6a78110248595688bc159b5e7940f9f552dbfb9b1c63"
+      },
+      {
+        "destination": "flutter/windows/runner/inventory_export_channel.cpp",
+        "destinationHashMode": "utf8-lf",
+        "destinationSha256": "4cb47ffd37aaa1bd3bb84087bf2dbd9fd07faa2e1f5b2c0d83cbc47f5f7da7d2"
+      }
+    ],
+    "applicationAdaptationCommit": "08e7d374236e06b6d24342ed028ffd80b52fa117"
   }
 }

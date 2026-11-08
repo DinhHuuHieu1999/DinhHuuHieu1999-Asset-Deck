@@ -13,14 +13,247 @@ import time
 LABEL = 'asset-desk.client-https'
 FILES = ('backend/dist/main.js', 'backend/migrations/001-auth-accounts.sql',
          'backend/migrations/002-assets.sql', 'scripts/client-https-proxy.mjs',
-         'scripts/client-https-proxy-cli.mjs', 'flutter/tool/client_https_acceptance.dart',
+         'scripts/import-recovery-fault.mjs', 'scripts/client-https-proxy-cli.mjs', 'flutter/tool/client_https_acceptance.dart',
          'flutter/.dart_tool/package_config.json', 'flutter/lib/api/asset_api.dart',
          'flutter/lib/api/asset.dart', 'flutter/lib/api/asset_session.dart',
          'flutter/lib/api/asset_store.dart', 'scripts/client-https-backend.cjs')
 
 
+IMPORT_FILES = ('backend/migrations/003-asset-import.sql',
+                'flutter/tool/import_https_acceptance.dart',
+                'flutter/lib/api/asset_import.dart')
+
 class Refusal(Exception):
     """Safe refusal without including subprocess output or credentials."""
+
+
+def import_mode(args):
+    """Accept only an explicit boolean profile, never arbitrary env/SQL input."""
+    value = getattr(args, 'import_mode', False)
+    if type(value) is not bool:
+        raise Refusal('Invalid import fixture profile')
+    return value
+
+
+DATES_FILES = ('backend/migrations/004-asset-dates.sql',
+               'backend/dist/domains/assets/asset-dates.module.js',
+               'flutter/tool/dates_https_acceptance.dart', 'flutter/lib/api/asset_dates.dart')
+
+
+def dates_mode(args):
+    """Dates is a fixed opt-in capability, never an inherited operator setting."""
+    value = getattr(args, 'dates_mode', False)
+    if type(value) is not bool or (value and import_mode(args)):
+        raise Refusal('Invalid dates fixture profile')
+    return value
+
+
+IMPORT_V2_FILES = IMPORT_FILES + DATES_FILES + (
+    'backend/dist/domains/assets/asset-import-v2.config.js',
+    'backend/dist/domains/assets/asset-import-v2.module.js',
+    'backend/dist/domains/assets/asset-import-v2.controller.js',
+    'backend/dist/domains/assets/asset-import-v2.repository.js',
+    'backend/dist/domains/assets/asset-import-v2.js',
+    'backend/dist/domains/assets/asset-import-v2-parser.js',
+    'flutter/tool/import_v2_https_acceptance.dart',
+    'flutter/lib/api/asset_import_v2.dart',
+    'flutter/lib/api/asset_import_v2_recovery.dart',
+    'flutter/lib/api/asset_export_v2.dart',
+)
+
+
+def import_v2_mode(args):
+    """Separate fixed profile; never widen legacy import/dates fixtures."""
+    value = getattr(args, 'import_v2_mode', False)
+    if type(value) is not bool or (value and (import_mode(args) or dates_mode(args))):
+        raise Refusal('Invalid import v2 fixture profile')
+    return value
+
+
+
+LOCATION_FILES = DATES_FILES + (
+    'backend/src/domains/assets/asset-location-overview.ts',
+    'backend/dist/domains/assets/asset-location-overview.js',
+    'flutter/lib/api/asset_location_overview.dart',
+    'backend/migrations/005-asset-location.sql',
+    'backend/src/domains/assets/asset-location.ts',
+    'backend/src/domains/assets/asset-location.config.ts',
+    'backend/src/domains/assets/asset-location.module.ts',
+    'backend/src/domains/assets/asset-location.controller.ts',
+    'backend/src/domains/assets/asset-location.repository.ts',
+    'backend/dist/domains/assets/asset-location.js',
+    'backend/dist/domains/assets/asset-location.config.js',
+    'backend/dist/domains/assets/asset-location.module.js',
+    'backend/dist/domains/assets/asset-location.controller.js',
+    'backend/dist/domains/assets/asset-location.repository.js',
+    'flutter/tool/location_https_acceptance.dart',
+    'flutter/lib/api/asset_location.dart',
+)
+
+
+def location_mode(args):
+    """Location is a fixed opt-in profile, incompatible with other profile flags."""
+    value = getattr(args, 'location_mode', False)
+    if type(value) is not bool or (value and (import_mode(args) or dates_mode(args) or import_v2_mode(args))):
+        raise Refusal('Invalid location fixture profile')
+    return value
+
+
+EXPORT_V3_FILES = LOCATION_FILES + tuple(
+    'backend/dist/domains/assets/asset-export-v3' + suffix + '.js'
+    for suffix in ('', '.config', '.module', '.controller', '.repository')
+) + ('flutter/lib/api/asset_export_v3.dart', 'flutter/tool/export_v3_https_acceptance.dart')
+
+
+def export_v3_mode(args):
+    """Export v3 has its own exclusive, explicitly typed fixture profile."""
+    value = getattr(args, 'export_v3_mode', False)
+    if type(value) is not bool or (value and (import_mode(args) or dates_mode(args) or import_v2_mode(args) or location_mode(args))):
+        raise Refusal('Invalid export v3 fixture profile')
+    return value
+
+
+IMPORT_V3_FILES = IMPORT_FILES + EXPORT_V3_FILES + tuple(
+    'backend/dist/domains/assets/asset-import-v3' + suffix + '.js'
+    for suffix in ('', '.config', '.module', '.controller', '.repository', '-parser')
+) + ('backend/dist/domains/assets/asset-import-v2-parser.js',
+     'flutter/tool/import_v3_https_acceptance.dart',
+     'flutter/lib/api/asset_import_v3.dart')
+
+
+def import_v3_mode(args):
+    """Only a dedicated exclusive boolean profile enables import v3."""
+    value = getattr(args, 'import_v3_mode', False)
+    if type(value) is not bool or (value and any(getattr(args, key, False) is not False
+            for key in ('import_mode', 'dates_mode', 'import_v2_mode',
+                        'location_mode', 'export_v3_mode'))):
+        raise Refusal('Invalid import v3 fixture profile')
+    return value
+
+
+SELECTION_EXPORT_FILES = EXPORT_V3_FILES + tuple(
+    'backend/dist/domains/assets/asset-selection-export' + suffix + '.js'
+    for suffix in ('', '.config', '.module', '.controller', '.repository')
+) + ('flutter/lib/api/asset_selection_export.dart',
+     'flutter/tool/selection_export_https_acceptance.dart',
+     'flutter/tool/export_https_acceptance.dart',
+     'scripts/selection_export_https_contract.py',)
+
+
+def selection_export_v2_mode(args):
+    """V2 is an explicit refinement of the isolated selection profile only."""
+    value = getattr(args, 'selection_export_v2_mode', False)
+    if type(value) is not bool or (value and not selection_export_mode(args)):
+        raise Refusal('Invalid selection v2 profile')
+    return value
+
+
+def selection_export_mode(args):
+    """Selection export is explicit, boolean and exclusive of all old profiles."""
+    value = getattr(args, 'selection_export_mode', False)
+    if type(value) is not bool or (value and any(getattr(args, key, False) is not False
+            for key in ('import_mode', 'dates_mode', 'import_v2_mode',
+                        'location_mode', 'export_v3_mode', 'import_v3_mode'))):
+        raise Refusal('Invalid selection export fixture profile')
+    return value
+
+
+CHECK_FILES = LOCATION_FILES + (
+    'backend/migrations/006-asset-check.sql',
+    'backend/dist/domains/assets/asset-check.module.js',
+    'backend/dist/domains/assets/asset-check.controller.js',
+    'backend/dist/domains/assets/asset-check.repository.js',
+    'backend/dist/domains/assets/asset-check.js',
+    'flutter/lib/api/asset_check.dart',
+    'flutter/tool/check_https_acceptance.dart',
+)
+
+
+def saved_filters_mode(args):
+    """Require an explicit saved-definition profile alongside fixed check capabilities."""
+    value = getattr(args, 'saved_filters_mode', False)
+    if type(value) is not bool or (value and not check_mode(args)):
+        raise Refusal('Invalid saved filters fixture profile')
+    return value
+
+
+def check_mode(args):
+    """A check-date fixture is exclusive; never inherit another profile's flags."""
+    value = getattr(args, 'check_mode', False)
+    profiles = ('import_mode', 'dates_mode', 'import_v2_mode', 'location_mode',
+                'export_v3_mode', 'import_v3_mode', 'selection_export_mode')
+    if type(value) is not bool or (value and any(getattr(args, key, False) is not False for key in profiles)):
+        raise Refusal('Invalid check-date fixture profile')
+    return value
+
+
+
+def export_v4_mode(args):
+    """Only an exclusive explicit boolean selects full export v4."""
+    value = getattr(args, 'export_v4_mode', False)
+    profiles = ('import_mode', 'dates_mode', 'import_v2_mode', 'location_mode',
+                'export_v3_mode', 'import_v3_mode', 'selection_export_mode',
+                'selection_export_v2_mode', 'check_mode')
+    if type(value) is not bool or (value and any(getattr(args, key, False) is not False for key in profiles)):
+        raise Refusal('Invalid export v4 fixture profile')
+    return value
+
+
+def import_v4_mode(args):
+    """Select only the independent, exclusive import-v4 fixture profile."""
+    value = getattr(args, 'import_v4_mode', False)
+    profiles = ('import_mode', 'dates_mode', 'import_v2_mode', 'location_mode',
+                'export_v3_mode', 'import_v3_mode', 'selection_export_mode',
+                'selection_export_v2_mode', 'check_mode', 'export_v4_mode')
+    if type(value) is not bool or (value and any(getattr(args, key, False) is not False for key in profiles)):
+        raise Refusal('Invalid import v4 fixture profile')
+    return value
+
+
+def fixture_files(args):
+    """Return a fixed source/artifact set for the selected fixture profile."""
+    if saved_filters_mode(args):
+        return FILES + CHECK_FILES + (
+            'backend/migrations/007-asset-saved-filters.sql',
+            'flutter/tool/saved_filters_https_acceptance.dart',
+            'flutter/lib/api/asset_saved_filter.dart',
+        ) + tuple('backend/dist/domains/assets/asset-saved-filter' + suffix + '.js'
+                  for suffix in ('', '.config', '.module', '.controller', '.repository'))
+    if import_v4_mode(args):
+        return tuple(dict.fromkeys(FILES + IMPORT_V3_FILES + CHECK_FILES + tuple(
+            'backend/dist/domains/assets/asset-import-v4' + suffix + '.js'
+            for suffix in ('', '.config', '.module', '.controller', '.repository', '-parser')) + tuple(
+            'backend/dist/domains/assets/asset-export-v4' + suffix + '.js'
+            for suffix in ('', '.config', '.module', '.controller', '.repository')) + (
+            'flutter/lib/api/asset_export_v4.dart', 'flutter/lib/api/asset_import_v4.dart',
+            'flutter/tool/import_v4_https_acceptance.dart')))
+    if export_v4_mode(args):
+        return FILES + EXPORT_V3_FILES + CHECK_FILES + tuple(
+            'backend/dist/domains/assets/asset-export-v4' + suffix + '.js'
+            for suffix in ('', '.config', '.module', '.controller', '.repository')) + (
+            'flutter/lib/api/asset_export_v4.dart', 'flutter/tool/export_v4_https_acceptance.dart')
+    selection_v2 = selection_export_v2_mode(args)
+    if check_mode(args):
+        return FILES + CHECK_FILES
+    if selection_v2:
+        return FILES + SELECTION_EXPORT_FILES + CHECK_FILES + tuple(
+            "backend/dist/domains/assets/asset-selection-export-v2" + suffix + ".js"
+            for suffix in ("", ".config", ".module", ".controller", ".repository")) + (
+            "flutter/tool/selection_export_v2_https_acceptance.dart",
+            "flutter/lib/api/asset_selection_export_v2.dart",
+            "scripts/selection_export_v2_https_contract.py",)
+    if selection_export_mode(args):
+        return FILES + SELECTION_EXPORT_FILES
+    if import_v3_mode(args):
+        return FILES + IMPORT_V3_FILES
+    if export_v3_mode(args):
+        return FILES + EXPORT_V3_FILES
+    if location_mode(args):
+        return FILES + LOCATION_FILES
+    if import_v2_mode(args):
+        return FILES + IMPORT_V2_FILES
+    dates = dates_mode(args)
+    return FILES + (DATES_FILES if dates else IMPORT_FILES if import_mode(args) else ())
 
 
 def preflight(root, args):
@@ -29,7 +262,7 @@ def preflight(root, args):
         raise Refusal('Explicit opt-in and an existing immutable image ID are required')
     if any(c not in '0123456789abcdef' for c in args.image[7:]):
         raise Refusal('Invalid image ID')
-    for name in FILES:
+    for name in fixture_files(args):
         if not (root / name).is_file():
             raise Refusal('Required source or artifact is missing')
     for value in (args.cert, args.key):
@@ -58,6 +291,7 @@ class Runtime:
     def __init__(self, seconds=300):
         self.deadline = time.monotonic() + seconds
         self.children = []
+        self.launches = {}
         self.env = {key: value for key, value in os.environ.items()
                     if key.upper() in ('PATH', 'SYSTEMROOT', 'WINDIR', 'COMSPEC', 'PATHEXT', 'TEMP', 'TMP', 'HOME', 'USERPROFILE', 'LOCALAPPDATA')}
 
@@ -85,7 +319,34 @@ class Runtime:
         except OSError:
             raise Refusal('Fixture child failed to start') from None
         self.children.append(child)
+        self.launches[child] = (list(command), cwd, dict(env or self.env))
         return child
+
+    def restart_backend(self, folder, identity, port, child):
+        """Restart only the exact owned backend handle with its original in-memory environment."""
+        launch = self.launches.get(child)
+        if child not in self.children or launch is None or child.poll() is not None:
+            raise Refusal('Owned backend handle unavailable')
+        command, cwd, env = launch
+        if (cwd != folder or len(command) != 4 or command[:2] != ['node', '--require'] or
+                not command[2].endswith('client-https-backend.cjs') or
+                env.get('ASSET_DESK_FIXTURE_ID') != identity or
+                env.get('BACKEND_HTTP_PORT') != str(port)):
+            raise Refusal('Backend launch identity mismatch')
+        marker = folder / 'backend-ready.json'
+        if marker.is_symlink() or marker.stat().st_size > 1024:
+            raise Refusal('Backend readiness marker invalid')
+        if json.loads(marker.read_text(encoding='utf-8')) != {'fixtureId': identity, 'port': port, 'pid': child.pid}:
+            raise Refusal('Backend readiness ownership mismatch')
+        child.terminate()
+        try:
+            child.wait(timeout=min(10, self.remaining()))
+        except subprocess.TimeoutExpired:
+            raise Refusal('Owned backend failed to stop') from None
+        marker.unlink()
+        restarted = self.start(command, cwd, env)
+        self.wait_backend(folder, identity, port, restarted)
+        return restarted
 
     def wait_port(self, port, child):
         until = min(self.deadline, time.monotonic() + 30)
@@ -145,8 +406,56 @@ def assert_owned(runtime, name, identity):
         raise Refusal('Container ownership mismatch; resource retained')
 
 
+PROGRESS_STAGES = ('database-create', 'database-readiness', 'migrations',
+                   'backend-readiness', 'proxy-readiness', 'dart-client',
+                   'native-session', 'completed')
+
+
+def record_progress(folder, identity, stage):
+    """Flush fixed, credential-free milestones; never serialize commands/errors."""
+    if (stage not in PROGRESS_STAGES or not isinstance(identity, str) or
+            len(identity) != 32 or any(c not in '0123456789abcdef' for c in identity)):
+        raise Refusal('Invalid progress milestone')
+    mode = 'x' if stage == 'database-create' else 'a'
+    with (folder / 'progress.jsonl').open(mode, encoding='utf-8') as stream:
+        stream.write(json.dumps({'fixtureId': identity, 'stage': stage}) + '\n')
+        stream.flush()
+        os.fsync(stream.fileno())
+
+
 def execute(root, args, runtime, acceptance=None):
     """Run once, retain evidence/volume, and stop only resources created here."""
+    saved_filters = saved_filters_mode(args)
+    selection_v2 = selection_export_v2_mode(args)
+    v4 = import_v4_mode(args)
+    export_v4 = export_v4_mode(args) or v4
+    manual_check = check_mode(args) or selection_v2 or export_v4
+    selection = selection_export_mode(args)
+    v3 = import_v3_mode(args)
+    export_v3 = export_v3_mode(args) or v3 or selection or export_v4
+    location = location_mode(args) or export_v3 or manual_check
+    v2 = import_v2_mode(args)
+    enabled = import_mode(args) or v2 or v3 or v4
+    dates = dates_mode(args) or v2 or location
+    if (enabled or dates) and acceptance is None:
+        raise Refusal('Import fixture requires its dedicated acceptance driver')
+    if enabled and any(not (root / name).is_file() for name in IMPORT_FILES):
+        raise Refusal('Import fixture source is missing')
+    if v2 and any(not (root / name).is_file() for name in IMPORT_V2_FILES):
+        raise Refusal('Import v2 fixture source is missing')
+    if v3 and any(not (root / name).is_file() for name in IMPORT_V3_FILES):
+        raise Refusal('Import v3 fixture source is missing')
+    if v4 and any(not (root / name).is_file() for name in fixture_files(args)):
+        raise Refusal('Import v4 fixture source is missing')
+    disabled_v4 = getattr(args, 'disabled_v4_route', False)
+    if type(disabled_v4) is not bool or (disabled_v4 and not v4):
+        raise Refusal('Invalid disabled v4 route profile')
+    disabled_v3 = getattr(args, 'disabled_v3_route', False)
+    if type(disabled_v3) is not bool or (disabled_v3 and not v3):
+        raise Refusal('Invalid disabled v3 route profile')
+    disabled_v2 = getattr(args, 'disabled_v2_route', False)
+    if type(disabled_v2) is not bool or (disabled_v2 and not v2):
+        raise Refusal('Invalid disabled v2 route profile')
     image = runtime.run(['docker', 'image', 'inspect', '--format', '{{.Id}}', args.image]).decode().strip()
     if image != args.image:
         raise Refusal('Existing image identity mismatch')
@@ -159,6 +468,7 @@ def execute(root, args, runtime, acceptance=None):
     owned = False
     report = {'status': 'failed', 'fixtureId': identity, 'nativeAcceptance': 'pending', 'stage': 'database-create'}
     try:
+        record_progress(folder, identity, 'database-create')
         runtime.run(['docker', 'volume', 'create', '--label', LABEL + '=' + identity, volume])
         password = secrets.token_hex(24)
         child_env = dict(runtime.env, POSTGRES_PASSWORD=password, PGPASSWORD=password)
@@ -169,6 +479,7 @@ def execute(root, args, runtime, acceptance=None):
         assert_owned(runtime, name, identity)
         runtime.run(['docker', 'start', name])
         report['stage'] = 'database-readiness'
+        record_progress(folder, identity, 'database-readiness')
         # Readiness polling, not a retry of the acceptance scenario.
         ready = False
         until = min(runtime.deadline, time.monotonic() + 30)
@@ -186,22 +497,49 @@ def execute(root, args, runtime, acceptance=None):
         if not ready:
             raise Refusal('Database readiness timed out')
         report['stage'] = 'migrations'
-        for migration in FILES[1:3]:
+        record_progress(folder, identity, 'migrations')
+        migrations = FILES[1:3] + (IMPORT_FILES[:1] if enabled else DATES_FILES[:1] if dates else ())
+        if v2:
+            migrations = FILES[1:3] + IMPORT_FILES[:1] + DATES_FILES[:1]
+        if location:
+            migrations = FILES[1:3] + DATES_FILES[:1] + ('backend/migrations/005-asset-location.sql',)
+        if v3 or v4:
+            migrations = FILES[1:3] + IMPORT_FILES[:1] + DATES_FILES[:1] + ('backend/migrations/005-asset-location.sql',)
+        if manual_check:
+            migrations += ('backend/migrations/006-asset-check.sql',)
+        if saved_filters:
+            migrations += ('backend/migrations/007-asset-saved-filters.sql',)
+        for migration in migrations:
             runtime.run(['docker', 'exec', '-i', name, 'psql', '-v', 'ON_ERROR_STOP=1', '-U', 'fixture', '-d', 'fixture'], data=(root / migration).read_bytes())
         env = dict(runtime.env, NODE_ENV='production', BACKEND_HTTP_PORT=str(args.backend_port),
                    AUTH_POSTGRES_URL='postgresql://fixture:%s@127.0.0.1:%s/fixture' % (password, args.db_port),
                    JWT_ACCESS_SECRET=secrets.token_hex(32), CSRF_SECRET=secrets.token_hex(32),
                    CSRF_ENABLED='true', CSRF_COOKIE_SECURE='true', AUTH_EXPOSE_RESET_TOKEN='false',
                    REQUEST_FRESHNESS_ENABLED='true', THROTTLE_LIMIT='1000', ASSET_DESK_FIXTURE_ID=identity)
+        env['ASSET_SELECTION_EXPORT_V2_ENABLED'] = 'true' if selection_v2 else 'false'
+        env['ASSET_SELECTION_EXPORT_ENABLED'] = 'true' if selection else 'false'
+        env['ASSET_IMPORT_V4_ENABLED'] = 'true' if v4 and not disabled_v4 else 'false'
+        env['ASSET_IMPORT_V3_ENABLED'] = 'true' if v3 and not disabled_v3 else 'false'
+        env['ASSET_IMPORT_ENABLED'] = 'true' if enabled else 'false'
+        env['ASSET_DATES_ENABLED'] = 'true' if dates else 'false'
+        env['ASSET_EXPORT_V4_ENABLED'] = 'true' if export_v4 else 'false'
+        env['ASSET_EXPORT_V3_ENABLED'] = 'true' if export_v3 else 'false'
+        env['ASSET_SAVED_FILTERS_ENABLED'] = 'true' if saved_filters else 'false'
+        env['ASSET_CHECK_ENABLED'] = 'true' if manual_check else 'false'
+        env['ASSET_LOCATION_ENABLED'] = 'true' if location else 'false'
+        env['ASSET_IMPORT_V2_ENABLED'] = 'true' if v2 and not disabled_v2 else 'false'
         report['stage'] = 'backend-readiness'
+        record_progress(folder, identity, 'backend-readiness')
         backend = runtime.start(['node', '--require', str(root / 'scripts/client-https-backend.cjs'), str(root / FILES[0])], folder, env)
         runtime.wait_backend(folder, identity, args.backend_port, backend)
         report['stage'] = 'proxy-readiness'
+        record_progress(folder, identity, 'proxy-readiness')
         proxy = runtime.start(['node', str(root / 'scripts/client-https-proxy-cli.mjs'), '--synthetic-only',
-                               str(args.backend_port), str(args.tls_port), identity, args.cert, args.key], folder)
+                               str(args.backend_port), str(args.tls_port), identity, args.cert, args.key] + (['--saved-filters-enabled'] if saved_filters else ['--import-v4-enabled'] if v4 else ['--export-v4-enabled'] if export_v4 else ['--selection-export-v2-enabled'] if selection_v2 else ['--check-enabled'] if manual_check else ['--selection-export-enabled'] if selection else ['--import-v3-enabled'] if v3 else ['--export-v3-enabled'] if export_v3 else ['--location-enabled'] if location else ['--import-v2-enabled'] if v2 else ['--import-enabled'] if enabled else ['--dates-enabled'] if dates else []), folder)
         runtime.wait_port(args.tls_port, proxy)
         if acceptance is None:
             report['stage'] = 'dart-client'
+            record_progress(folder, identity, 'dart-client')
             output = runtime.run([args.dart, '--disable-dart-dev', str(root / 'flutter/tool/client_https_acceptance.dart'),
                                   '--synthetic-only', 'https://localhost:%s/api/v1' % args.tls_port, identity], cwd=root / 'flutter')
             result = json.loads(output)
@@ -210,9 +548,11 @@ def execute(root, args, runtime, acceptance=None):
             report.update(result)
         else:
             report['stage'] = 'native-session'
+            record_progress(folder, identity, 'native-session')
             report.update(acceptance(root, args, runtime, folder, identity, backend, proxy))
         report['stage'] = 'completed'
-        report['sourceHashes'] = {name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in FILES}
+        record_progress(folder, identity, 'completed')
+        report['sourceHashes'] = {name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in fixture_files(args)}
     finally:
         cleanup_failed = False
         try:

@@ -45,6 +45,210 @@ class NativeTests(unittest.TestCase):
             guard.start()
             self.addCleanup(guard.stop)
 
+    def test_saved_filters_candidate_requires_exact_defines(self):
+        self.args.check_mode = True
+        self.args.saved_filters_mode = True
+        defines = dict(ASSET_DESK_ENABLE_ASSET_CHECK='true',
+                       ASSET_DESK_ENABLE_ASSET_LOCATION='true',
+                       ASSET_DESK_ENABLE_ASSET_DATES='true',
+                       ASSET_DESK_ENABLE_SAVED_FILTERS='true')
+        self.manifest['buildDefines'] = defines
+        self.write_manifest()
+        native.verify_candidate(self.root, self.args)
+        for key in defines:
+            self.manifest['buildDefines'] = {k:v for k,v in defines.items() if k != key}
+            self.write_manifest()
+            with self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+        self.manifest['buildDefines'] = dict(defines, UNREVIEWED_FEATURE='true')
+        self.write_manifest()
+        with self.assertRaises(native.client.Refusal):
+            native.verify_candidate(self.root, self.args)
+
+    def enable_import_v4(self):
+        self.args.import_v4_mode = True
+        self.manifest['buildDefines'] = {
+            'ASSET_DESK_ENABLE_IMPORT': 'true',
+            'ASSET_DESK_ENABLE_IMPORT_V4': 'true',
+            'ASSET_DESK_ENABLE_ASSET_CHECK': 'true',
+            'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+            'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+        self.write_manifest()
+
+    def test_import_v4_exact_capabilities_and_exclusive_profile(self):
+        self.enable_import_v4()
+        defines = dict(self.manifest['buildDefines'])
+        for key in defines:
+            self.manifest['buildDefines'] = {k: v for k, v in defines.items() if k != key}
+            self.write_manifest()
+            with self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+        self.manifest['buildDefines'] = defines
+        self.write_manifest()
+        native.verify_candidate(self.root, self.args)
+        for profile in ('import_v3_mode', 'export_v4_mode', 'check_mode'):
+            setattr(self.args, profile, True)
+            with self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+            setattr(self.args, profile, False)
+        self.args.import_v4_mode = 'true'
+        with self.assertRaises(native.client.Refusal):
+            native.verify_candidate(self.root, self.args)
+
+    def test_import_v4_file_integrity_dates_and_no_overwrite(self):
+        path = native.prepare_import_file(self.root, v4=True)
+        envelope = json.loads(path.read_text(encoding='utf-8'))
+        self.assertEqual(envelope['schemaVersion'], 4)
+        self.assertEqual(envelope['sha256'], hashlib.sha256(envelope['payload'].encode('utf-8')).hexdigest())
+        record = json.loads(envelope['payload'])['records'][0]
+        self.assertEqual(record['lastCheckedDate'], '2024-03-01')
+        self.assertEqual(record['purchasedOn'], '2024-02-29')
+        self.assertEqual(record['warrantyExpiresOn'], '2027-02-28')
+        self.assertEqual(record['location'], 'Synthetic room %_1')
+        before = path.read_bytes()
+        with self.assertRaises(FileExistsError):
+            native.prepare_import_file(self.root, v4=True)
+        self.assertEqual(path.read_bytes(), before)
+        for values in ({'v4': 'true'}, {'v4': True, 'v3': True}):
+            with self.assertRaises(native.client.Refusal):
+                native.prepare_import_file(self.root, **values)
+
+    def test_import_v4_handoff_keeps_acceptance_pending(self):
+        self.enable_import_v4()
+        result = self.run_session(self.runtime())
+        handoff = json.loads((self.root / 'evidence/operator-handoff.json').read_text())
+        self.assertEqual(handoff['importSchemaVersion'], 4)
+        self.assertEqual(handoff['expectedBefore'], 1)
+        self.assertEqual(handoff['expectedAfter'], 2)
+        self.assertEqual(handoff['lastCheckedDate'], '2024-03-01')
+        self.assertTrue(handoff['importFile'].endswith('inventory-import-v4-synthetic.json'))
+        self.assertIn('explicitly replay: still two', handoff['instructions'])
+        self.assertEqual(result['nativeAcceptance'], 'pending')
+
+    def test_export_v4_requires_exact_flags_and_excludes_other_profiles(self):
+        self.args.export_v4_mode = True
+        defines = {'ASSET_DESK_ENABLE_EXPORT_V4': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_CHECK': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+        for key in defines:
+            self.manifest['buildDefines'] = {k: v for k, v in defines.items() if k != key}
+            self.write_manifest()
+            with self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+        self.manifest['buildDefines'] = defines
+        self.write_manifest()
+        native.verify_candidate(self.root, self.args)
+        for profile in ('check_mode', 'export_v3_mode', 'import_mode', 'selection_export_mode'):
+            setattr(self.args, profile, True)
+            with self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+            setattr(self.args, profile, False)
+        self.args.export_v4_mode = 'true'
+        with self.assertRaises(native.client.Refusal):
+            native.verify_candidate(self.root, self.args)
+
+    def test_export_v4_seed_and_handoff_do_not_claim_manual_acceptance(self):
+        self.args.export_v4_mode = True
+        self.manifest['buildDefines'] = {
+            'ASSET_DESK_ENABLE_EXPORT_V4': 'true',
+            'ASSET_DESK_ENABLE_ASSET_CHECK': 'true',
+            'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+            'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+        self.write_manifest()
+        self.assertEqual(native.seed_source(self.args), 'flutter/tool/native_export_v4_seed.dart')
+        (self.root / native.seed_source(self.args)).write_text('synthetic seed', encoding='utf-8')
+        runtime = self.runtime()
+        result = self.run_session(runtime)
+        handoff = json.loads((self.root/'evidence/operator-handoff.json').read_text())
+        self.assertTrue(handoff['exportV4Mode'])
+        self.assertEqual(handoff['lastCheckedDate'], '2024-03-01')
+        self.assertEqual(handoff['expectedAssets'], 1)
+        self.assertNotIn('importFile', handoff)
+        self.assertIn('Cancel must keep preview and checksum', handoff['instructions'])
+        self.assertEqual(result['nativeAcceptance'], 'pending')
+        runtime.start.assert_called_once()
+
+    def test_selection_v2_requires_exact_capabilities(self):
+        self.args.selection_export_mode = True
+        self.args.selection_export_v2_mode = True
+        defines = {'ASSET_DESK_ENABLE_SELECTION_EXPORT': 'true',
+                   'ASSET_DESK_ENABLE_SELECTION_EXPORT_V2': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_CHECK': 'true',
+                   'ASSET_DESK_ENABLE_EXPORT_V3': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+        for key in defines:
+            self.manifest['buildDefines'] = {k: v for k, v in defines.items() if k != key}
+            self.write_manifest()
+            with self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+        self.manifest['buildDefines'] = defines
+        self.write_manifest()
+        native.verify_candidate(self.root, self.args)
+        self.args.selection_export_mode = False
+        with self.assertRaises(native.client.Refusal):
+            native.verify_candidate(self.root, self.args)
+
+    def test_selection_v2_handoff_keeps_native_acceptance_pending(self):
+        self.args.selection_export_mode = True
+        self.args.selection_export_v2_mode = True
+        self.manifest['buildDefines'] = {
+            'ASSET_DESK_ENABLE_SELECTION_EXPORT': 'true',
+            'ASSET_DESK_ENABLE_SELECTION_EXPORT_V2': 'true',
+            'ASSET_DESK_ENABLE_ASSET_CHECK': 'true',
+            'ASSET_DESK_ENABLE_EXPORT_V3': 'true',
+            'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+            'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+        self.write_manifest()
+        seed = self.root / native.seed_source(self.args)
+        seed.write_text('synthetic export seed', encoding='utf-8')
+        result = self.run_session(self.runtime())
+        handoff = json.loads((self.root / 'evidence/operator-handoff.json').read_text())
+        self.assertTrue(handoff['selectionExportV2Mode'])
+        self.assertEqual(handoff['expectedAssets'], 1)
+        self.assertNotIn('importFile', handoff)
+        self.assertIn('Inspect selection JSON v2', handoff['instructions'])
+        self.assertEqual(result['nativeAcceptance'], 'pending')
+
+    def test_check_profile_requires_exact_defines_and_exclusive_boolean(self):
+        self.args.check_mode = True
+        defines = {'ASSET_DESK_ENABLE_ASSET_CHECK': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+        for candidate in (None, {}, dict(defines, ASSET_DESK_ENABLE_IMPORT='true'),
+                          dict(defines, ASSET_DESK_ENABLE_ASSET_CHECK='false')):
+            self.manifest['buildDefines'] = candidate
+            self.write_manifest()
+            with self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+        self.manifest['buildDefines'] = defines
+        self.write_manifest()
+        native.verify_candidate(self.root, self.args)
+        for field in ('import_mode', 'location_mode', 'selection_export_mode'):
+            setattr(self.args, field, True)
+            with self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+            setattr(self.args, field, False)
+        self.args.check_mode = 'true'
+        with self.assertRaises(native.client.Refusal):
+            native.verify_candidate(self.root, self.args)
+
+    def test_check_handoff_remains_pending_and_does_not_prepare_import(self):
+        self.args.check_mode = True
+        self.manifest['buildDefines'] = {'ASSET_DESK_ENABLE_ASSET_CHECK': 'true',
+            'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true', 'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+        self.write_manifest()
+        runtime = self.runtime()
+        result = self.run_session(runtime)
+        handoff = json.loads((self.root/'evidence/operator-handoff.json').read_text())
+        self.assertTrue(handoff['checkMode'])
+        self.assertEqual(handoff['expectedAssets'], 1)
+        self.assertNotIn('importFile', handoff)
+        self.assertIn('Only unknown check dates', handoff['instructions'])
+        self.assertEqual(result['nativeAcceptance'], 'pending')
+        runtime.start.assert_called_once()
+
     def write_manifest(self):
         (self.folder / 'candidate.json').write_text(json.dumps(self.manifest), encoding='utf-8')
 
@@ -60,6 +264,208 @@ class NativeTests(unittest.TestCase):
         folder = self.root / 'evidence'
         folder.mkdir()
         return native.native_session(self.root, self.args, runtime, folder, 'a' * 32, *self.services)
+
+    def test_selection_candidate_requires_exact_defines_and_fixed_seed(self):
+        self.args.selection_export_mode = True
+        with self.assertRaises(native.client.Refusal):
+            native.verify_candidate(self.root, self.args)
+        defines = {'ASSET_DESK_ENABLE_SELECTION_EXPORT': 'true',
+                   'ASSET_DESK_ENABLE_EXPORT_V3': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+                   'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+        self.manifest['buildDefines'] = defines
+        self.write_manifest()
+        self.assertEqual(native.verify_candidate(self.root, self.args), Path(self.args.candidate))
+        self.assertEqual(native.seed_source(self.args), 'flutter/tool/native_export_v3_seed.dart')
+        for key in defines:
+            self.manifest['buildDefines'] = {k: v for k, v in defines.items() if k != key}
+            self.write_manifest()
+            with self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+        self.manifest['buildDefines'] = dict(defines, ASSET_DESK_ENABLE_IMPORT='true')
+        self.write_manifest()
+        with self.assertRaises(native.client.Refusal):
+            native.verify_candidate(self.root, self.args)
+
+    def test_selection_handoff_is_not_an_import_or_manual_pass(self):
+        self.args.selection_export_mode = True
+        self.manifest['buildDefines'] = {
+            'ASSET_DESK_ENABLE_SELECTION_EXPORT': 'true',
+            'ASSET_DESK_ENABLE_EXPORT_V3': 'true',
+            'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+            'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+        self.write_manifest()
+        seed = self.root/'flutter/tool/native_export_v3_seed.dart'
+        seed.write_text('synthetic only', encoding='utf-8')
+        result = self.run_session(self.runtime())
+        handoff = json.loads((self.root/'evidence/operator-handoff.json').read_text())
+        self.assertTrue(handoff['selectionExportMode'])
+        self.assertEqual(handoff['expectedAssets'], 1)
+        self.assertNotIn('importFile', handoff)
+        self.assertEqual(result['nativeAcceptance'], 'pending')
+        self.assertIn('not a full backup', handoff['instructions'])
+
+    def enable_import_v3(self):
+        self.args.import_v3_mode = True
+        self.manifest['buildDefines'] = {
+            'ASSET_DESK_ENABLE_IMPORT': 'true',
+            'ASSET_DESK_ENABLE_IMPORT_V3': 'true',
+            'ASSET_DESK_ENABLE_ASSET_DATES': 'true',
+            'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true'}
+        self.write_manifest()
+
+    def test_import_v3_exact_defines_no_legacy_or_export_flags(self):
+        self.enable_import_v3()
+        native.verify_candidate(self.root, self.args)
+        for key in tuple(self.manifest['buildDefines']):
+            value = self.manifest['buildDefines'].pop(key)
+            self.write_manifest()
+            with self.subTest(key=key), self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+            self.manifest['buildDefines'][key] = value
+        for key in ('ASSET_DESK_ENABLE_IMPORT_V2', 'ASSET_DESK_ENABLE_EXPORT_V3'):
+            self.manifest['buildDefines'][key] = 'true'
+            self.write_manifest()
+            with self.subTest(extra=key), self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+            del self.manifest['buildDefines'][key]
+
+    def test_import_v3_exclusive_typed_profile(self):
+        self.enable_import_v3()
+        for field in ('import_mode', 'import_v2_mode', 'location_mode', 'dates_mode', 'export_v3_mode'):
+            setattr(self.args, field, True)
+            with self.subTest(field=field), self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+            setattr(self.args, field, False)
+        self.args.import_v3_mode = 'true'
+        with self.assertRaises(native.client.Refusal):
+            native.verify_candidate(self.root, self.args)
+
+    def test_import_v3_file_and_handoff_preserve_dates_location(self):
+        self.enable_import_v3()
+        runtime = self.runtime()
+        result = self.run_session(runtime)
+        handoff = json.loads((self.root / 'evidence/operator-handoff.json').read_text())
+        path = Path(handoff['importFile'])
+        self.assertEqual(path.name, 'inventory-import-v3-synthetic.json')
+        raw = path.read_bytes()
+        envelope = json.loads(raw)
+        self.assertEqual(envelope['schemaVersion'], 3)
+        self.assertEqual(envelope['sha256'], hashlib.sha256(envelope['payload'].encode('utf-8')).hexdigest())
+        row = json.loads(envelope['payload'])['records'][0]
+        self.assertEqual((row['purchasedOn'], row['warrantyExpiresOn'], row['location']),
+                         ('2024-02-29', '2027-02-28', 'Synthetic room %_1'))
+        self.assertEqual((handoff['expectedBefore'], handoff['expectedAfter']), (1, 2))
+        self.assertEqual(result['nativeAcceptance'], 'pending')
+        runtime.start.assert_called_once()
+        with self.assertRaises(FileExistsError):
+            native.prepare_import_file(path.parent, v3=True)
+        self.assertEqual(path.read_bytes(), raw)
+
+    def test_import_file_refuses_mixed_or_untyped_versions_before_writing(self):
+        for values in ({'v2': True, 'v3': True}, {'v3': 1}, {'v3': 'true'}):
+            with self.subTest(values=values), self.assertRaises(native.client.Refusal):
+                native.prepare_import_file(self.root, **values)
+        self.assertFalse(list(self.root.glob('inventory-import*.json')))
+
+    def enable_export_v3(self):
+        self.args.export_v3_mode = True
+        self.manifest['buildDefines'] = {
+            'ASSET_DESK_ENABLE_EXPORT_V3': 'true',
+            'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+            'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+        self.write_manifest()
+        seed = self.root / native.seed_source(self.args)
+        seed.write_text('synthetic v3 seed', encoding='utf-8')
+
+    def test_export_v3_exact_defines(self):
+        self.enable_export_v3()
+        native.verify_candidate(self.root, self.args)
+        for key in tuple(self.manifest['buildDefines']):
+            old = self.manifest['buildDefines'].pop(key)
+            self.write_manifest()
+            with self.subTest(key=key), self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+            self.manifest['buildDefines'][key] = old
+        self.manifest['buildDefines']['ASSET_DESK_ENABLE_IMPORT'] = 'true'
+        self.write_manifest()
+        with self.assertRaises(native.client.Refusal):
+            native.verify_candidate(self.root, self.args)
+
+    def test_export_v3_rejects_mixed_profiles(self):
+        self.enable_export_v3()
+        for field in ('location_mode', 'dates_mode', 'import_mode', 'import_v2_mode'):
+            setattr(self.args, field, True)
+            with self.subTest(field=field), self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+            setattr(self.args, field, False)
+        self.args.export_v3_mode = 'true'
+        with self.assertRaises(native.client.Refusal):
+            native.verify_candidate(self.root, self.args)
+
+    def test_export_v3_missing_seed_refuses_before_shared_preflight(self):
+        self.enable_export_v3()
+        (self.root / native.seed_source(self.args)).unlink()
+        with patch.object(native.os, 'name', 'nt'), patch.object(native.client, 'preflight') as shared:
+            with self.assertRaisesRegex(native.client.Refusal, 'Native seed source missing'):
+                native.preflight(self.root, self.args)
+            shared.assert_not_called()
+
+    def test_export_v3_seed_and_manual_handoff(self):
+        self.enable_export_v3()
+        runtime = self.runtime()
+        result = self.run_session(runtime)
+        command = runtime.run.call_args.args[0]
+        self.assertIn(str(self.root / native.seed_source(self.args)), command)
+        value = json.loads((self.root / 'evidence/operator-handoff.json').read_text(encoding='utf-8'))
+        self.assertTrue(value['exportV3Mode'])
+        self.assertEqual(value['expectedAssets'], 1)
+        self.assertEqual(value['purchasedOn'], '2024-02-29')
+        self.assertEqual(value['warrantyExpiresOn'], '2027-02-28')
+        self.assertEqual(value['locationLabel'], 'Synthetic room %_1')
+        self.assertNotIn('importFile', value)
+        self.assertEqual(result['nativeAcceptance'], 'pending')
+        self.assertEqual(result['seedSourceSha256'], hashlib.sha256(b'synthetic v3 seed').hexdigest())
+
+    def test_location_requires_exact_build_defines(self):
+        self.args.location_mode = True
+        for defines in (None, {}, {'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true'},
+                        {'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+                         'ASSET_DESK_ENABLE_ASSET_DATES': 'true',
+                         'ASSET_DESK_ENABLE_IMPORT': 'true'}):
+            self.manifest['buildDefines'] = defines
+            self.write_manifest()
+            with self.subTest(defines=defines), self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+        self.manifest['buildDefines'] = {
+            'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+            'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+        self.write_manifest()
+        native.verify_candidate(self.root, self.args)
+
+    def test_location_rejects_mixed_and_untyped_profiles(self):
+        for field in ('import_mode', 'import_v2_mode', 'dates_mode'):
+            self.args.location_mode = True
+            setattr(self.args, field, True)
+            with self.subTest(field=field), self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+            setattr(self.args, field, False)
+        self.args.location_mode = 'true'
+        with self.assertRaises(native.client.Refusal):
+            native.verify_candidate(self.root, self.args)
+
+    def test_location_handoff_is_manual_and_has_no_import_file(self):
+        self.args.location_mode = True
+        self.manifest['buildDefines'] = {
+            'ASSET_DESK_ENABLE_ASSET_LOCATION': 'true',
+            'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+        self.write_manifest()
+        result = self.run_session(self.runtime())
+        value = json.loads((self.root / 'evidence/operator-handoff.json').read_text(encoding='utf-8'))
+        self.assertTrue(value['locationMode'])
+        self.assertEqual(value['expectedAssets'], 1)
+        self.assertNotIn('importFile', value)
+        self.assertEqual(result['nativeAcceptance'], 'pending')
 
     def test_no_opt_in_refuses_before_file_io(self):
         self.args.execute_native = False
@@ -172,6 +578,90 @@ class NativeTests(unittest.TestCase):
             result = self.run_session(runtime)
         self.assertEqual(result['sessionEnd'], 'deadline')
         runtime.run.assert_called_once()
+        runtime.start.assert_called_once()
+
+    def test_v2_profile_requires_all_exact_build_flags_and_refuses_mixed_modes(self):
+        self.args.import_v2_mode = True
+        with self.assertRaises(native.client.Refusal):
+            native.verify_candidate(self.root, self.args)
+        self.manifest['buildDefines'] = {'ASSET_DESK_ENABLE_IMPORT': 'true',
+                                        'ASSET_DESK_ENABLE_IMPORT_V2': 'true',
+                                        'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+        self.write_manifest()
+        self.assertEqual(native.verify_candidate(self.root, self.args), Path(self.args.candidate))
+        self.args.import_mode = True
+        with self.assertRaises(native.client.Refusal):
+            native.verify_candidate(self.root, self.args)
+
+    def test_v2_synthetic_file_retains_dates_and_checksum(self):
+        folder = self.root / 'v2-file'
+        folder.mkdir()
+        path = native.prepare_import_file(folder, v2=True)
+        envelope = json.loads(path.read_text(encoding='utf-8'))
+        self.assertEqual(envelope['schemaVersion'], 2)
+        self.assertEqual(envelope['sha256'], hashlib.sha256(envelope['payload'].encode()).hexdigest())
+        record = json.loads(envelope['payload'])['records'][0]
+        self.assertEqual(record['purchasedOn'], '2024-02-29')
+        self.assertEqual(record['warrantyExpiresOn'], '2027-02-28')
+        with self.assertRaises(FileExistsError):
+            native.prepare_import_file(folder, v2=True)
+
+    def test_import_profile_requires_exact_build_metadata(self):
+        self.args.import_mode = True
+        for value in (None, {}, {'ASSET_DESK_ENABLE_IMPORT': True},
+                      {'ASSET_DESK_ENABLE_IMPORT': 'false'}):
+            self.manifest['buildDefines'] = value
+            self.write_manifest()
+            with self.assertRaises(native.client.Refusal):
+                native.verify_candidate(self.root, self.args)
+        self.manifest['buildDefines'] = {'ASSET_DESK_ENABLE_IMPORT': 'true'}
+        self.write_manifest()
+        self.assertEqual(native.verify_candidate(self.root, self.args), Path(self.args.candidate))
+
+    def test_synthetic_import_envelope_exact_checksum_and_no_overwrite(self):
+        folder = self.root / 'import-file'
+        folder.mkdir()
+        path = native.prepare_import_file(folder)
+        raw = path.read_bytes()
+        self.assertFalse(raw.startswith(b'\xef\xbb\xbf'))
+        envelope = json.loads(raw)
+        self.assertEqual(set(envelope), {'format', 'schemaVersion', 'payload', 'sha256'})
+        self.assertEqual(envelope['sha256'], hashlib.sha256(envelope['payload'].encode()).hexdigest())
+        payload = json.loads(envelope['payload'])
+        self.assertEqual(payload['recordCount'], 1)
+        self.assertEqual(len(payload['records']), 1)
+        self.assertEqual(payload['records'][0]['name'], 'Synthetic native imported asset')
+        with self.assertRaises(FileExistsError):
+            native.prepare_import_file(folder)
+        self.assertEqual(path.read_bytes(), raw)
+
+    def test_import_handoff_has_file_but_still_requires_operator_acceptance(self):
+        self.args.import_mode = True
+        self.manifest['buildDefines'] = {'ASSET_DESK_ENABLE_IMPORT': 'true'}
+        self.write_manifest()
+        runtime = self.runtime()
+        result = self.run_session(runtime)
+        handoff = json.loads((self.root/'evidence/operator-handoff.json').read_text())
+        self.assertEqual(handoff['expectedBefore'], 1)
+        self.assertEqual(handoff['expectedAfter'], 2)
+        self.assertTrue(Path(handoff['importFile']).is_file())
+        self.assertEqual(result['nativeAcceptance'], 'pending')
+        runtime.start.assert_called_once()
+
+    def test_v2_handoff_uses_date_aware_file_without_claiming_acceptance(self):
+        self.args.import_v2_mode = True
+        self.manifest['buildDefines'] = {'ASSET_DESK_ENABLE_IMPORT': 'true',
+                                        'ASSET_DESK_ENABLE_IMPORT_V2': 'true',
+                                        'ASSET_DESK_ENABLE_ASSET_DATES': 'true'}
+        self.write_manifest()
+        runtime = self.runtime()
+        result = self.run_session(runtime)
+        handoff = json.loads((self.root/'evidence/operator-handoff.json').read_text())
+        path = Path(handoff['importFile'])
+        self.assertEqual(path.name, 'inventory-import-v2-synthetic.json')
+        self.assertEqual(json.loads(path.read_text())['schemaVersion'], 2)
+        self.assertEqual((handoff['expectedBefore'], handoff['expectedAfter']), (1, 2))
+        self.assertEqual(result['nativeAcceptance'], 'pending')
         runtime.start.assert_called_once()
 
 

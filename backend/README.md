@@ -34,6 +34,14 @@ boundary fails explicitly with 422 rather than pretending the list is complete.
 Edit conflict and unavailable/non-owned record both return 409 without disclosing
 another owner's record. Requests are not automatically retried.
 
+## Inventory export source
+
+`GET /assets/export` returns an owner-scoped complete JSON snapshot, with explicit
+500-record and 1 MiB envelope limits. It does not reuse filtered list pages.
+See [the export contract and pending acceptance](../docs/inventory-export.md).
+This addition is source/unit-test evidence only; no new database or HTTPS fixture
+has run for export, and no regular backend was updated.
+
 ## Runtime and schema gates
 
 No regular product database or backend service has been started; all live
@@ -119,3 +127,99 @@ verification. No lifecycle scripts or product start commands were run.
 The next verification gates are clean-checkout validation and separately
 approved native client acceptance. No destructive migration rollback
 is provided: disable the product/module and retain schema/data on failure.
+
+## Optional add-only import (source in progress)
+
+`ASSET_IMPORT_ENABLED` defaults to `false`. The exact value `true` registers the
+separate authenticated import module and requires migration 003 readiness;
+startup never applies migrations. Do not enable it on a regular database until
+isolated SQL/API acceptance is approved and complete. See the
+[import contract and pending gates](../docs/inventory-import.md).
+
+## Optional purchase and warranty dates
+
+Separate owner-scoped date reads/updates preserve the legacy inventory contract.
+Backend migration 004 and `ASSET_DATES_ENABLED=true` are explicit prerequisites;
+Flutter uses `ASSET_DESK_ENABLE_ASSET_DATES=true`. Both flags default off.
+JSON v1 excludes dates and is not a warranty backup. Isolated SQL/HTTPS and
+database restart/restore checks passed; Windows native acceptance remains pending.
+See [date behavior and verification limits](../docs/inventory-dates.md).
+
+## Date-aware inventory JSON v2
+
+Optional export v2 includes purchase and warranty dates in a complete owner-scoped
+snapshot, while v1 export/import/recovery remains unchanged. It uses the existing
+dates capability flags and migration 004, with no new dependency or migration.
+SQL concurrency and real Dart HTTPS checks passed on isolated synthetic fixtures;
+Windows native v2 acceptance remains pending. No v2 import or restore is provided.
+See [v2 contract and acceptance limits](../docs/inventory-export-v2.md).
+
+## Optional warranty filtering
+
+The dates capability adds Expired and Expiring within 30 days filters, intersected
+with search/status/category before pagination. Unknown dates match neither;
+expiry today belongs to the upcoming window. The UI displays the UTC reference
+date and retains it across pages. Failed requests preserve the previous results
+with a stale-data notice. Full export and overview are not filtered.
+
+Existing dates flags and migration 004 are required; defaults remain off. No
+new dependency, migration, automated notification or regular deployment is added.
+Isolated PostgreSQL and real Dart HTTPS checks passed. Windows native acceptance
+remains pending. See [warranty contract and evidence](../docs/inventory-warranty-filter.md).
+
+## Optional location-preserving import v3 source
+
+`ASSET_IMPORT_V3_ENABLED` defaults off and requires import, dates and location
+capabilities plus migrations 001-005 applied separately. The new authenticated
+add-only route preserves dates/location in the receipt transaction; no startup
+migration or automatic retry is performed. Repository/API and Dart transport
+checks are synthetic only; real PostgreSQL/HTTPS and UI acceptance remain pending.
+See the [v3 scope](../docs/inventory-import-v3-proposal.md).
+
+## Optional location overview
+
+The existing opt-in location capability adds complete owner counts through
+`GET /api/v1/assets/locations/overview` (no query parameters, no-store).
+Known labels are exact and case-sensitive; null is the unknown bucket. More than
+1,000 known labels or unsafe counts fail instead of returning partial counts.
+The Flutter entry selects exact/unknown inventory filters and clears other list
+filters explicitly. No migration or dependency is added. Isolated PostgreSQL
+and real Dart HTTPS checks passed; the operator confirmed the listed Windows
+functional checks. Accessibility and deployment remain separate; see
+[the plan](../docs/inventory-location-overview-plan.md).
+
+## Inventory sort source candidate
+
+List queries accept `sort=updated_desc` (default) or `sort=name_asc`, including
+warranty and location-aware lists. Name ordering uses case-sensitive PostgreSQL
+`COLLATE "C"` and ascending ID ties, not locale-aware natural ordering. Export
+ordering and overview counts are unchanged. See the
+[inventory sort plan](../docs/inventory-sort-plan.md); client/UI and runtime
+acceptance are pending.
+
+## Optional filtered selection export
+
+`ASSET_SELECTION_EXPORT_ENABLED=false` is the default. Enabling requires dates
+and location capabilities plus existing migrations 001, 002, 004 and 005. The separate
+`GET /api/v1/assets/export/selection` route exports matching owner records, not
+a complete account backup. Existing exports remain unchanged. Seven isolated PostgreSQL scenarios and a
+separate real-client HTTPS fixture passed; no regular deployment is claimed; see [selection export plan](../docs/inventory-selection-export-plan.md).
+
+## Advisory serial duplicate check
+
+The authenticated assets API exposes a read-only exact serial check across all
+owned rows, optionally excluding the edited UUID. It returns only a boolean and
+does not reserve, deduplicate or reject writes. No migration is required.
+
+See [serial warning contract](../docs/inventory-serial-warning.md) for limits and
+verification scope. Not deployed or native-accepted.
+
+## Single-asset refresh read
+
+`GET /api/v1/assets/:id` reads one authenticated owner's base asset using the
+existing assets flag, without pagination or a new migration. UUID validation,
+`Cache-Control: no-store` and identical 404 responses for absent/foreign IDs
+prevent ownership disclosure. The client verifies enabled optional values against
+the returned version before publishing a refreshed details snapshot. Source and
+mock tests are implemented; live acceptance is pending. See the
+[refresh plan](../docs/asset-details-refresh-plan.md).

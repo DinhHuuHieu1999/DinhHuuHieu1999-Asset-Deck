@@ -1,13 +1,33 @@
+import 'package:asset_desk/api/asset_saved_filter.dart';
+
+import 'asset_export_v4_test.dart' show exportV4Fixture;
+import 'asset_selection_export_v2_test.dart' show selectionV2Fixture;
+
+import 'package:asset_desk/api/asset_selection_export_v2.dart';
+import 'package:asset_desk/api/asset_check.dart';
+
+import 'asset_selection_export_test.dart' show selectionFixture;
+
+import 'package:asset_desk/api/asset_selection_export.dart';
+
+import 'asset_export_v3_test.dart' show exportV3Fixture;
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:asset_desk/api/asset_api.dart';
 import 'package:asset_desk/api/asset.dart';
+import 'package:asset_desk/api/asset_dates.dart';
+import 'package:asset_desk/api/asset_location.dart';
 import 'package:asset_desk/api/asset_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'asset_test.dart' show record;
+import 'asset_warranty_test.dart' show warrantyFixture;
+import 'asset_warranty_overview_test.dart' show warrantyOverviewFixture;
+import 'asset_export_v2_test.dart' show exportV2Fixture;
+import 'asset_overview_test.dart' show summary;
 
 void main() {
   for (final url in [
@@ -120,6 +140,1331 @@ void main() {
     });
     Future<void> login() => api.login(' synthetic ', ' synthetic-pass ');
 
+    Map<String, Object?> savedQuery() => {
+      'q': '%_',
+      'status': '',
+      'category': '',
+      'sort': 'checked_asc',
+      'locationMode': 'exact',
+      'location': 'Room %_1',
+      'warranty': 'expired',
+      'asOf': '2024-02-29',
+      'checkMode': 'before',
+      'checkBefore': '2024-03-01',
+      'checkOnOrAfter': '',
+    };
+    Map<String, Object?> savedRecord({int version = 1}) => {
+      'id': '11111111-1111-4111-8111-111111111111',
+      'name': 'Saved view',
+      'schemaVersion': 1,
+      'version': version,
+      'query': savedQuery(),
+    };
+    test('saved filters use bounded envelope and authenticated literal query transport', () async {
+      await login();
+      handler = (request) async {
+        expect(
+          request.headers.value('authorization'),
+          'Bearer synthetic-token',
+        );
+        expect(request.uri.path, '/api/v1/inventory-saved-filters');
+        expect(request.uri.hasQuery, false);
+        json(request, {
+          'items': [savedRecord()],
+        });
+      };
+      final views = await api.listSavedFilters();
+      expect(views.single.query.values['location'], 'Room %_1');
+      expect(views.single.query.values['asOf'], '2024-02-29');
+    });
+    test(
+      'saved filter create update delete keep CSRF and expected version',
+      () async {
+        await login();
+        handler = (request) async {
+          expect(request.headers.value('x-csrf-token'), 'synthetic-csrf');
+          final input = await body(request);
+          expect(input.containsKey('owner'), false);
+          if (request.method == 'POST') {
+            expect(input, {
+              'name': 'Saved view',
+              'schemaVersion': 1,
+              'query': savedQuery(),
+            });
+            json(request, savedRecord());
+          } else if (request.method == 'PUT') {
+            expect(input['version'], 1);
+            json(request, savedRecord(version: 2));
+          } else {
+            expect(request.method, 'DELETE');
+            expect(input, {'version': 2});
+            json(request, {'id': savedRecord()['id']});
+          }
+        };
+        final created = await api.createSavedFilter(
+          ' Saved view ',
+          AssetSavedFilterQuery.fromJson(savedQuery()),
+        );
+        final updated = await api.updateSavedFilter(
+          created,
+          'Saved view',
+          created.query,
+        );
+        await api.deleteSavedFilter(updated);
+      },
+    );
+    test(
+      'saved filter malformed or duplicate list is refused without retry',
+      () async {
+        await login();
+        var requests = 0;
+        handler = (request) async {
+          requests++;
+          json(request, {
+            'items': [savedRecord(), savedRecord()],
+          });
+        };
+        await expectLater(api.listSavedFilters(), throwsA(isA<AssetFailure>()));
+        expect(requests, 1);
+      },
+    );
+    test('saved filter changed version response is not trusted', () async {
+      await login();
+      handler = (request) async {
+        json(request, savedRecord(version: 1));
+      };
+      final original = AssetSavedFilter.fromJson(savedRecord());
+      await expectLater(
+        api.updateSavedFilter(original, 'Saved view', original.query),
+        throwsA(isA<AssetFailure>()),
+      );
+    });
+    for (final mutation in ['create', 'update']) {
+      for (final field in ['name', 'query']) {
+        test(
+          'saved filter $mutation refuses changed $field without retry',
+          () async {
+            await login();
+            var requests = 0;
+            handler = (request) async {
+              requests++;
+              final response = savedRecord(
+                version: mutation == 'create' ? 1 : 2,
+              );
+              response[field] = field == 'name'
+                  ? 'Different view'
+                  : {...savedQuery(), 'q': 'different'};
+              json(request, response);
+            };
+            final original = AssetSavedFilter.fromJson(savedRecord());
+            await expectLater(
+              mutation == 'create'
+                  ? api.createSavedFilter('Saved view', original.query)
+                  : api.updateSavedFilter(
+                      original,
+                      'Saved view',
+                      original.query,
+                    ),
+              throwsA(isA<AssetFailure>()),
+            );
+            expect(requests, 1);
+          },
+        );
+      }
+    }
+    test('saved filter late list cannot survive sign-out', () async {
+      await login();
+      final entered = Completer<void>(), release = Completer<void>();
+      handler = (request) async {
+        entered.complete();
+        await release.future;
+        json(request, {
+          'items': [savedRecord()],
+        });
+      };
+      final pending = api.listSavedFilters();
+      final assertion = expectLater(pending, throwsA(isA<AssetFailure>()));
+      await entered.future;
+      api.signOut();
+      release.complete();
+      await assertion;
+      expect(api.account, isNull);
+    });
+    test('saved filter requests require sign-in', () async {
+      await expectLater(api.listSavedFilters(), throwsA(isA<AssetFailure>()));
+      expect(calls, isEmpty);
+    });
+
+    for (final kind in ['base', 'warranty', 'location']) {
+      test(
+        'unchecked filter reaches $kind endpoint with applied filters',
+        () async {
+          await login();
+          handler = (request) async {
+            expect(request.uri.queryParameters['checkMode'], 'unchecked');
+            expect(request.uri.queryParameters['q'], '%_');
+            expect(request.uri.queryParameters['status'], 'stored');
+            expect(request.uri.queryParameters['sort'], 'name_asc');
+            expect(request.uri.queryParameters['category'], 'fixture');
+            expect(
+              request.uri.path,
+              kind == 'base'
+                  ? '/api/v1/assets'
+                  : kind == 'warranty'
+                  ? '/api/v1/assets/warranty'
+                  : '/api/v1/assets/locations/inventory',
+            );
+            json(request, {
+              'items': <Object?>[],
+              'nextOffset': null,
+              if (kind == 'warranty') ...{
+                'warranty': 'expired',
+                'asOf': '2026-10-31',
+                'through': '2026-11-30',
+              },
+            });
+          };
+          final result = await api.listUnchecked(
+            query: '%_',
+            status: 'stored',
+            offset: 0,
+            sort: 'name_asc',
+            category: 'fixture',
+            includeLocation: kind == 'location',
+            warranty: kind == 'warranty' ? 'expired' : '',
+            asOf: kind == 'warranty' ? '2026-10-31' : '',
+          );
+          expect(result.page.items, isEmpty);
+        },
+      );
+    }
+
+    for (final kind in ['base', 'warranty', 'location', 'combined']) {
+      test(
+        'checked-before filter reaches $kind endpoint with applied filters',
+        () async {
+          await login();
+          handler = (request) async {
+            expect(request.uri.queryParameters['checkMode'], 'before');
+            expect(request.uri.queryParameters['checkBefore'], '2024-02-29');
+            if (kind == 'combined') {
+              expect(request.uri.queryParameters['location'], 'Room %_1');
+              expect(request.uri.queryParameters['warranty'], 'expired');
+              expect(request.uri.queryParameters['asOf'], '2026-10-31');
+            }
+            expect(request.uri.queryParameters['q'], '%_');
+            expect(request.uri.queryParameters['status'], 'stored');
+            expect(request.uri.queryParameters['sort'], 'name_asc');
+            expect(request.uri.queryParameters['category'], 'fixture');
+            expect(
+              request.uri.path,
+              kind == 'base'
+                  ? '/api/v1/assets'
+                  : kind == 'warranty'
+                  ? '/api/v1/assets/warranty'
+                  : '/api/v1/assets/locations/inventory',
+            );
+            json(request, {
+              'items': <Object?>[],
+              'nextOffset': null,
+              if ((kind == 'warranty' || kind == 'combined')) ...{
+                'warranty': 'expired',
+                'asOf': '2026-10-31',
+                'through': '2026-11-30',
+              },
+            });
+          };
+          final result = await api.listCheckedBefore(
+            checkBefore: '2024-02-29',
+            query: '%_',
+            status: 'stored',
+            offset: 0,
+            sort: 'name_asc',
+            category: 'fixture',
+            includeLocation: kind == 'location' || kind == 'combined',
+            locationMode: kind == 'combined' ? 'exact' : 'all',
+            location: kind == 'combined' ? 'Room %_1' : null,
+            warranty: (kind == 'warranty' || kind == 'combined')
+                ? 'expired'
+                : '',
+            asOf: (kind == 'warranty' || kind == 'combined')
+                ? '2026-10-31'
+                : '',
+          );
+          expect(result.page.items, isEmpty);
+        },
+      );
+    }
+
+    for (final kind in ['base', 'warranty', 'location', 'combined']) {
+      test(
+        'on-or-after filter reaches $kind endpoint with applied filters',
+        () async {
+          await login();
+          handler = (request) async {
+            expect(request.uri.queryParameters['checkMode'], 'on_or_after');
+            expect(request.uri.queryParameters['checkOnOrAfter'], '2024-02-29');
+            if (kind == 'combined') {
+              expect(request.uri.queryParameters['location'], 'Room %_1');
+              expect(request.uri.queryParameters['warranty'], 'expired');
+              expect(request.uri.queryParameters['asOf'], '2026-10-31');
+            }
+            expect(request.uri.queryParameters['q'], '%_');
+            expect(request.uri.queryParameters['status'], 'stored');
+            expect(request.uri.queryParameters['sort'], 'name_asc');
+            expect(request.uri.queryParameters['category'], 'fixture');
+            expect(
+              request.uri.path,
+              kind == 'base'
+                  ? '/api/v1/assets'
+                  : kind == 'warranty'
+                  ? '/api/v1/assets/warranty'
+                  : '/api/v1/assets/locations/inventory',
+            );
+            json(request, {
+              'items': <Object?>[],
+              'nextOffset': null,
+              if ((kind == 'warranty' || kind == 'combined')) ...{
+                'warranty': 'expired',
+                'asOf': '2026-10-31',
+                'through': '2026-11-30',
+              },
+            });
+          };
+          final result = await api.listCheckedOnOrAfter(
+            checkOnOrAfter: '2024-02-29',
+            query: '%_',
+            status: 'stored',
+            offset: 0,
+            sort: 'name_asc',
+            category: 'fixture',
+            includeLocation: kind == 'location' || kind == 'combined',
+            locationMode: kind == 'combined' ? 'exact' : 'all',
+            location: kind == 'combined' ? 'Room %_1' : null,
+            warranty: (kind == 'warranty' || kind == 'combined')
+                ? 'expired'
+                : '',
+            asOf: (kind == 'warranty' || kind == 'combined')
+                ? '2026-10-31'
+                : '',
+          );
+          expect(result.page.items, isEmpty);
+        },
+      );
+    }
+
+    for (final cutoff in [
+      '',
+      '2023-02-29',
+      '2024-02-29 ',
+      '0000-01-01',
+      '2024-01-01T00:00:00Z',
+    ]) {
+      test(
+        'invalid checked-before cutoff refuses transport: $cutoff',
+        () async {
+          await login();
+          final count = calls.length;
+          await expectLater(
+            api.listCheckedBefore(
+              checkBefore: cutoff,
+              query: '',
+              status: '',
+              offset: 0,
+            ),
+            throwsA(isA<Exception>()),
+          );
+          expect(calls.length, count);
+        },
+      );
+    }
+
+    test('checked-before refuses location scope when location capability is absent', () async {
+      await login();
+      final count = calls.length;
+      await expectLater(
+        api.listCheckedBefore(
+          checkBefore: '2024-03-01',
+          query: '',
+          status: '',
+          offset: 0,
+          locationMode: 'exact',
+          location: 'Room %_1',
+        ),
+        throwsA(
+          isA<AssetFailure>().having(
+            (error) => error.definitelyNotSent,
+            'not sent',
+            true,
+          ),
+        ),
+      );
+      expect(calls.length, count);
+    });
+
+    test(
+      'check date reads and clears one shared-version snapshot with CSRF',
+      () async {
+        await login();
+        const id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+        handler = (request) async {
+          expect(request.uri.path, '/api/v1/assets/$id/check-date');
+          expect(request.headers.value('authorization'), isNotEmpty);
+          if (request.method == 'PUT') {
+            expect(request.headers.value('x-csrf-token'), 'synthetic-csrf');
+            expect(await body(request), {'version': 1, 'lastCheckedOn': null});
+            json(request, {'id': id, 'version': 2, 'lastCheckedOn': null});
+          } else {
+            json(request, {
+              'id': id,
+              'version': 1,
+              'lastCheckedOn': '2024-02-29',
+            });
+          }
+        };
+        final original = await api.readCheckDate(id);
+        expect(original.lastCheckedOn, '2024-02-29');
+        expect((await api.updateCheckDate(original, null)).version, 2);
+      },
+    );
+    test(
+      'check date invalid input is not sent; wrong response identity fails',
+      () async {
+        await login();
+        const id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+        final before = calls.length;
+        await expectLater(
+          api.readCheckDate('../other'),
+          throwsA(isA<AssetFailure>()),
+        );
+        await expectLater(
+          api.updateCheckDate(
+            const AssetCheck(id: id, version: 1, lastCheckedOn: null),
+            '2025-02-29',
+          ),
+          throwsA(isA<AssetFailure>()),
+        );
+        expect(calls.length, before);
+        handler = (request) async => json(request, {
+          'id': 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          'version': 1,
+          'lastCheckedOn': null,
+        });
+        await expectLater(api.readCheckDate(id), throwsA(isA<AssetFailure>()));
+      },
+    );
+    test('check date write rejects mismatched version without retry', () async {
+      await login();
+      const id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+      var writes = 0;
+      handler = (request) async {
+        writes++;
+        json(request, {'id': id, 'version': 1, 'lastCheckedOn': null});
+      };
+      await expectLater(
+        api.updateCheckDate(
+          const AssetCheck(id: id, version: 1, lastCheckedOn: null),
+          null,
+        ),
+        throwsA(isA<AssetFailure>()),
+      );
+      expect(writes, 1);
+    });
+
+    test(
+      'read one authenticates, validates ID and rejects wrong identity',
+      () async {
+        final value = record();
+        final id = value['id'] as String;
+        await expectLater(api.readAsset(id), throwsA(isA<AssetFailure>()));
+        expect(calls, isEmpty);
+        await login();
+        final before = calls.length;
+        await expectLater(
+          api.readAsset('../overview'),
+          throwsA(isA<AssetFailure>()),
+        );
+        expect(calls.length, before);
+        handler = (request) async {
+          expect(request.method, 'GET');
+          expect(request.uri.path, '/api/v1/assets/$id');
+          json(request, value);
+        };
+        expect((await api.readAsset(id)).id, id);
+        handler = (request) async => json(request, {
+          ...value,
+          'id': 'b0000000-0000-4000-8000-000000000001',
+        });
+        await expectLater(api.readAsset(id), throwsA(isA<AssetFailure>()));
+        expect(calls.length, before + 2);
+      },
+    );
+
+    test(
+      'read one rejects malformed and unavailable responses without retry',
+      () async {
+        await login();
+        final before = calls.length;
+        final id = record()['id'] as String;
+        handler = (request) async => json(request, {'id': id});
+        await expectLater(api.readAsset(id), throwsA(isA<AssetFailure>()));
+        handler = (request) async =>
+            json(request, {'message': 'Asset is unavailable'}, status: 404);
+        await expectLater(api.readAsset(id), throwsA(isA<AssetFailure>()));
+        expect(calls.length, before + 2);
+      },
+    );
+    test('read one discards late response after sign-out', () async {
+      await login();
+      final entered = Completer<void>();
+      final release = Completer<void>();
+      handler = (request) async {
+        entered.complete();
+        await release.future;
+        json(request, record());
+      };
+      final pending = api.readAsset(record()['id'] as String);
+      final assertion = expectLater(pending, throwsA(isA<AssetFailure>()));
+      await entered.future;
+      api.signOut();
+      release.complete();
+      await assertion;
+    });
+
+    test('serial check authenticates and preserves literal exact query and exclusion', () async {
+      await expectLater(api.serialDuplicate('x'), throwsA(isA<AssetFailure>()));
+      expect(calls, isEmpty);
+      await login();
+      final before = calls.length;
+      handler = (request) async {
+        expect(request.method, 'GET');
+        expect(request.uri.path, '/api/v1/assets/serial-duplicates');
+        expect(
+          request.headers.value('authorization'),
+          'Bearer synthetic-token',
+        );
+        expect(request.uri.queryParameters, {
+          'serial': 'AbC%_1',
+          'excludeId': 'a0000000-0000-4000-8000-000000000001',
+        });
+        json(request, {'duplicate': true});
+      };
+      expect(
+        await api.serialDuplicate(
+          ' AbC%_1 ',
+          excludeId: 'a0000000-0000-4000-8000-000000000001',
+        ),
+        isTrue,
+      );
+      expect(calls.length, before + 1);
+      await expectLater(
+        api.serialDuplicate('x', excludeId: 'invalid'),
+        throwsA(isA<AssetFailure>()),
+      );
+      await expectLater(
+        api.serialDuplicate('x' * 121),
+        throwsA(isA<AssetFailure>()),
+      );
+      expect(calls.length, before + 1);
+    });
+    test('serial malformed response and server failure never become clear or retry', () async {
+      await login();
+      final before = calls.length;
+      handler = (request) async => json(request, {'duplicate': 'false'});
+      await expectLater(api.serialDuplicate('x'), throwsA(isA<AssetFailure>()));
+      handler = (request) async =>
+          json(request, {'message': 'Unavailable'}, status: 503);
+      await expectLater(api.serialDuplicate('x'), throwsA(isA<AssetFailure>()));
+      expect(calls.length, before + 2);
+    });
+    test('sign-out rejects late serial result without retry', () async {
+      await login();
+      final entered = Completer<void>();
+      final release = Completer<void>();
+      handler = (request) async {
+        entered.complete();
+        await release.future;
+        json(request, {'duplicate': true});
+      };
+      final pending = api.serialDuplicate('x');
+      final assertion = expectLater(pending, throwsA(isA<AssetFailure>()));
+      await entered.future;
+      api.signOut();
+      release.complete();
+      await assertion;
+    });
+
+    for (final mode in ['regular', 'warranty', 'location']) {
+      test(
+        'sort is allowlisted and sent on $mode inventory transport',
+        () async {
+          await login();
+          Future<Object?> run(String sort) => mode == 'regular'
+              ? api.list(query: '', status: '', offset: 0, sort: sort)
+              : mode == 'warranty'
+              ? api.listWarranty(
+                  query: '',
+                  status: '',
+                  offset: 0,
+                  warranty: 'expired',
+                  asOf: '2026-10-29',
+                  sort: sort,
+                )
+              : api.listLocations(query: '', status: '', offset: 0, sort: sort);
+          final before = calls.length;
+          for (final invalid in ['', 'NAME_ASC', 'name_asc; DROP']) {
+            await expectLater(run(invalid), throwsA(isA<AssetFailure>()));
+          }
+          expect(calls.length, before);
+          var expectedSort = 'name_asc';
+          handler = (request) async {
+            expect(request.method, 'GET');
+            expect(request.uri.queryParameters['sort'], expectedSort);
+            json(request, {
+              'items': <Object?>[],
+              'nextOffset': null,
+              if (mode == 'warranty') ...{
+                'warranty': 'expired',
+                'asOf': '2026-10-29',
+                'through': '2026-11-28',
+              },
+            });
+          };
+          await run('name_asc');
+          expect(calls.length, before + 1);
+          expectedSort = 'checked_asc';
+          await run('checked_asc');
+          expect(calls.length, before + 2);
+        },
+      );
+    }
+
+    test(
+      'location overview requires auth and sends a single unfiltered GET',
+      () async {
+        await expectLater(api.locationOverview(), throwsA(isA<AssetFailure>()));
+        expect(calls, isEmpty);
+        await login();
+        final before = calls.length;
+        handler = (request) async {
+          expect(request.method, 'GET');
+          expect(request.uri.path, '/api/v1/assets/locations/overview');
+          expect(request.uri.query, isEmpty);
+          expect(
+            request.headers.value('authorization'),
+            'Bearer synthetic-token',
+          );
+          json(request, {
+            'complete': true,
+            'total': 2,
+            'unknown': 1,
+            'locations': [
+              {'location': 'Room %_1', 'count': 1},
+            ],
+          });
+        };
+        expect((await api.locationOverview()).total, 2);
+        expect(calls.length, before + 1);
+      },
+    );
+    test('location overview malformed response fails without retry', () async {
+      await login();
+      final before = calls.length;
+      handler = (request) async => json(request, {'complete': true});
+      await expectLater(api.locationOverview(), throwsA(isA<AssetFailure>()));
+      expect(calls.length, before + 1);
+    });
+    test('sign-out discards a late location overview without retry', () async {
+      await login();
+      final entered = Completer<void>(), release = Completer<void>();
+      handler = (request) async {
+        entered.complete();
+        await release.future;
+        json(request, {
+          'complete': true,
+          'total': 0,
+          'unknown': 0,
+          'locations': <Object?>[],
+        });
+      };
+      final before = calls.length;
+      final pending = api.locationOverview();
+      final assertion = expectLater(pending, throwsA(isA<AssetFailure>()));
+      await entered.future;
+      api.signOut();
+      release.complete();
+      await assertion;
+      expect(calls.length, before + 1);
+    });
+
+    test(
+      'location access requires auth and rejects unsafe input before send',
+      () async {
+        await expectLater(
+          api.readLocation('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'),
+          throwsA(isA<AssetFailure>()),
+        );
+        expect(calls, isEmpty);
+        await login();
+        final before = calls.length;
+        await expectLater(
+          api.readLocation('../other'),
+          throwsA(isA<AssetFailure>()),
+        );
+        await expectLater(
+          api.listLocations(
+            query: '',
+            status: '',
+            offset: 0,
+            locationMode: 'exact',
+          ),
+          throwsA(isA<AssetFailure>()),
+        );
+        await expectLater(
+          api.listLocations(
+            query: '',
+            status: '',
+            offset: 0,
+            locationMode: 'all',
+            location: 'A',
+          ),
+          throwsA(isA<AssetFailure>()),
+        );
+        await expectLater(
+          api.updateLocation(
+            const AssetLocation(
+              id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+              version: 1,
+              location: null,
+            ),
+            ' ',
+          ),
+          throwsA(isA<AssetFailure>()),
+        );
+        expect(calls.length, before);
+      },
+    );
+    test(
+      'location read and explicit replacement retain identity/version and CSRF',
+      () async {
+        await login();
+        const id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+        handler = (request) async {
+          expect(request.uri.path, '/api/v1/assets/$id/location');
+          expect(
+            request.headers.value('authorization'),
+            'Bearer synthetic-token',
+          );
+          if (request.method == 'PUT') {
+            expect(request.headers.value('x-csrf-token'), 'synthetic-csrf');
+            expect(await body(request), {'version': 1, 'location': 'Room A'});
+            json(request, {'id': id, 'version': 2, 'location': 'Room A'});
+          } else {
+            json(request, {'id': id, 'version': 1, 'location': null});
+          }
+        };
+        final original = await api.readLocation(id);
+        expect((await api.updateLocation(original, ' Room A ')).version, 2);
+      },
+    );
+    test(
+      'location filtering encodes literal labels and reads location-aware rows',
+      () async {
+        await login();
+        handler = (request) async {
+          expect(request.uri.path, '/api/v1/assets/locations/inventory');
+          expect(request.uri.queryParameters, {
+            'q': '%_',
+            'status': 'stored',
+            'category': 'device',
+            'offset': '0',
+            'locationMode': 'exact',
+            'location': "Room %_&'",
+          });
+          json(request, {
+            'items': [
+              {...record(), 'location': "Room %_&'"},
+            ],
+            'nextOffset': null,
+          });
+        };
+        final result = await api.listLocations(
+          query: ' %_ ',
+          status: 'stored',
+          category: 'device',
+          offset: 0,
+          locationMode: 'exact',
+          location: "Room %_&'",
+        );
+        expect(result.items.single.location, "Room %_&'");
+      },
+    );
+    test('location transport preserves combined warranty reference and rejects mismatched echoes', () async {
+      await login();
+      var wrongReference = false;
+      handler = (request) async {
+        expect(request.uri.path, '/api/v1/assets/locations/inventory');
+        expect(request.uri.queryParameters['location'], '%_Room');
+        expect(request.uri.queryParameters['warranty'], 'expiring_soon');
+        expect(request.uri.queryParameters['asOf'], '2026-10-26');
+        json(
+          request,
+          warrantyFixture(
+            day: wrongReference ? '2026-10-27' : '2026-10-26',
+            items: [
+              {
+                ...record(),
+                'location': '%_Room',
+                'purchasedOn': null,
+                'warrantyExpiresOn': '2026-10-28',
+              },
+            ],
+          ),
+        );
+      };
+      final result = await api.listLocations(
+        query: '',
+        status: '',
+        offset: 0,
+        locationMode: 'exact',
+        location: '%_Room',
+        warranty: 'expiring_soon',
+        asOf: '2026-10-26',
+      );
+      expect(result.warrantyPage?.asOf, '2026-10-26');
+      expect(result.items.single.location, '%_Room');
+      wrongReference = true;
+      await expectLater(
+        api.listLocations(
+          query: '',
+          status: '',
+          offset: 0,
+          locationMode: 'exact',
+          location: '%_Room',
+          warranty: 'expiring_soon',
+          asOf: '2026-10-26',
+        ),
+        throwsA(isA<AssetFailure>()),
+      );
+      final before = calls.length;
+      await expectLater(
+        api.listLocations(
+          query: '',
+          status: '',
+          offset: 50,
+          locationMode: 'exact',
+          location: '%_Room',
+          warranty: 'expiring_soon',
+        ),
+        throwsA(isA<AssetFailure>()),
+      );
+      expect(calls.length, before);
+    });
+    test(
+      'location response mismatch fails and write is never retried',
+      () async {
+        await login();
+        final before = calls.length;
+        handler = (request) async {
+          json(request, {
+            'id': 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+            'version': 1,
+            'location': 'Wrong',
+          });
+        };
+        await expectLater(
+          api.updateLocation(
+            const AssetLocation(
+              id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+              version: 1,
+              location: null,
+            ),
+            'A',
+          ),
+          throwsA(isA<AssetFailure>()),
+        );
+        expect(calls.length, before + 1);
+      },
+    );
+    test(
+      'warranty overview requires auth and sends only optional reference',
+      () async {
+        await expectLater(api.warrantyOverview(), throwsA(isA<AssetFailure>()));
+        expect(calls, isEmpty);
+        await login();
+        handler = (request) async {
+          expect(request.method, 'GET');
+          expect(request.uri.path, '/api/v1/assets/warranty/overview');
+          expect(
+            request.headers.value('authorization'),
+            'Bearer synthetic-token',
+          );
+          expect(request.uri.queryParameters, {'asOf': '2026-10-27'});
+          json(request, warrantyOverviewFixture());
+        };
+        expect((await api.warrantyOverview(asOf: '2026-10-27')).total, 57);
+        handler = (request) async {
+          expect(request.uri.hasQuery, false);
+          json(request, warrantyOverviewFixture());
+        };
+        expect((await api.warrantyOverview()).unknown, 1);
+      },
+    );
+    test(
+      'check overview authenticates and sends only the strict cutoff',
+      () async {
+        await expectLater(
+          api.checkOverview(cutoff: '2024-02-29'),
+          throwsA(isA<AssetFailure>()),
+        );
+        expect(calls, isEmpty);
+        await login();
+        final before = calls.length;
+        for (final day in ['', '2023-02-29', ' 2024-02-29']) {
+          await expectLater(
+            api.checkOverview(cutoff: day),
+            throwsA(
+              isA<AssetFailure>().having(
+                (e) => e.definitelyNotSent,
+                'not sent',
+                true,
+              ),
+            ),
+          );
+        }
+        expect(calls.length, before);
+        handler = (request) async {
+          expect(request.method, 'GET');
+          expect(request.uri.path, '/api/v1/assets/check-overview/counts');
+          expect(request.uri.queryParameters, {'cutoff': '2024-02-29'});
+          expect(
+            request.headers.value('authorization'),
+            'Bearer synthetic-token',
+          );
+          json(request, {
+            'complete': true,
+            'cutoff': '2024-02-29',
+            'total': 1,
+            'unknown': 0,
+            'before': 1,
+            'onOrAfter': 0,
+          });
+        };
+        expect((await api.checkOverview(cutoff: '2024-02-29')).before, 1);
+        expect(calls.length, before + 1);
+      },
+    );
+    test(
+      'check overview refuses malformed and failed results without retry',
+      () async {
+        await login();
+        final before = calls.length;
+        handler = (request) async => json(request, {
+          'complete': true,
+          'cutoff': '2024-03-01',
+          'total': 0,
+          'unknown': 0,
+          'before': 0,
+          'onOrAfter': 0,
+        });
+        await expectLater(
+          api.checkOverview(cutoff: '2024-02-29'),
+          throwsA(isA<AssetFailure>()),
+        );
+        handler = (request) async =>
+            json(request, {'message': 'synthetic'}, status: 500);
+        await expectLater(
+          api.checkOverview(cutoff: '2024-02-29'),
+          throwsA(
+            isA<AssetFailure>().having((e) => e.statusCode, 'status', 500),
+          ),
+        );
+        expect(calls.length, before + 2);
+      },
+    );
+    test('check overview discards a late result after sign-out', () async {
+      await login();
+      final entered = Completer<void>(), release = Completer<void>();
+      handler = (request) async {
+        entered.complete();
+        await release.future;
+        json(request, {
+          'complete': true,
+          'cutoff': '2024-02-29',
+          'total': 0,
+          'unknown': 0,
+          'before': 0,
+          'onOrAfter': 0,
+        });
+      };
+      final pending = api.checkOverview(cutoff: '2024-02-29');
+      final assertion = expectLater(pending, throwsA(isA<AssetFailure>()));
+      await entered.future;
+      api.signOut();
+      release.complete();
+      await assertion;
+      expect(api.account, isNull);
+    });
+    test('invalid warranty overview reference never sends a request', () async {
+      await login();
+      final before = calls.length;
+      for (final day in [
+        '2026-02-29',
+        '2026-10-27\n',
+        '0000-01-01',
+        ' 2026-10-27',
+      ]) {
+        await expectLater(
+          api.warrantyOverview(asOf: day),
+          throwsA(
+            isA<AssetFailure>().having(
+              (e) => e.definitelyNotSent,
+              'not sent',
+              true,
+            ),
+          ),
+        );
+      }
+      expect(calls.length, before);
+    });
+    for (final status in [401, 404, 422, 500]) {
+      test('warranty overview $status never retries or falls back', () async {
+        await login();
+        final before = calls.length;
+        handler = (request) async =>
+            json(request, {'message': 'synthetic refusal'}, status: status);
+        await expectLater(
+          api.warrantyOverview(asOf: '2026-10-27'),
+          throwsA(
+            isA<AssetFailure>().having((e) => e.statusCode, 'status', status),
+          ),
+        );
+        expect(calls.length, before + 1);
+        expect(calls.last, 'GET /api/v1/assets/warranty/overview');
+      });
+    }
+    test(
+      'warranty overview rejects malformed counts and calendar echo',
+      () async {
+        await login();
+        for (final change in <Map<String, Object?>>[
+          {'total': 0},
+          {'complete': false},
+          {'asOf': '2026-10-26'},
+        ]) {
+          handler = (request) async =>
+              json(request, {...warrantyOverviewFixture(), ...change});
+          await expectLater(
+            api.warrantyOverview(asOf: '2026-10-27'),
+            throwsA(
+              isA<AssetFailure>().having(
+                (e) => e.message,
+                'message',
+                'Invalid warranty overview response',
+              ),
+            ),
+          );
+        }
+      },
+    );
+    test('sign-out discards late warranty overview without retry', () async {
+      await login();
+      final entered = Completer<void>(), release = Completer<void>();
+      handler = (request) async {
+        entered.complete();
+        await release.future;
+        json(request, warrantyOverviewFixture());
+      };
+      final pending = api.warrantyOverview();
+      final assertion = expectLater(pending, throwsA(isA<AssetFailure>()));
+      await entered.future;
+      api.signOut();
+      release.complete();
+      await assertion;
+      expect(api.account, isNull);
+    });
+    test('warranty uses a separate authenticated exact path and encoded literal filters', () async {
+      await login();
+      handler = (request) async {
+        expect(request.method, 'GET');
+        expect(request.uri.path, '/api/v1/assets/warranty');
+        expect(
+          request.headers.value('authorization'),
+          'Bearer synthetic-token',
+        );
+        expect(request.uri.queryParameters, {
+          'q': '%_ &?#',
+          'status': 'stored',
+          'category': 'Network / Home',
+          'warranty': 'expiring_soon',
+          'asOf': '2026-10-26',
+          'offset': '0',
+        });
+        json(request, warrantyFixture());
+      };
+      final result = await api.listWarranty(
+        query: ' %_ &?# ',
+        status: 'stored',
+        category: ' Network / Home ',
+        warranty: 'expiring_soon',
+        asOf: '2026-10-26',
+        offset: 0,
+      );
+      expect(result.asOf, '2026-10-26');
+      expect(result.items, hasLength(1));
+    });
+    test(
+      'invalid warranty input never sends HTTP or falls back to the old list',
+      () async {
+        await login();
+        final before = calls.length;
+        for (final args in <Map<String, Object>>[
+          {'warranty': 'all'},
+          {'asOf': '2026-02-29'},
+          {'asOf': '2026-10-26\n'},
+          {'offset': 50},
+          {'offset': -1},
+          {'offset': 100001},
+          {'query': 'x' * 121},
+          {'category': 'x' * 65},
+          {'status': 'active'},
+          {'query': 'bad\u0000text'},
+        ]) {
+          await expectLater(
+            api.listWarranty(
+              query: args['query'] as String? ?? '',
+              status: args['status'] as String? ?? '',
+              category: args['category'] as String? ?? '',
+              warranty: args['warranty'] as String? ?? 'expired',
+              asOf: args['asOf'] as String? ?? '',
+              offset: args['offset'] as int? ?? 0,
+            ),
+            throwsA(
+              isA<AssetFailure>().having(
+                (e) => e.definitelyNotSent,
+                'not sent',
+                true,
+              ),
+            ),
+          );
+        }
+        expect(calls.length, before);
+      },
+    );
+    test('anonymous warranty list never makes a request', () async {
+      await expectLater(
+        api.listWarranty(query: '', status: '', warranty: 'expired', offset: 0),
+        throwsA(isA<AssetFailure>().having((e) => e.statusCode, 'status', 401)),
+      );
+      expect(calls, isEmpty);
+    });
+    for (final status in [401, 404, 422, 500]) {
+      test(
+        'warranty failure $status is not retried or replaced with legacy data',
+        () async {
+          await login();
+          final before = calls.length;
+          handler = (request) async =>
+              json(request, {'message': 'synthetic refusal'}, status: status);
+          await expectLater(
+            api.listWarranty(
+              query: '',
+              status: '',
+              warranty: 'expired',
+              offset: 0,
+            ),
+            throwsA(
+              isA<AssetFailure>().having((e) => e.statusCode, 'status', status),
+            ),
+          );
+          expect(calls.length, before + 1);
+          expect(calls.last, 'GET /api/v1/assets/warranty');
+        },
+      );
+    }
+    test(
+      'warranty default date is omitted and malformed server output is refused',
+      () async {
+        await login();
+        handler = (request) async {
+          expect(request.uri.queryParameters.containsKey('asOf'), false);
+          json(request, {...warrantyFixture(), 'through': '2026-11-24'});
+        };
+        await expectLater(
+          api.listWarranty(
+            query: '',
+            status: '',
+            warranty: 'expiring_soon',
+            offset: 0,
+          ),
+          throwsA(
+            isA<AssetFailure>().having(
+              (e) => e.message,
+              'message',
+              'Invalid warranty inventory response',
+            ),
+          ),
+        );
+      },
+    );
+
+    const datesId = '11111111-1111-4111-8111-111111111111';
+    Map<String, Object?> datesRow({int version = 1}) => {
+      'id': datesId,
+      'version': version,
+      'purchasedOn': null,
+      'warrantyExpiresOn': '2030-01-01',
+    };
+    test(
+      'dates use separate paths, explicit null and shared version only',
+      () async {
+        await login();
+        handler = (request) async {
+          expect(request.uri.path, '/api/v1/assets/$datesId/dates');
+          expect(request.uri.hasQuery, isFalse);
+          if (request.method == 'PUT') {
+            expect(await body(request), {
+              'version': 1,
+              'purchasedOn': null,
+              'warrantyExpiresOn': null,
+            });
+            json(request, {...datesRow(version: 2), 'warrantyExpiresOn': null});
+          } else {
+            json(request, datesRow());
+          }
+        };
+        final original = await api.readDates(datesId);
+        final saved = await api.updateDates(
+          original,
+          const AssetDatesInput(purchasedOn: null, warrantyExpiresOn: null),
+        );
+        expect(saved.version, 2);
+        expect(saved.input.warrantyExpiresOn, isNull);
+      },
+    );
+    test('invalid dates or identity never send a request', () async {
+      await login();
+      final before = calls.length;
+      await expectLater(
+        api.readDates('../other'),
+        throwsA(
+          isA<AssetFailure>().having(
+            (e) => e.definitelyNotSent,
+            'not sent',
+            isTrue,
+          ),
+        ),
+      );
+      await expectLater(
+        api.updateDates(
+          AssetDates.fromJson(datesRow()),
+          const AssetDatesInput(
+            purchasedOn: '1900-02-29',
+            warrantyExpiresOn: null,
+          ),
+        ),
+        throwsA(
+          isA<AssetFailure>().having(
+            (e) => e.definitelyNotSent,
+            'not sent',
+            isTrue,
+          ),
+        ),
+      );
+      expect(calls.length, before);
+    });
+    test('dates conflict is returned once without retry', () async {
+      await login();
+      handler = (request) async => json(request, {}, status: 409);
+      final before = calls.length;
+      await expectLater(
+        api.updateDates(
+          AssetDates.fromJson(datesRow()),
+          const AssetDatesInput(purchasedOn: null, warrantyExpiresOn: null),
+        ),
+        throwsA(isA<AssetFailure>().having((e) => e.statusCode, 'status', 409)),
+      );
+      expect(calls.length, before + 1);
+    });
+    test(
+      'dates reject foreign identity and unconfirmed mutation response',
+      () async {
+        await login();
+        handler = (request) async => json(request, {
+          ...datesRow(),
+          'id': '22222222-2222-4222-8222-222222222222',
+        });
+        await expectLater(api.readDates(datesId), throwsA(isA<AssetFailure>()));
+        handler = (request) async => json(request, datesRow(version: 2));
+        await expectLater(
+          api.updateDates(
+            AssetDates.fromJson(datesRow()),
+            const AssetDatesInput(purchasedOn: null, warrantyExpiresOn: null),
+          ),
+          throwsA(isA<AssetFailure>()),
+        );
+      },
+    );
+
+    test('overview limit failure is not zero and is not retried', () async {
+      await login();
+      handler = (request) async =>
+          json(request, {'message': 'limit'}, status: 422);
+      final before = calls.length;
+      await expectLater(
+        api.overview(),
+        throwsA(
+          isA<AssetFailure>()
+              .having((failure) => failure.statusCode, 'statusCode', 422)
+              .having(
+                (failure) => failure.message,
+                'message',
+                contains('200 categories'),
+              ),
+        ),
+      );
+      expect(calls.length - before, 1);
+    });
+    test('sign-out discards a late overview response', () async {
+      await login();
+      final entered = Completer<void>(), release = Completer<void>();
+      handler = (request) async {
+        entered.complete();
+        await release.future;
+        json(request, summary());
+      };
+      final pending = api.overview();
+      final assertion = expectLater(pending, throwsA(isA<AssetFailure>()));
+      await entered.future;
+      api.signOut();
+      release.complete();
+      await assertion;
+      expect(api.account, isNull);
+    });
+    test('overview requires auth and fetches unfiltered counts', () async {
+      await expectLater(api.overview(), throwsA(isA<AssetFailure>()));
+      expect(calls, isEmpty);
+      await login();
+      handler = (request) async {
+        expect(request.method, 'GET');
+        expect(request.uri.path, '/api/v1/assets/overview');
+        expect(request.uri.hasQuery, isFalse);
+        expect(
+          request.headers.value('authorization'),
+          'Bearer synthetic-token',
+        );
+        json(request, summary());
+      };
+      expect((await api.overview()).total, 53);
+    });
+    test(
+      'overview rejects malformed counts rather than showing zero',
+      () async {
+        await login();
+        handler = (request) async => json(request, {...summary(), 'total': 0});
+        await expectLater(api.overview(), throwsA(isA<AssetFailure>()));
+      },
+    );
     test(
       'login, cookie/header timestamp and literal query are preserved',
       () async {
@@ -154,6 +1499,108 @@ void main() {
       },
     );
     test(
+      'category is trimmed and encoded literally with other filters',
+      () async {
+        await login();
+        handler = (request) async {
+          expect(request.uri.queryParameters, {
+            'q': 'router',
+            'status': 'stored',
+            'category': '%_ &?#',
+            'offset': '50',
+          });
+          json(request, {'items': <Object?>[], 'nextOffset': null});
+        };
+        await api.list(
+          query: 'router',
+          status: 'stored',
+          category: '  %_ &?#  ',
+          offset: 50,
+        );
+        final before = calls.length;
+        for (final value in ['x' * 65, 'bad\u0000category']) {
+          await expectLater(
+            api.list(query: '', status: '', category: value, offset: 0),
+            throwsA(isA<AssetFailure>()),
+          );
+        }
+        expect(calls.length, before);
+      },
+    );
+    for (final mode in ['warranty', 'locations']) {
+      test(
+        '$mode Unicode category boundary preserves transport scope',
+        () async {
+          await login();
+          final category = String.fromCharCode(0x1f527) * 64;
+          handler = (request) async {
+            expect(request.uri.queryParameters['category'], category);
+            expect(
+              request.uri.path,
+              mode == 'warranty'
+                  ? '/api/v1/assets/warranty'
+                  : '/api/v1/assets/locations/inventory',
+            );
+            json(
+              request,
+              mode == 'warranty'
+                  ? warrantyFixture()
+                  : {'items': <Object?>[], 'nextOffset': null},
+            );
+          };
+          Future<void> load(String value) async {
+            if (mode == 'warranty') {
+              await api.listWarranty(
+                query: '',
+                status: '',
+                category: value,
+                warranty: 'expiring_soon',
+                asOf: '2026-10-26',
+                offset: 0,
+              );
+            } else {
+              await api.listLocations(
+                query: '',
+                status: '',
+                category: value,
+                offset: 0,
+              );
+            }
+          }
+
+          final before = calls.length;
+          await load(category);
+          expect(calls.length, before + 1);
+          await expectLater(
+            load(category + 'x'),
+            throwsA(
+              isA<AssetFailure>().having(
+                (error) => error.definitelyNotSent,
+                'not sent',
+                true,
+              ),
+            ),
+          );
+          expect(calls.length, before + 1);
+        },
+      );
+    }
+    test('category filter accepts 64 Unicode code points and rejects 65 before transport', () async {
+      await login();
+      final category = String.fromCharCode(0x1f527) * 64;
+      handler = (request) async {
+        expect(request.uri.queryParameters['category'], category);
+        json(request, {'items': <Object?>[], 'nextOffset': null});
+      };
+      await api.list(query: '', status: '', category: category, offset: 0);
+      final before = calls.length;
+      await expectLater(
+        api.list(query: '', status: '', category: category + 'x', offset: 0),
+        throwsA(isA<AssetFailure>()),
+      );
+      expect(calls.length, before);
+    });
+    test(
       'register sends only public fields and accepts valid identity',
       () async {
         await api.register(
@@ -166,6 +1613,421 @@ void main() {
         expect(calls.last, 'POST /api/v1/auth/register');
       },
     );
+    test(
+      'v2 export uses authenticated dedicated endpoint, not list filters',
+      () async {
+        await login();
+        handler = (request) async {
+          expect(request.method, 'GET');
+          expect(request.uri.path, '/api/v1/assets/export/v2');
+          expect(request.uri.hasQuery, isFalse);
+          expect(
+            request.headers.value('authorization'),
+            'Bearer synthetic-token',
+          );
+          json(request, exportV2Fixture());
+        };
+        final before = calls.length;
+        final snapshot = await api.exportInventoryV2(
+          digest: (_) async => 'a' * 64,
+        );
+        expect(snapshot.count, 1);
+        expect(snapshot.records.single.dates.purchasedOn, '2024-02-29');
+        expect(calls.length, before + 1);
+      },
+    );
+    test('anonymous v2 export never requests data or digest', () async {
+      await expectLater(
+        api.exportInventoryV2(
+          digest: (_) async => throw StateError('must not run'),
+        ),
+        throwsA(isA<AssetFailure>()),
+      );
+      expect(calls, isEmpty);
+    });
+    test('sign-out during v2 digest rejects late private data', () async {
+      await login();
+      handler = (request) async => json(request, exportV2Fixture());
+      final entered = Completer<void>();
+      final release = Completer<String>();
+      final result = api.exportInventoryV2(
+        digest: (_) {
+          entered.complete();
+          return release.future;
+        },
+      );
+      final assertion = expectLater(result, throwsA(isA<AssetFailure>()));
+      await entered.future;
+      api.signOut();
+      release.complete('a' * 64);
+      await assertion;
+      expect(api.account, isNull);
+    });
+    for (final status in [401, 404, 422, 500]) {
+      test('v2 failure $status never retries or falls back to v1', () async {
+        await login();
+        handler = (request) async => json(request, {}, status: status);
+        final before = calls.length;
+        await expectLater(
+          api.exportInventoryV2(
+            digest: (_) async => throw StateError('must not run'),
+          ),
+          throwsA(
+            isA<AssetFailure>().having((e) => e.statusCode, 'status', status),
+          ),
+        );
+        expect(calls.length, before + 1);
+        expect(api.account == null, status == 401);
+      });
+    }
+    test(
+      'v2 malformed response and checksum become safe client failure',
+      () async {
+        await login();
+        handler = (request) async => json(request, exportV2Fixture());
+        final before = calls.length;
+        await expectLater(
+          api.exportInventoryV2(digest: (_) async => 'b' * 64),
+          throwsA(isA<AssetFailure>()),
+        );
+        handler = (request) async => json(request, {});
+        await expectLater(
+          api.exportInventoryV2(
+            digest: (_) async => throw StateError('must not run'),
+          ),
+          throwsA(isA<AssetFailure>()),
+        );
+        expect(calls.length, before + 2);
+      },
+    );
+
+    test(
+      'v3 export uses authenticated dedicated endpoint, not list filters',
+      () async {
+        await login();
+        handler = (request) async {
+          expect(request.method, 'GET');
+          expect(request.uri.path, '/api/v1/assets/export/v3');
+          expect(request.uri.hasQuery, isFalse);
+          expect(
+            request.headers.value('authorization'),
+            'Bearer synthetic-token',
+          );
+          json(request, exportV3Fixture());
+        };
+        final before = calls.length;
+        final snapshot = await api.exportInventoryV3(
+          digest: (_) async => 'a' * 64,
+        );
+        expect(snapshot.count, 1);
+        expect(snapshot.records.single.dates.purchasedOn, '2024-02-29');
+        expect(calls.length, before + 1);
+      },
+    );
+    test(
+      'v4 export uses authenticated dedicated endpoint, not list filters',
+      () async {
+        await login();
+        handler = (request) async {
+          expect(request.method, 'GET');
+          expect(request.uri.path, '/api/v1/assets/export/v4');
+          expect(request.uri.hasQuery, isFalse);
+          expect(
+            request.headers.value('authorization'),
+            'Bearer synthetic-token',
+          );
+          json(request, exportV4Fixture());
+        };
+        final before = calls.length;
+        final snapshot = await api.exportInventoryV4(
+          digest: (_) async => 'a' * 64,
+        );
+        expect(snapshot.count, 1);
+        expect(snapshot.records.single.dates.purchasedOn, '2024-02-29');
+        expect(calls.length, before + 1);
+      },
+    );
+    test('selection export sends literal applied scope and rejects mismatched response', () async {
+      await api.login('synthetic@example.test', ' synthetic-pass ');
+      final value = selectionFixture();
+      final payload =
+          jsonDecode(value['payload']! as String) as Map<String, Object?>;
+      final scope = AssetSelectionScope.fromJson(
+        payload['filters']! as Map<String, Object?>,
+      );
+      handler = (request) async {
+        expect(request.uri.path, '/api/v1/assets/export/selection');
+        expect(request.uri.queryParameters, scope.toQuery());
+        expect(request.uri.queryParameters['q'], '%_');
+        json(request, value);
+      };
+      expect(
+        (await api.exportSelection(
+          scope: scope,
+          digest: (_) async => 'a' * 64,
+        )).count,
+        1,
+      );
+      final changed = AssetSelectionScope.fromJson({
+        ...scope.filters,
+        'status': 'repair',
+      });
+      handler = (request) async {
+        json(request, value);
+      };
+      await expectLater(
+        api.exportSelection(scope: changed, digest: (_) async => 'a' * 64),
+        throwsA(isA<AssetFailure>()),
+      );
+    });
+    test('selection v2 export sends literal applied scope and rejects mismatched response', () async {
+      await api.login('synthetic@example.test', ' synthetic-pass ');
+      final value = selectionV2Fixture();
+      final payload =
+          jsonDecode(value['payload']! as String) as Map<String, Object?>;
+      final scope = AssetSelectionScopeV2.fromJson(
+        payload['filters']! as Map<String, Object?>,
+      );
+      handler = (request) async {
+        expect(request.uri.path, '/api/v1/assets/export/selection-v2');
+        expect(request.uri.queryParameters, scope.toQuery());
+        expect(request.uri.queryParameters['q'], '%_');
+        json(request, value);
+      };
+      expect(
+        (await api.exportSelectionV2(
+          scope: scope,
+          digest: (_) async => 'a' * 64,
+        )).count,
+        1,
+      );
+      final changed = AssetSelectionScopeV2.fromJson({
+        ...scope.base.filters,
+        'check': scope.check,
+        'status': 'repair',
+      });
+      handler = (request) async {
+        json(request, value);
+      };
+      await expectLater(
+        api.exportSelectionV2(scope: changed, digest: (_) async => 'a' * 64),
+        throwsA(isA<AssetFailure>()),
+      );
+    });
+
+    test('selection v2 rejects sign-out during digest', () async {
+      await login();
+      final value = selectionV2Fixture();
+      final body =
+          jsonDecode(value['payload']! as String) as Map<String, Object?>;
+      final scope = AssetSelectionScopeV2.fromJson(
+        body['filters']! as Map<String, Object?>,
+      );
+      handler = (request) async => json(request, value);
+      final entered = Completer<void>();
+      final release = Completer<String>();
+      final result = api.exportSelectionV2(
+        scope: scope,
+        digest: (_) {
+          entered.complete();
+          return release.future;
+        },
+      );
+      final assertion = expectLater(result, throwsA(isA<AssetFailure>()));
+      await entered.future;
+      api.signOut();
+      release.complete('a' * 64);
+      await assertion;
+    });
+    test('anonymous v3 export never requests data or digest', () async {
+      await expectLater(
+        api.exportInventoryV3(
+          digest: (_) async => throw StateError('must not run'),
+        ),
+        throwsA(isA<AssetFailure>()),
+      );
+      expect(calls, isEmpty);
+    });
+    test('sign-out during v3 digest rejects late private data', () async {
+      await login();
+      handler = (request) async => json(request, exportV3Fixture());
+      final entered = Completer<void>();
+      final release = Completer<String>();
+      final result = api.exportInventoryV3(
+        digest: (_) {
+          entered.complete();
+          return release.future;
+        },
+      );
+      final assertion = expectLater(result, throwsA(isA<AssetFailure>()));
+      await entered.future;
+      api.signOut();
+      release.complete('a' * 64);
+      await assertion;
+      expect(api.account, isNull);
+    });
+    test('anonymous v4 export never requests data or digest', () async {
+      await expectLater(
+        api.exportInventoryV4(
+          digest: (_) async => throw StateError('must not run'),
+        ),
+        throwsA(isA<AssetFailure>()),
+      );
+      expect(calls, isEmpty);
+    });
+    test('sign-out during v4 digest rejects late private data', () async {
+      await login();
+      handler = (request) async => json(request, exportV4Fixture());
+      final entered = Completer<void>();
+      final release = Completer<String>();
+      final result = api.exportInventoryV4(
+        digest: (_) {
+          entered.complete();
+          return release.future;
+        },
+      );
+      final assertion = expectLater(result, throwsA(isA<AssetFailure>()));
+      await entered.future;
+      api.signOut();
+      release.complete('a' * 64);
+      await assertion;
+      expect(api.account, isNull);
+    });
+    for (final status in [401, 404, 422, 500]) {
+      test('v3 failure $status never retries or falls back to v1', () async {
+        await login();
+        handler = (request) async => json(request, {}, status: status);
+        final before = calls.length;
+        await expectLater(
+          api.exportInventoryV3(
+            digest: (_) async => throw StateError('must not run'),
+          ),
+          throwsA(
+            isA<AssetFailure>().having((e) => e.statusCode, 'status', status),
+          ),
+        );
+        expect(calls.length, before + 1);
+        expect(api.account == null, status == 401);
+      });
+    }
+    test(
+      'v3 malformed response and checksum become safe client failure',
+      () async {
+        await login();
+        handler = (request) async => json(request, exportV3Fixture());
+        final before = calls.length;
+        await expectLater(
+          api.exportInventoryV3(digest: (_) async => 'b' * 64),
+          throwsA(isA<AssetFailure>()),
+        );
+        handler = (request) async => json(request, {});
+        await expectLater(
+          api.exportInventoryV3(
+            digest: (_) async => throw StateError('must not run'),
+          ),
+          throwsA(isA<AssetFailure>()),
+        );
+        expect(calls.length, before + 2);
+      },
+    );
+
+    Map<String, Object?> exportFixture() => jsonDecode(
+      File('test/fixtures/inventory-export-v1.json').readAsStringSync(),
+    ) as Map<String, Object?>;
+
+    test(
+      'exports through dedicated authenticated endpoint without list filters',
+      () async {
+        await login();
+        final fixture = exportFixture();
+        handler = (request) async {
+          expect(request.method, 'GET');
+          expect(request.uri.path, '/api/v1/assets/export');
+          expect(request.uri.hasQuery, isFalse);
+          expect(
+            request.headers.value('authorization'),
+            'Bearer synthetic-token',
+          );
+          json(request, fixture);
+        };
+        final before = calls.length;
+        final result = await api.exportInventory(
+          digest: (_) async => fixture['sha256']! as String,
+        );
+        expect(result.count, 1);
+        expect(calls.length, before + 1);
+        expect(csrfCount, 1);
+      },
+    );
+
+    test('anonymous export never requests data or digest', () async {
+      await expectLater(
+        api.exportInventory(
+          digest: (_) async => throw StateError('must not run'),
+        ),
+        throwsA(isA<AssetFailure>()),
+      );
+      expect(calls, isEmpty);
+    });
+
+    test('sign-out during digest rejects late prepared export', () async {
+      await login();
+      final fixture = exportFixture();
+      handler = (request) async => json(request, fixture);
+      final entered = Completer<void>();
+      final release = Completer<String>();
+      final result = api.exportInventory(
+        digest: (_) {
+          entered.complete();
+          return release.future;
+        },
+      );
+      final assertion = expectLater(result, throwsA(isA<AssetFailure>()));
+      await entered.future;
+      api.signOut();
+      release.complete(fixture['sha256']! as String);
+      await assertion;
+      expect(api.account, isNull);
+    });
+
+    for (final status in [401, 422, 500]) {
+      test('export failure $status is explicit and is never retried', () async {
+        await login();
+        handler = (request) async => json(request, {}, status: status);
+        final before = calls.length;
+        await expectLater(
+          api.exportInventory(
+            digest: (_) async => throw StateError('must not run'),
+          ),
+          throwsA(
+            isA<AssetFailure>().having((e) => e.statusCode, 'status', status),
+          ),
+        );
+        expect(calls.length, before + 1);
+        expect(api.account == null, status == 401);
+      });
+    }
+
+    test(
+      'invalid export checksum returns a safe failure without retry',
+      () async {
+        await login();
+        handler = (request) async => json(request, exportFixture());
+        final before = calls.length;
+        await expectLater(
+          api.exportInventory(digest: (_) async => '0' * 64),
+          throwsA(
+            isA<AssetFailure>().having(
+              (e) => e.message,
+              'message',
+              contains('checksum'),
+            ),
+          ),
+        );
+        expect(calls.length, before + 1);
+      },
+    );
+
     test('anonymous and invalid inputs make no request', () async {
       await expectLater(
         api.list(query: '', status: '', offset: 0),
@@ -265,6 +2127,29 @@ void main() {
       };
       await login();
       expect(csrfCount, 2);
+    });
+    test('sign-out discards a late warranty response without retry', () async {
+      await login();
+      final entered = Completer<void>(), release = Completer<void>();
+      handler = (request) async {
+        entered.complete();
+        await release.future;
+        json(request, warrantyFixture());
+      };
+      final before = calls.length;
+      final pending = api.listWarranty(
+        query: '',
+        status: '',
+        warranty: 'expiring_soon',
+        offset: 0,
+      );
+      final assertion = expectLater(pending, throwsA(isA<AssetFailure>()));
+      await entered.future;
+      api.signOut();
+      release.complete();
+      await assertion;
+      expect(api.account, isNull);
+      expect(calls.length, before + 1);
     });
     test('sign-out discards a late inventory response', () async {
       await login();

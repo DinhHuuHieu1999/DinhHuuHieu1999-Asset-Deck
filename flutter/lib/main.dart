@@ -22,7 +22,48 @@ void main() {
           kDebugMode &&
           const bool.fromEnvironment('ASSET_DESK_ALLOW_LOCAL_HTTP'),
     );
-    runApp(AssetDeskApp(session: api));
+    runApp(
+      AssetDeskApp(
+        session: api,
+        enableSavedFilters: const bool.fromEnvironment(
+          'ASSET_DESK_ENABLE_SAVED_FILTERS',
+        ),
+        enableSelectionExportV2: const bool.fromEnvironment(
+          'ASSET_DESK_ENABLE_SELECTION_EXPORT_V2',
+        ),
+        enableSelectionExport: const bool.fromEnvironment(
+          'ASSET_DESK_ENABLE_SELECTION_EXPORT',
+        ),
+        enableInventoryExportV4: const bool.fromEnvironment(
+          'ASSET_DESK_ENABLE_EXPORT_V4',
+        ),
+        enableInventoryExportV3: const bool.fromEnvironment(
+          'ASSET_DESK_ENABLE_EXPORT_V3',
+        ),
+        enableAssetCheck: const bool.fromEnvironment(
+          'ASSET_DESK_ENABLE_ASSET_CHECK',
+        ),
+        enableAssetLocation: const bool.fromEnvironment(
+          'ASSET_DESK_ENABLE_ASSET_LOCATION',
+        ),
+        enableAssetDates: const bool.fromEnvironment(
+          'ASSET_DESK_ENABLE_ASSET_DATES',
+        ),
+        importApiBase: api.baseUrl.toString(),
+        enableInventoryImportV4: const bool.fromEnvironment(
+          'ASSET_DESK_ENABLE_IMPORT_V4',
+        ),
+        enableInventoryImportV3: const bool.fromEnvironment(
+          'ASSET_DESK_ENABLE_IMPORT_V3',
+        ),
+        enableInventoryImportV2: const bool.fromEnvironment(
+          'ASSET_DESK_ENABLE_IMPORT_V2',
+        ),
+        enableInventoryImport: const bool.fromEnvironment(
+          'ASSET_DESK_ENABLE_IMPORT',
+        ),
+      ),
+    );
   } on ArgumentError {
     runApp(
       const _ConfigurationMessage(

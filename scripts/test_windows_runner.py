@@ -12,7 +12,8 @@ class RunnerTests(unittest.TestCase):
         manifest = json.loads((ROOT / 'docs/windows-runner-provenance.json').read_text(encoding='utf-8'))
         self.assertEqual(manifest['sdkVersion'], '3.47.4')
         self.assertEqual(len(manifest['files']), 15)
-        for item in manifest['files'] + manifest['pluginMetadata']['files']:
+        for item in (manifest['files'] + manifest['pluginMetadata']['files']
+                     + manifest.get('inventoryExport', {}).get('files', [])):
             path = ROOT / item['destination']
             self.assertTrue(path.is_file(), item['destination'])
             data = path.read_bytes()
